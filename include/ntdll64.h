@@ -24,8 +24,11 @@ private:
     bool     m_isOk;
 
     uint64_t getLdrGetProcedureAddress();
-public:
+
     Wow64Helper();
+
+    friend const Wow64Helper& GetWow64Helper();
+public:
     bool IsOK() const noexcept { return m_isOk; }
 
     uint64_t GetModuleHandle64(const wchar_t* lpModuleName) const noexcept;
@@ -45,5 +48,4 @@ public:
 };
 
 const Wow64Helper& GetWow64Helper();
-
 
