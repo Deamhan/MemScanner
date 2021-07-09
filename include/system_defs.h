@@ -282,6 +282,13 @@ namespace SystemDefinitions
         SYSTEM_THREAD_T<T> Threads[1];
     };
 
+    enum class MemType : uint32_t
+    {
+        Private = 0x00020000,
+        Mapped = 0x00040000,
+        Image = 0x01000000
+    };
+
     template <class T>
     struct alignas(16) MEMORY_BASIC_INFORMATION_T
     {
@@ -297,7 +304,7 @@ namespace SystemDefinitions
         uint32_t Protect;
         union
         {
-            uint32_t Type;
+            MemType Type;
             T dummy2;
         };
     };
