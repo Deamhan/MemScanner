@@ -13,3 +13,7 @@ set(SRC source/main.cpp
 add_executable(wow64demo ${SRC})
 
 target_link_libraries(wow64demo ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
+set(DEMO_LINKER_FLAGS "/level='highestAvailable' /uiAccess='false'")
+set_target_properties(wow64demo PROPERTIES LINK_FLAGS "${DEMO_LINKER_FLAGS}")
+
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT wow64demo)
