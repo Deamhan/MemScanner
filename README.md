@@ -1,6 +1,5 @@
-# About Wow64Helper
-This small project is mostly demo of “Heaven’s Gate”: it is used here mostly to process 64 bit pointers from 32 bit application. 
-In addition the simple memory scaning/dumping tool was added as example (some kinds of injection can be detected).
+# About MemScanner
+This small project is a toolkit for detecting memory anomalies (such as injections). The main feature here is ability to process long 64 bit pointers even from 32 bit application (“Heaven’s Gate” trick is used here). Toolkit supports both X86 and X64 operating systems as well as both bitnesses for resulting binaries.
 
 # How to build
 To build the project you need to install [CMake](https://cmake.org/download/), [Visual Studio 2015 or newer](https://visualstudio.microsoft.com/ru/downloads/) 
