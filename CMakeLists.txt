@@ -22,12 +22,19 @@ set(TEST1_SRC source/test1.cpp
 add_executable(memscan ${SCANNER_SRC})
 add_executable(test1 ${TEST1_SRC})
 
-target_link_libraries(memscan ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
+set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
+
+
 set(MEMSCAN_LINKER_FLAGS "/level='highestAvailable' /uiAccess='false'")
 set_target_properties(memscan PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
-
-target_link_libraries(test1 ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 set_target_properties(test1 PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
+
+if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+    add_definitions(-D_X64_=1)
+else()
+    target_link_libraries(test1 ${NTDLL64LL})
+    target_link_libraries(memscan ${NTDLL64LL})
+endif()
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT memscan)
 

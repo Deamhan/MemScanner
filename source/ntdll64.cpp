@@ -4,10 +4,15 @@
 
 using namespace SystemDefinitions;
 
+#if _X64_
+#   define GetProcAddress64 GetProcAddress
+#   define GetModuleHandle64 GetModuleHandleW
+#else
 extern "C" NT_STATUS X64Function(uint64_t Func, uint32_t Argc, uint64_t Arg0, uint64_t Arg1, uint64_t Arg2, uint64_t Arg3, ...);
 extern "C" void MemCpy(void* pDest, uint64_t pSource, uint32_t size);
 extern "C" int  MemCmp(const void* pDest, uint64_t pSource, uint32_t size);
-extern "C" void GetTEB64(uint64_t* pTeb64);
+extern "C" void GetTEB64(uint64_t * pTeb64);
+#endif
 
 #define SURE(f) if ((f) == 0) return
 
@@ -20,7 +25,9 @@ const Wow64Helper& GetWow64Helper()
 Wow64Helper::Wow64Helper() : m_isOk(false)
 {
     SURE(m_Ntdll64 = GetModuleHandle64(L"ntdll.dll"));
+#if !_X64_
     SURE(m_LdrGetProcedureAddress = getLdrGetProcedureAddress());
+#endif // !_X64_
     SURE(m_NtQueryVirtualMemory = GetProcAddress64(m_Ntdll64, "NtQueryVirtualMemory"));
     SURE(m_NtAllocateVirtualMemory = GetProcAddress64(m_Ntdll64, "NtAllocateVirtualMemory"));
     SURE(m_NtFreeVirtualMemory = GetProcAddress64(m_Ntdll64, "NtFreeVirtualMemory"));
@@ -35,6 +42,7 @@ Wow64Helper::Wow64Helper() : m_isOk(false)
     m_isOk = true;
 }
 
+#if !_X64_
 uint64_t Wow64Helper::GetModuleHandle64(const wchar_t* lpModuleName) const noexcept
 {
     TEB64 teb64;
@@ -111,68 +119,150 @@ uint64_t Wow64Helper::GetProcAddress64(uint64_t hModule, const char* funcName) c
     X64Function(m_LdrGetProcedureAddress, 4, (uint64_t)hModule, (uint64_t)&fName, (uint64_t)0, (uint64_t)&funcRet);
     return funcRet;
 }
+#else
+typedef NT_STATUS (__stdcall * NtQueryVirtualMemory_t)(
+    HANDLE                   ProcessHandle,
+    PVOID                    BaseAddress,
+    MEMORY_INFORMATION_CLASS MemoryInformationClass,
+    PVOID                    MemoryInformation,
+    SIZE_T                   MemoryInformationLength,
+    PSIZE_T                  ReturnLength
+);
+
+typedef NT_STATUS (__stdcall* NtQueryInformationProcess_t)(
+    HANDLE           ProcessHandle,
+    PROCESSINFOCLASS ProcessInformationClass,
+    PVOID            ProcessInformation,
+    ULONG            ProcessInformationLength,
+    PULONG           ReturnLength
+);
+
+typedef NT_STATUS (__stdcall* NtQuerySystemInformation_t)(
+    SYSTEM_INFORMATION_CLASS SystemInformationClass,
+    PVOID                    SystemInformation,
+    ULONG                    SystemInformationLength,
+    PULONG                   ReturnLength
+);
+
+typedef NT_STATUS (__stdcall* NtAllocateVirtualMemory_t)(
+    HANDLE    ProcessHandle,
+    PVOID* BaseAddress,
+    ULONG_PTR ZeroBits,
+    PSIZE_T   RegionSize,
+    ULONG     AllocationType,
+    ULONG     Protect
+);
+
+typedef NT_STATUS (__stdcall* NtFreeVirtualMemory_t)(
+    HANDLE  ProcessHandle,
+    PVOID* BaseAddress,
+    PSIZE_T RegionSize,
+    ULONG   FreeType
+);
+
+typedef NT_STATUS (__stdcall* NtReadVirtualMemory_t)(
+    HANDLE ProcessHandle,
+    PVOID BaseAddress,
+    PVOID Buffer,
+    SIZE_T NumberOfBytesToRead,
+    PSIZE_T NumberOfBytesReaded);
+
+typedef NT_STATUS (__stdcall* NtWriteVirtualMemory_t)(
+    HANDLE ProcessHandle,
+    PVOID BaseAddress,
+    LPCVOID Buffer,
+    SIZE_T NumberOfBytesToWrite,
+    PSIZE_T NumberOfBytesWritten);
+
+typedef NT_STATUS (__stdcall* NtQueryInformationThread_t)(
+    HANDLE          ThreadHandle,
+    THREADINFOCLASS ThreadInformationClass,
+    PVOID           ThreadInformation,
+    ULONG           ThreadInformationLength,
+    PULONG          ReturnLength
+);
+
+#endif // !_X64_
 
 NT_STATUS Wow64Helper::NtQueryVirtualMemory64(HANDLE hProcess, uint64_t lpAddress, MEMORY_INFORMATION_CLASS memInfoClass,
-                                              void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept
+                                              void* lpBuffer, uint64_t dwLength, uint64_t* pReturnLength) const noexcept
 {
-    uint64_t retLength = 0;
-    NT_STATUS status = X64Function(m_NtQueryVirtualMemory, 6, (uint64_t)hProcess, lpAddress, (uint64_t)memInfoClass,
-                                   (uint64_t)lpBuffer, (uint64_t)dwLength, (uint64_t)&retLength);
-    if (pReturnLength)
-        *pReturnLength = (uint32_t)retLength;
-    return status;
+#if _X64_
+    return ((NtQueryVirtualMemory_t)m_NtQueryVirtualMemory)(hProcess, (PVOID)lpAddress, memInfoClass,
+                                                            lpBuffer, dwLength, pReturnLength);
+#else
+    return X64Function(m_NtQueryVirtualMemory, 6, (uint64_t)hProcess, lpAddress, (uint64_t)memInfoClass,
+                       (uint64_t)lpBuffer, (uint64_t)dwLength, (uint64_t)pReturnLength);
+#endif // _X64_
 }
 
 NT_STATUS Wow64Helper::NtQueryInformationProcess64(HANDLE hProcess, PROCESSINFOCLASS processInfoClass,
                                                    void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept
 {
-    return X64Function(m_NtQueryInformationProcess, 5, (uint64_t)hProcess, (uint64_t)processInfoClass, (uint64_t)lpBuffer, (uint64_t)dwLength, (uint64_t) pReturnLength);
+#if _X64_
+    return ((NtQueryInformationProcess_t)m_NtQueryInformationProcess)(hProcess, processInfoClass, lpBuffer, dwLength, (PULONG)pReturnLength);
+#else
+    return X64Function(m_NtQueryInformationProcess, 5, (uint64_t)hProcess, (uint64_t)processInfoClass, (uint64_t)lpBuffer, (uint64_t)dwLength, (uint64_t)pReturnLength);
+#endif // _X64_
 }
 
 NT_STATUS Wow64Helper::NtQuerySystemInformation64(SYSTEM_INFORMATION_CLASS systemInfoClass,
                                                   void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept
 {
-    return X64Function(m_NtQuerySystemInformation, 4, (uint64_t)systemInfoClass, (uint64_t)lpBuffer, (uint64_t)dwLength, (uint64_t) pReturnLength);
+#if _X64_
+    return ((NtQuerySystemInformation_t)m_NtQuerySystemInformation)(systemInfoClass, lpBuffer, dwLength, (PULONG)pReturnLength);
+#else
+    return X64Function(m_NtQuerySystemInformation, 4, (uint64_t)systemInfoClass, (uint64_t)lpBuffer, (uint64_t)dwLength, (uint64_t)pReturnLength);
+#endif
 }
 
 NT_STATUS Wow64Helper::NtQueryInformationThread64(HANDLE hProcess, THREADINFOCLASS threadInfoClass,
                                                   void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept
 {
+#if _X64_
+    return ((NtQueryInformationThread_t)m_NtQueryInformationThread)(hProcess, threadInfoClass, lpBuffer, dwLength, (PULONG)pReturnLength);
+#else
     return X64Function(m_NtQueryInformationThread, 5, (uint64_t)hProcess, (uint64_t)threadInfoClass, (uint64_t)lpBuffer, (uint64_t)dwLength, (uint64_t)&pReturnLength);
+#endif // _X64_
 }
 
-uint64_t Wow64Helper::VirtualAllocEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t flAllocationType, uint32_t flProtect) const noexcept
+uint64_t Wow64Helper::VirtualAllocEx64(HANDLE hProcess, uint64_t lpAddress, uint64_t dwSize, uint32_t flAllocationType, uint32_t flProtect) const noexcept
 {
-    uint64_t tmpAddr = lpAddress;
-    uint64_t tmpSize = dwSize;
-    NT_STATUS status = X64Function(m_NtAllocateVirtualMemory, 6, (uint64_t)hProcess, (uint64_t)&tmpAddr, (uint64_t)0, (uint64_t)&tmpSize,
+#if _X64_
+    NT_STATUS status = ((NtAllocateVirtualMemory_t)m_NtAllocateVirtualMemory)(hProcess, (PVOID*)&lpAddress, 0, (PSIZE_T)&dwSize, flAllocationType, flProtect);
+#else
+    NT_STATUS status = X64Function(m_NtAllocateVirtualMemory, 6, (uint64_t)hProcess, (uint64_t)&lpAddress, (uint64_t)0, (uint64_t)&dwSize,
                                    (uint64_t)flAllocationType, (uint64_t)flProtect);
-    return NT_SUCCESS(status) ? tmpAddr : 0;
+#endif // _X64_
+    return NT_SUCCESS(status) ? lpAddress : 0;
 }
 
 BOOL Wow64Helper::VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept
 {
-    uint64_t tmpAddr = lpAddress;
-    uint64_t tmpSize = dwSize;
-    NT_STATUS status = X64Function(m_NtFreeVirtualMemory, 4, (uint64_t)hProcess, (uint64_t)&tmpAddr, (uint64_t)&tmpSize, (uint64_t)dwFreeType);
+#if _X64_
+    NT_STATUS status = ((NtFreeVirtualMemory_t)m_NtFreeVirtualMemory)(hProcess, (PVOID*)&lpAddress, (PSIZE_T)&dwSize, dwFreeType);
+#else
+    NT_STATUS status = X64Function(m_NtFreeVirtualMemory, 4, (uint64_t)hProcess, (uint64_t)&lpAddress, (uint64_t)&dwSize, (uint64_t)dwFreeType);
+#endif // _X64_
     return NT_SUCCESS(status) ? TRUE : FALSE;
 }
 
-BOOL Wow64Helper::ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint32_t nSize, uint32_t *lpNumberOfBytesRead) const noexcept
+BOOL Wow64Helper::ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t *lpNumberOfBytesRead) const noexcept
 {
-    uint64_t readCount = 0;
-    NT_STATUS ret = X64Function(m_NtReadVirtualMemory, 5, (uint64_t)hProcess, lpBaseAddress, (uint64_t)lpBuffer, (uint64_t)nSize, (uint64_t)&readCount);
-    if (lpNumberOfBytesRead != nullptr)
-        *lpNumberOfBytesRead = (SIZE_T)readCount;
+#if _X64_
+    NT_STATUS ret = ((NtReadVirtualMemory_t)m_NtReadVirtualMemory)(hProcess, (PVOID)lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead);
+#else
+    NT_STATUS ret = X64Function(m_NtReadVirtualMemory, 5, (uint64_t)hProcess, lpBaseAddress, (uint64_t)lpBuffer, (uint64_t)nSize, (uint64_t)lpNumberOfBytesRead);
+#endif // _X64_
     return NT_SUCCESS(ret) ? TRUE : FALSE;
 }
 
-BOOL Wow64Helper::WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint32_t nSize, uint32_t *lpNumberOfBytesWritten) const noexcept
+BOOL Wow64Helper::WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t *lpNumberOfBytesWritten) const noexcept
 {
-    uint64_t writeCount = 0;
-    NT_STATUS ret = X64Function(m_NtWriteVirtualMemory, 5, (uint64_t)hProcess, lpBaseAddress, (uint64_t)lpBuffer,
-                                (uint64_t)nSize, (uint64_t)&writeCount);
-    if (lpNumberOfBytesWritten != nullptr)
-        *lpNumberOfBytesWritten = (SIZE_T)writeCount;
+#if _X64_
+    NT_STATUS ret = ((NtWriteVirtualMemory_t)m_NtWriteVirtualMemory)(hProcess, (PVOID)lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten);
+#else
+    NT_STATUS ret = X64Function(m_NtWriteVirtualMemory, 5, (uint64_t)hProcess, lpBaseAddress, (uint64_t)lpBuffer, (uint64_t)nSize, (uint64_t)lpNumberOfBytesWritten);
+#endif // _X64_
     return NT_SUCCESS(ret) ? TRUE : FALSE;
 }

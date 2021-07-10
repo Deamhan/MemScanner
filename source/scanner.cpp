@@ -81,7 +81,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* path, const
     if (dump != nullptr)
     {
         std::unique_ptr<FILE, int(*)(FILE*)> dumpGuard(dump, fclose);
-        const uint32_t issuesCount = processIssues.size();
+        const uint32_t issuesCount = (uint32_t)processIssues.size();
         if (fwrite(&issuesCount, sizeof(issuesCount), 1, dump) != 1)
         {
             wprintf(L"!>> Unable to write data to file %s <<!\n", path);
@@ -95,7 +95,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* path, const
         }
 
         auto mm = GetMemoryMap(hProcess, api);
-        const uint32_t mmSize = mm.size();
+        const uint32_t mmSize = (uint32_t)mm.size();
         if (fwrite(&mmSize, sizeof(mmSize), 1, dump) != 1)
         {
             wprintf(L"!>> Unable to write data to file %s <<!\n", path);
@@ -115,7 +115,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* path, const
             while (size != 0)
             {
                 size_t blockSize = (size_t)std::min<uint64_t>(readBuffer.size(), size);
-                uint32_t result;
+                uint64_t result;
                 const uint64_t addr = mbi.BaseAddress + processed;
                 memset(readBuffer.data(), 0, blockSize);
                 if (!api.ReadProcessMemory64(hProcess, addr, readBuffer.data(), blockSize, &result))
@@ -151,7 +151,7 @@ int ScanMemory(const wchar_t * dumpDir)
 
     std::vector<uint8_t> buffer(64 * 1024);
     uint32_t resLen = 0;
-    while (IsBufferTooSmall(api.NtQuerySystemInformation64(SYSTEM_INFORMATION_CLASS::SystemProcessInformation, buffer.data(), buffer.size(), &resLen)))
+    while (IsBufferTooSmall(api.NtQuerySystemInformation64(SYSTEM_INFORMATION_CLASS::SystemProcessInformation, buffer.data(), (uint32_t)buffer.size(), &resLen)))
         buffer.resize(resLen);
 
     typedef SYSTEM_PROCESS_INFORMATION_T<uint64_t> SPI64, * PSPI64;
@@ -160,18 +160,22 @@ int ScanMemory(const wchar_t * dumpDir)
         stop = (procInfo->NextEntryOffset == 0), procInfo = (PSPI64)((uint8_t*)procInfo + procInfo->NextEntryOffset))
     {
         std::wstring name((const wchar_t*)procInfo->ImageName.Buffer, procInfo->ImageName.Length / sizeof(wchar_t));
-        wprintf(L"Process %s [PID = %u]\n", name.c_str(), (unsigned)procInfo->ProcessId);
+        wprintf(L"Process %s [PID = %u]", name.c_str(), (unsigned)(uintptr_t)procInfo->ProcessId);
 
-        HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, (DWORD)procInfo->ProcessId);
+        HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, (DWORD)(uintptr_t)procInfo->ProcessId);
         if (hProcess == nullptr)
+        {
+            wprintf(L": unanle to open\n");
             continue;
-
+        }
+        
+        wprintf(L"\n");
         std::vector<uint64_t> processIssues;
         std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, CloseHandleByPtr);
         for (uint32_t i = 0; i < procInfo->NumberOfThreads; ++i)
         {
             ull startAddress = 0;
-            HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, (DWORD)procInfo->Threads[i].ClientId.UniqueThread);
+            HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, (DWORD)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread);
             if (hThread == nullptr)
                 continue;
 
@@ -184,7 +188,7 @@ int ScanMemory(const wchar_t * dumpDir)
                 {
                     ++issues;
                     processIssues.push_back(startAddress);
-                    wprintf(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)procInfo->Threads[i].ClientId.UniqueThread, startAddress, ProtToStr(mbi.Protect));
+                    wprintf(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread, startAddress, ProtToStr(mbi.Protect));
                 }
             }
         }
@@ -193,10 +197,10 @@ int ScanMemory(const wchar_t * dumpDir)
         {
             std::wstring path(dumpDir);
             path += L'\\';
-            path += std::to_wstring((unsigned)procInfo->ProcessId);
+            path += std::to_wstring((unsigned)(uintptr_t)procInfo->ProcessId);
             path += L".dump";
             
-            DumpMemory(hProcess, (uint32_t)procInfo->ProcessId, path.c_str(), processIssues, api);
+            DumpMemory(hProcess, (uint32_t)(uintptr_t)procInfo->ProcessId, path.c_str(), processIssues, api);
         }
     }
 

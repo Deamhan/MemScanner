@@ -38,7 +38,7 @@ int main()
     std::unique_ptr<void, void (*)(void*)> vGuad(pExec, FreeVirtualMemory);
     wprintf(L">>> Thread address = 0x%016llx <<<\n", (unsigned long long)pExec);
     memcpy(pExec, code, sizeof(code));
-    *(uint32_t*)(pExec + 1) = (uint32_t)TestThreadFunc;
+    *(uint32_t*)(pExec + 1) = (uint32_t)(uintptr_t)TestThreadFunc;
     DWORD oldProt = 0;
     VirtualProtect(pExec, sizeof(code), PAGE_EXECUTE_READ, &oldProt);
 
