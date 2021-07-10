@@ -27,7 +27,13 @@ static void TestThreadFunc(HANDLE hEvent)
 
 int main()
 {
+#if _X64_
+    const uint8_t code[] = { 0x48, 0xB8, 0x78, 0x56, 0x34, 0x12, 0x78, 0x56, 0x34, 0x12, 0xFF, 0xE0 };
+    const size_t offset = 2;
+#else
     const uint8_t code[] = { 0xB8, 0x78, 0x56, 0x34, 0x12, 0xFF, 0xE0 };
+    const size_t offset = 1;
+#endif // _X64_
     auto pExec = (uint8_t*)VirtualAlloc(nullptr, sizeof(code), MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
     if (pExec == nullptr)
     {
@@ -38,7 +44,7 @@ int main()
     std::unique_ptr<void, void (*)(void*)> vGuad(pExec, FreeVirtualMemory);
     wprintf(L">>> Thread address = 0x%016llx <<<\n", (unsigned long long)pExec);
     memcpy(pExec, code, sizeof(code));
-    *(uint32_t*)(pExec + 1) = (uint32_t)(uintptr_t)TestThreadFunc;
+    *(uintptr_t*)(pExec + offset) = (uintptr_t)TestThreadFunc;
     DWORD oldProt = 0;
     VirtualProtect(pExec, sizeof(code), PAGE_EXECUTE_READ, &oldProt);
 
