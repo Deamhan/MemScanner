@@ -1,3 +1,3 @@
 #pragma once
 
-int ScanMemory();
+int ScanMemory(const wchar_t* dumpDir = nullptr);

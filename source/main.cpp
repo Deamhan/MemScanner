@@ -4,9 +4,13 @@
 
 #include "scanner.h"
 
-int main(int argc, const char ** argv)
+int wmain(int argc, const wchar_t ** argv)
 {
-    wprintf(L"Found issues: %d\n", ScanMemory());
+    const wchar_t* dir = nullptr;
+    if (argc > 1)
+        dir = argv[1];
+
+    wprintf(L"Found issues: %d\n", ScanMemory(dir));
 
     return 0;
 }
