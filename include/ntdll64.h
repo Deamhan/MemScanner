@@ -6,22 +6,52 @@
 
 #pragma pack(push, 1)
 
+enum class CPUArchitecture
+{
+#if !_X64_
+    X86,
+#endif // !_X64_
+    X64
+};
+
+template <CPUArchitecture arch>
+struct HelperTraits
+{
+    typedef HMODULE HMODULE_T;
+    typedef FARPROC FARPROC_T;
 #if _X64_
-typedef HMODULE HMODULE_T;
-typedef FARPROC FARPROC_T;
+    typedef uint64_t PTR_T;
 #else
-typedef uint64_t HMODULE_T;
-typedef uint64_t FARPROC_T;
+    typedef uint32_t PTR_T;
+#endif
+};
+
+#if !_X64_
+template <>
+struct HelperTraits<CPUArchitecture::X64>
+{
+    typedef uint64_t HMODULE_T;
+    typedef uint64_t FARPROC_T;
+    typedef uint64_t PTR_T;
+};
 #endif // _X64_
 
+template <CPUArchitecture arch>
+using HMODULE_T = typename HelperTraits<arch>::HMODULE_T;
+
+template <CPUArchitecture arch>
+using FARPROC_T = typename HelperTraits<arch>::FARPROC_T;
+
+template <CPUArchitecture arch>
+using PTR_T = typename HelperTraits<arch>::PTR_T;
+
+template <CPUArchitecture arch>
 class Wow64Helper
 {
 public:
     bool IsOK() const noexcept { return m_isOk; }
-#if !_X64_
-    uint64_t GetModuleHandle64(const wchar_t* lpModuleName) const noexcept;
-    uint64_t GetProcAddress64(uint64_t hModule, const char* funcName) const noexcept;
-#endif // !_X64_
+    HMODULE_T<arch> GetModuleHandle64(const wchar_t* lpModuleName) const noexcept;
+    FARPROC_T<arch> GetProcAddress64(HMODULE_T<arch> hModule, const char* funcName) const noexcept;
     SystemDefinitions::NT_STATUS NtQueryVirtualMemory64(HANDLE hProcess, uint64_t lpAddress, SystemDefinitions::MEMORY_INFORMATION_CLASS memInfoClass,
         void* lpBuffer, uint64_t dwLength, uint64_t* pReturnLength) const noexcept;
     SystemDefinitions::NT_STATUS NtQueryInformationProcess64(HANDLE hProcess, SystemDefinitions::PROCESSINFOCLASS procInfoClass,
@@ -36,30 +66,30 @@ public:
     BOOL    WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept;
 
 private:
-    HMODULE_T m_Ntdll64;
-#if !_X64_
-    FARPROC_T m_LdrGetProcedureAddress;
-#endif // !_X64_
-    FARPROC_T m_NtQueryVirtualMemory;
-    FARPROC_T m_NtAllocateVirtualMemory;
-    FARPROC_T m_NtFreeVirtualMemory;
-    FARPROC_T m_NtReadVirtualMemory;
-    FARPROC_T m_NtWriteVirtualMemory;
-    FARPROC_T m_NtGetContextThread;
-    FARPROC_T m_NtSetContextThread;
-    FARPROC_T m_NtQuerySystemInformation;
-    FARPROC_T m_NtQueryInformationProcess;
-    FARPROC_T m_NtQueryInformationThread;
-    bool     m_isOk;
+    HMODULE_T<arch> m_Ntdll;
+    FARPROC_T<arch> m_LdrGetProcedureAddress;
+    FARPROC_T<arch> m_NtQueryVirtualMemory;
+    FARPROC_T<arch> m_NtAllocateVirtualMemory;
+    FARPROC_T<arch> m_NtFreeVirtualMemory;
+    FARPROC_T<arch> m_NtReadVirtualMemory;
+    FARPROC_T<arch> m_NtWriteVirtualMemory;
+    FARPROC_T<arch> m_NtGetContextThread;
+    FARPROC_T<arch> m_NtSetContextThread;
+    FARPROC_T<arch> m_NtQuerySystemInformation;
+    FARPROC_T<arch> m_NtQueryInformationProcess;
+    FARPROC_T<arch> m_NtQueryInformationThread;
+    bool m_isOk;
 
-#if !_X64_
-    uint64_t getLdrGetProcedureAddress();
-#endif // !_X64_
+    FARPROC_T<arch> getLdrGetProcedureAddress();
 
     Wow64Helper();
 
-    friend const Wow64Helper& GetWow64Helper();
+    template <CPUArchitecture arch>
+    friend const Wow64Helper<arch>& GetWow64Helper();
 };
 
-const Wow64Helper& GetWow64Helper();
+template <CPUArchitecture arch>
+const Wow64Helper<arch>& GetWow64Helper();
+
+CPUArchitecture GetOSArch() noexcept;
 

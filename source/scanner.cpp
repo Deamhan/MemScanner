@@ -41,7 +41,7 @@ static bool EnableDebugPrivilege()
 
 static const wchar_t* ProtToStr(uint32_t prot)
 {
-    switch (prot)
+    switch (prot & 0xFF)
     {
     case PAGE_EXECUTE:
         return L"X";
@@ -52,34 +52,59 @@ static const wchar_t* ProtToStr(uint32_t prot)
     case PAGE_EXECUTE_WRITECOPY:
         return L"RWX(C)";
     default:
-        return L"Invalid attribtes";
+        return L"Invalid attributes";
     }
 }
 
 const uint32_t PAGE_SIZE = 4096;
 
-static std::vector<MEMORY_BASIC_INFORMATION_T<uint64_t>> GetMemoryMap(HANDLE hProcess, const Wow64Helper& api)
+template <CPUArchitecture arch>
+static std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& api)
 {
-    std::vector<MEMORY_BASIC_INFORMATION_T<uint64_t>> result;
-    uint64_t address = 0;
-    MEMORY_BASIC_INFORMATION_T<uint64_t> mbi;
+    std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> result;
+    PTR_T<arch> address = 0;
+    MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
     while (NT_SUCCESS(api.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemoryBasicInformation, &mbi, sizeof(mbi), nullptr)))
     {
         if ((mbi.State & MEM_COMMIT) != 0 && mbi.Type != MemType::Image)
             result.push_back(mbi);
-        address += std::max<uint64_t>(mbi.RegionSize, PAGE_SIZE);
+        auto prevAddr = address;
+        address += std::max<PTR_T<arch>>(mbi.RegionSize, PAGE_SIZE);
+        if (prevAddr > address)
+            break;
     }
-        
 
     return result;
 }
 
-static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* path, const std::vector<uint64_t>& processIssues, const Wow64Helper& api)
+static const char dumpSignature[] = "MEMDUMP";
+
+/*
+* Process dump file structure:
+* | signature | os bitness | suspicious thread count | suspicious threads ep[] | memory regions count | MEMORY_BASIC_INFORMATION_T [] | raw mwmory regions[] |
+*/
+
+template <CPUArchitecture arch>
+static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, const wchar_t* path, const std::vector<PTR_T<arch>>& processIssues, const Wow64Helper<arch>& api)
 {
     FILE* dump = nullptr;
     _wfopen_s(&dump, path, L"wb");
     if (dump != nullptr)
     {
+        constexpr size_t sigLen = sizeof(dumpSignature) / sizeof(dumpSignature[0]);
+        if (fwrite(dumpSignature, sizeof(dumpSignature[0]), sigLen, dump) != sigLen)
+        {
+            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
+            return false;
+        }
+
+        uint8_t bitness = (arch == CPUArchitecture::X64 ? 64 : 32);
+        if (fwrite(&bitness, sizeof(bitness), 1, dump) != 1)
+        {
+            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
+            return false;
+        }
+
         std::unique_ptr<FILE, int(*)(FILE*)> dumpGuard(dump, fclose);
         const uint32_t issuesCount = (uint32_t)processIssues.size();
         if (fwrite(&issuesCount, sizeof(issuesCount), 1, dump) != 1)
@@ -88,13 +113,13 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* path, const
             return false;
         }
 
-        if (fwrite(processIssues.data(), sizeof(uint64_t), issuesCount, dump) != issuesCount)
+        if (fwrite(processIssues.data(), sizeof(processIssues[0]), issuesCount, dump) != issuesCount)
         {
             wprintf(L"!>> Unable to write data to file %s <<!\n", path);
             return false;
         }
 
-        auto mm = GetMemoryMap(hProcess, api);
+        auto mm = GetMemoryMap<arch>(hProcess, api);
         const uint32_t mmSize = (uint32_t)mm.size();
         if (fwrite(&mmSize, sizeof(mmSize), 1, dump) != 1)
         {
@@ -102,7 +127,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* path, const
             return false;
         }
 
-        if (fwrite(mm.data(), sizeof(MEMORY_BASIC_INFORMATION_T<uint64_t>), mmSize, dump) != mmSize)
+        if (fwrite(mm.data(), sizeof(mm[0]), mmSize, dump) != mmSize)
         {
             wprintf(L"!>> Unable to write data to file %s <<!\n", path);
             return false;
@@ -119,7 +144,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* path, const
                 const uint64_t addr = mbi.BaseAddress + processed;
                 memset(readBuffer.data(), 0, blockSize);
                 if (!api.ReadProcessMemory64(hProcess, addr, readBuffer.data(), blockSize, &result))
-                    wprintf(L"!>> Unable to read process memory [PID = %u] [0x%016llx : 0x%016llx) <<!\n", (unsigned)pid, (ull)addr, (ull)(addr + blockSize));
+                    wprintf(L"!>> Unable to read process memory [%s, PID = %u] [0x%016llx : 0x%016llx) <<!\n", process, (unsigned)pid, (ull)addr, (ull)(addr + blockSize));
 
                 if (fwrite(readBuffer.data(), sizeof(uint8_t), blockSize, dump) != blockSize)
                 {
@@ -140,24 +165,28 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* path, const
     return false;
 }
 
-int ScanMemory(const wchar_t * dumpDir)
+template <CPUArchitecture arch>
+static int ScanMemoryImpl(const wchar_t * dumpDir)
 {
+    wprintf(L">>> OS Architecture: %s <<<\n", arch == CPUArchitecture::X64 ? L"X64" : L"X86");
+    wprintf(L">>> Scanner Architecture: %s <<<\n", sizeof(void*) == 8 ? L"X64" : L"X86");
+
     int issues = 0;
 
     if (!EnableDebugPrivilege())
         wprintf(L"!>> Unable to enable SeDebugPrivilege, functionality is limited <<!\n");
 
-    auto& api = GetWow64Helper();
+    auto& api = GetWow64Helper<arch>();
 
     std::vector<uint8_t> buffer(64 * 1024);
     uint32_t resLen = 0;
     while (IsBufferTooSmall(api.NtQuerySystemInformation64(SYSTEM_INFORMATION_CLASS::SystemProcessInformation, buffer.data(), (uint32_t)buffer.size(), &resLen)))
         buffer.resize(resLen);
 
-    typedef SYSTEM_PROCESS_INFORMATION_T<uint64_t> SPI64, * PSPI64;
-    auto procInfo = (const PSPI64)buffer.data();
+    typedef SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>> SPI, * PSPI;
+    auto procInfo = (const PSPI)buffer.data();
     for (bool stop = false; !stop;
-        stop = (procInfo->NextEntryOffset == 0), procInfo = (PSPI64)((uint8_t*)procInfo + procInfo->NextEntryOffset))
+        stop = (procInfo->NextEntryOffset == 0), procInfo = (PSPI)((uint8_t*)procInfo + procInfo->NextEntryOffset))
     {
         std::wstring name((const wchar_t*)procInfo->ImageName.Buffer, procInfo->ImageName.Length / sizeof(wchar_t));
         wprintf(L"Process %s [PID = %u]", name.c_str(), (unsigned)(uintptr_t)procInfo->ProcessId);
@@ -170,11 +199,11 @@ int ScanMemory(const wchar_t * dumpDir)
         }
         
         wprintf(L"\n");
-        std::vector<uint64_t> processIssues;
+        std::vector<PTR_T<arch>> processIssues;
         std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, CloseHandleByPtr);
         for (uint32_t i = 0; i < procInfo->NumberOfThreads; ++i)
         {
-            ull startAddress = 0;
+            PTR_T<arch> startAddress = 0;
             HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, (DWORD)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread);
             if (hThread == nullptr)
                 continue;
@@ -182,13 +211,13 @@ int ScanMemory(const wchar_t * dumpDir)
             std::unique_ptr<HANDLE, void(*)(HANDLE*)> threadGuard(&hThread, CloseHandleByPtr);
             if (NT_SUCCESS(api.NtQueryInformationThread64(hThread, THREADINFOCLASS::ThreadQuerySetWin32StartAddress, &startAddress, sizeof(startAddress), nullptr)))
             {
-                MEMORY_BASIC_INFORMATION_T<uint64_t> mbi = {};
+                MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi = {};
                 if (NT_SUCCESS(api.NtQueryVirtualMemory64(hProcess, startAddress, MEMORY_INFORMATION_CLASS::MemoryBasicInformation, &mbi, sizeof(mbi), nullptr))
                     && (mbi.State & MEM_COMMIT) != 0 && mbi.Type != MemType::Image)
                 {
                     ++issues;
                     processIssues.push_back(startAddress);
-                    wprintf(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread, startAddress, ProtToStr(mbi.Protect));
+                    wprintf(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread, (ull)startAddress, ProtToStr(mbi.Protect));
                 }
             }
         }
@@ -200,9 +229,23 @@ int ScanMemory(const wchar_t * dumpDir)
             path += std::to_wstring((unsigned)(uintptr_t)procInfo->ProcessId);
             path += L".dump";
             
-            DumpMemory(hProcess, (uint32_t)(uintptr_t)procInfo->ProcessId, path.c_str(), processIssues, api);
+            DumpMemory<arch>(hProcess, (uint32_t)(uintptr_t)procInfo->ProcessId, name.c_str(), path.c_str(), processIssues, api);
         }
     }
 
     return issues;
 }
+
+#if _X64_
+int ScanMemory(const wchar_t* dumpDir)
+{
+    return ScanMemoryImpl<CPUArchitecture::X64>(dumpDir);
+}
+#else
+int ScanMemory(const wchar_t* dumpDir)
+{
+    return (GetOSArch() == CPUArchitecture::X64 ? ScanMemoryImpl<CPUArchitecture::X64>(dumpDir) : ScanMemoryImpl<CPUArchitecture::X86>(dumpDir));
+}
+#endif
+
+

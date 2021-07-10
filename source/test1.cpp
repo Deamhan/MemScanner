@@ -54,8 +54,7 @@ int main()
     std::unique_ptr<HANDLE, void(*)(HANDLE*)> threadGuard(&hThread, CloseHandleByPtr);
     WaitForSingleObject(hEvent, INFINITE);
 
-    auto result = ScanMemory(L".");
-    if (result == 0)
+    if (ScanMemory(L".") == 0)
     {
         wprintf(L"!>> Unable to find threat <<!\n");
         return 1;
