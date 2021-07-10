@@ -75,7 +75,7 @@ int main()
     fseek(dump, 0, SEEK_SET);
 
     std::vector<uint8_t> buffer(size);
-    if (fread(buffer.data(), sizeof(uint8_t), size, dump) != size)
+    if (fread(buffer.data(), sizeof(uint8_t), size, dump) != (size_t)size)
     {
         wprintf(L"!>> Unable to read dump <<!\n");
         return 1;
