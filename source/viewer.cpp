@@ -1,9 +1,11 @@
 #include <climits>
 #include <cstdio>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <map>
 #include <string>
+#include <sstream>
 #include <vector>
 
 #include "dump.h"
@@ -158,19 +160,158 @@ static void doList(const std::map<T, MBI_ENV_T<T>>& mapping, const std::vector<T
     FlushInput();
 }
 
+const uint32_t RFlag = 1;
+const uint32_t WFlag = 2;
+const uint32_t XFlag = 4;
+
+const uint32_t protToFlags(uint32_t prot)
+{
+    switch (prot & 0xff)
+    {
+    case PAGE_EXECUTE:
+        return XFlag;
+    case PAGE_EXECUTE_READ:
+        return XFlag | RFlag;
+    case PAGE_EXECUTE_READWRITE:
+        return XFlag | RFlag | WFlag;
+    case PAGE_EXECUTE_WRITECOPY:
+        return XFlag | RFlag | WFlag;
+    case PAGE_NOACCESS:
+        return 0;
+    case PAGE_READONLY:
+        return RFlag;
+    case PAGE_READWRITE:
+        return RFlag | WFlag;
+    case PAGE_WRITECOPY:
+        return RFlag | WFlag;
+    default:
+        return XFlag | RFlag | WFlag;
+    }
+}
+
 template <class T>
 static void doMatch(const std::map<T, MBI_ENV_T<T>>& mapping)
 {
-    T address;
-    if (!(std::wcin >> std::hex >> address))
-        std::wcout << L"   Unable to get address" << std::endl;
+    T address = 0;
+    T allocAddress = 0;
+    uint32_t attrMask = 0;
 
-    const auto it = mapping.upper_bound(address);
-    if (it == mapping.end() || address < it->second.mbi->BaseAddress)
-        std::wcout << L"   Not found" << std::endl;
+    enum class argType
+    {
+        Attr,
+        Alloc,
+        None
+    } current = argType::None;
+
+    do
+    {
+        std::wstring input;
+        if (!(std::wcin >> input) || input.empty())
+        {
+            std::wcout << L"   Unable to get arg" << std::endl;
+            return;
+        }
+        
+        if (input[0] == L'-' || input[0] == L'/')
+        {
+            auto argTypeStr = input.substr(1);
+            if (argTypeStr == L"alloc")
+                current = argType::Alloc;
+            else if (argTypeStr == L"attr")
+                current = argType::Attr;
+            else
+            {
+                std::wcout << L"   Unknown argument: " << argTypeStr << std::endl;
+                return;
+            }
+        }
+        else
+        {
+            switch (current)
+            {
+            case argType::Attr:
+            {
+                for (const auto c : input)
+                {
+                    switch (c)
+                    {
+                    case L'R':
+                    case L'r':
+                        attrMask |= RFlag;
+                        break;
+                    case L'W':
+                    case L'w':
+                        attrMask |= WFlag;
+                        break;
+                    case L'X':
+                    case L'x':
+                        attrMask |= XFlag;
+                        break;
+                    default:
+                        std::wcout << L"   Unknown attribute: " << c << std::endl;
+                        return;
+                    }
+                }
+                
+                break;
+            } 
+            case argType::Alloc:
+            {
+                std::wstringstream ss(input);
+                if (!(ss >> std::hex >> allocAddress))
+                {
+                    std::wcout << L"   Unable to get arg" << std::endl;
+                    return;
+                }
+                break;
+            }
+            case argType::None:
+            {
+                std::wstringstream ss(input);
+                if (!(ss >> std::hex >> address))
+                {
+                    std::wcout << L"   Unable to get arg" << std::endl;
+                    return;
+                }
+                break;
+            }
+            default:
+                break;
+            }
+
+            break;
+        }
+    } while (true);
+    
+    if (address != 0)
+    {
+        const auto it = mapping.upper_bound(address);
+        if (it == mapping.end() || address < it->second.mbi->BaseAddress)
+            std::wcout << L"   Not found" << std::endl;
+        else
+            printMBI(it->second.mbi);
+    }
+    else if (allocAddress != 0)
+    {
+        auto it = mapping.upper_bound(allocAddress);
+        if (it == mapping.end())
+            std::wcout << L"   Not found" << std::endl;
+        else
+        {
+            const auto end = mapping.end();
+            for (; it != end && it->second.mbi->AllocationBase == allocAddress; ++it)
+                printMBI(it->second.mbi);
+        }
+    }
     else
-        printMBI(it->second.mbi);
-
+    {
+        for (const auto& item : mapping)
+        {
+            if ((protToFlags(item.second.mbi->AllocationProtect) & attrMask) == attrMask || (protToFlags(item.second.mbi->Protect) & attrMask) == attrMask)
+                printMBI(item.second.mbi);
+        }
+    }
+    
     std::wcout << std::endl;
     FlushInput();
 }
@@ -200,12 +341,15 @@ static void printHelp()
 {
     std::wcout <<
         L"   Supported commands:\n"
-        L"    list memory|thread - prints all memory or thread information\n"
-        L"    match address - prints information about memory region which address (hex) belongs to\n"
-        L"    offset address - prints offset in dump file that matches the address (hex)\n"
-        L"    help - prints this help\n"
-        L"    exit - exit from dump viewer\n"
+        L"     list memory|thread - prints all memory or thread information\n\n"
+        L"     match <-attr|-alloc> address - prints information about memory region which address (hex) belongs to\n"
+        L"       -alloc switch enables filtering according AllocationBase field\n"
+        L"       -attr switch enables filtering according AllocationProtect and Protect fields\n\n"
+        L"     offset address - prints offset in dump file that matches the address (hex)\n\n"
+        L"     help - prints this help\n\n"
+        L"     exit - exit from dump viewer\n"
         << std::endl;
+    FlushInput();
 }
 
 template <class T>
@@ -240,7 +384,10 @@ static bool doProcessing(FILE* dump, const wchar_t* path, uint8_t processBitness
         else if (cmd == L"help")
             printHelp();
         else
+        {
             std::wcout << L"   Unknown command: \'" << cmd << L"\'" << std::endl;
+            FlushInput();
+        }  
     } while (true);
 
     return true;
