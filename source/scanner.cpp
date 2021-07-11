@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "dump.h"
 #include "ntdll64.h"
 
 #undef max
@@ -77,11 +78,9 @@ static std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> GetMemoryMap(HANDLE 
     return result;
 }
 
-static const char dumpSignature[] = "MEMDUMP";
-
 /*
 * Process dump file structure:
-* | signature | os bitness | suspicious thread count | suspicious threads ep[] | memory regions count | MEMORY_BASIC_INFORMATION_T [] | raw mwmory regions[] |
+* | signature | os bitness | suspicious thread count | suspicious threads ep[] | memory regions count | MEMORY_BASIC_INFORMATION_T [] | raw memory regions[] |
 */
 
 template <CPUArchitecture arch>
@@ -91,8 +90,8 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
     _wfopen_s(&dump, path, L"wb");
     if (dump != nullptr)
     {
-        constexpr size_t sigLen = sizeof(dumpSignature) / sizeof(dumpSignature[0]);
-        if (fwrite(dumpSignature, sizeof(dumpSignature[0]), sigLen, dump) != sigLen)
+        constexpr size_t sigLen = sizeof(DumpSignature) / sizeof(DumpSignature[0]);
+        if (fwrite(DumpSignature, sizeof(DumpSignature[0]), sigLen, dump) != sigLen)
         {
             wprintf(L"!>> Unable to write data to file %s <<!\n", path);
             return false;

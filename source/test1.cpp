@@ -60,7 +60,6 @@ int main()
         return 1;
     }
         
-
     FILE* dump = nullptr;
     _wfopen_s(&dump, std::to_wstring(GetCurrentProcessId()).append(L".dump").c_str(), L"rb");
     if (dump == nullptr)

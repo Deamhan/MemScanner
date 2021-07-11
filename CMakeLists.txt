@@ -19,6 +19,10 @@ set(TEST1_SRC source/test1.cpp
               ${COMMON_SRC}
 )
 
+set(VIEWER_SRC source/viewer.cpp
+               include/system_defs.h
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -65,9 +69,9 @@ endif()
 
 add_executable(memscan ${SCANNER_SRC})
 add_executable(test1 ${TEST1_SRC})
+add_executable(viewer ${VIEWER_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
-
 
 set(MEMSCAN_LINKER_FLAGS "/level='highestAvailable' /uiAccess='false'")
 set_target_properties(memscan PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
