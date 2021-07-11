@@ -40,23 +40,6 @@ static bool EnableDebugPrivilege()
     return AdjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(TOKEN_PRIVILEGES), nullptr, nullptr);
 }
 
-static const wchar_t* ProtToStr(uint32_t prot)
-{
-    switch (prot & 0xFF)
-    {
-    case PAGE_EXECUTE:
-        return L"X";
-    case PAGE_EXECUTE_READ:
-        return L"RX";
-    case PAGE_EXECUTE_READWRITE:
-        return L"RWX";
-    case PAGE_EXECUTE_WRITECOPY:
-        return L"RWX(C)";
-    default:
-        return L"Invalid attributes";
-    }
-}
-
 const uint32_t PAGE_SIZE = 4096;
 
 template <CPUArchitecture arch>
@@ -80,7 +63,7 @@ static std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> GetMemoryMap(HANDLE 
 
 /*
 * Process dump file structure:
-* | signature | os bitness | suspicious thread count | suspicious threads ep[] | memory regions count | MEMORY_BASIC_INFORMATION_T [] | raw memory regions[] |
+* | signature | os bitness | process bitness | suspicious thread count | suspicious threads ep[] | memory regions count | MEMORY_BASIC_INFORMATION_T [] | raw memory regions[] |
 */
 
 template <CPUArchitecture arch>
@@ -97,8 +80,15 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
             return false;
         }
 
-        uint8_t bitness = (arch == CPUArchitecture::X64 ? 64 : 32);
-        if (fwrite(&bitness, sizeof(bitness), 1, dump) != 1)
+        uint8_t osBitness = (arch == CPUArchitecture::X64 ? 64 : 32);
+        if (fwrite(&osBitness, sizeof(osBitness), 1, dump) != 1)
+        {
+            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
+            return false;
+        }
+
+        uint8_t procBitness = (GetProcessArch(hProcess) == CPUArchitecture::X64 ? 64 : 32);
+        if (fwrite(&procBitness, sizeof(procBitness), 1, dump) != 1)
         {
             wprintf(L"!>> Unable to write data to file %s <<!\n", path);
             return false;
@@ -216,7 +206,7 @@ static int ScanMemoryImpl(const wchar_t * dumpDir)
                 {
                     ++issues;
                     processIssues.push_back(startAddress);
-                    wprintf(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread, (ull)startAddress, ProtToStr(mbi.Protect));
+                    wprintf(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread, (ull)startAddress, ProtToStr(mbi.Protect).c_str());
                 }
             }
         }
@@ -246,5 +236,3 @@ int ScanMemory(const wchar_t* dumpDir)
     return (GetOSArch() == CPUArchitecture::X64 ? ScanMemoryImpl<CPUArchitecture::X64>(dumpDir) : ScanMemoryImpl<CPUArchitecture::X86>(dumpDir));
 }
 #endif
-
-

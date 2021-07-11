@@ -289,6 +289,8 @@ namespace SystemDefinitions
         Image = 0x01000000
     };
 
+#pragma warning(push)
+#pragma warning(disable:4324)
     template <class T>
     struct alignas(16) MEMORY_BASIC_INFORMATION_T
     {
@@ -308,6 +310,7 @@ namespace SystemDefinitions
             T dummy2;
         };
     };
+#pragma warning(pop)
 
     template<class T>
     struct RTL_USER_PROCESS_PARAMETERS 

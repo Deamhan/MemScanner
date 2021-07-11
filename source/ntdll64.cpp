@@ -353,3 +353,16 @@ CPUArchitecture GetOSArch() noexcept
 #endif // _X64_
 }
 
+CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept
+{
+    auto IsWow64Process = (IsWow64Process_t)GetProcAddress(GetModuleHandleA("kernel32"), "IsWow64Process");
+    if (IsWow64Process != nullptr)
+    {
+        BOOL IsWOW64 = FALSE;
+        IsWow64Process(hProcess, &IsWOW64);
+        return IsWOW64 ? CPUArchitecture::X86 : GetOSArch();
+    }
+
+    return GetOSArch();
+}
+

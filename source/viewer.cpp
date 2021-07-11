@@ -91,52 +91,6 @@ static void FlushInput()
     std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');
 }
 
-static const std::wstring protToStr(uint32_t prot)
-{
-    std::wstring result;
-
-    switch (prot & 0xff)
-    {
-    case PAGE_EXECUTE:
-        result = L"X";
-        break;
-    case PAGE_EXECUTE_READ:
-        result = L"RX";
-        break;
-    case PAGE_EXECUTE_READWRITE:
-        result = L"RWX";
-        break;
-    case PAGE_EXECUTE_WRITECOPY:
-        result = L"RW(c)X";
-        break;
-    case PAGE_NOACCESS:
-        result = L"-";
-        break;
-    case PAGE_READONLY:
-        result = L"R";
-        break;
-    case PAGE_READWRITE:
-        result = L"RW";
-        break;
-    case PAGE_WRITECOPY:
-        result = L"RW(c)";
-        break;
-    default:
-        return L"Unknown";
-    }
-
-    if (prot & PAGE_GUARD)
-        result += L"+G";
-
-    if (prot & PAGE_NOCACHE)
-        result += L"+NC";
-
-    if (prot & PAGE_WRITECOMBINE)
-        result += L"+WC";
-
-    return result;
-}
-
 static const wchar_t* stateToStr(uint32_t state)
 {
     switch (state)
@@ -172,10 +126,10 @@ static void printMBI(const MEMORY_BASIC_INFORMATION_T<T>* mbi)
 {
     std::wcout << L"   BaseAddress:       " << std::hex << mbi->BaseAddress << std::endl;
     std::wcout << L"   AllocationBase:    " << std::hex << mbi->AllocationBase << std::endl;
-    std::wcout << L"   AllocationProtect: " << protToStr(mbi->AllocationProtect) << std::endl;
+    std::wcout << L"   AllocationProtect: " << ProtToStr(mbi->AllocationProtect) << std::endl;
     std::wcout << L"   RegionSize:        " << std::hex << mbi->RegionSize << std::endl;
     std::wcout << L"   State:             " << stateToStr(mbi->State) << std::endl;
-    std::wcout << L"   Protect:           " << protToStr(mbi->Protect) << std::endl;
+    std::wcout << L"   Protect:           " << ProtToStr(mbi->Protect) << std::endl;
     std::wcout << L"   Type:              " << typeToStr(mbi->Type) << std::endl;
     std::wcout << std::endl;
 }
@@ -242,9 +196,22 @@ static void doOffset(const std::map<T, MBI_ENV_T<T>>& mapping)
     FlushInput();
 }
 
-template <class T>
-static bool doProcessing(FILE* dump, const wchar_t* path)
+static void printHelp()
 {
+    std::wcout <<
+        L"   Supported commands:\n"
+        L"    list memory|thread - prints all memory or thread information\n"
+        L"    match address - prints information about memory region which address (hex) belongs to\n"
+        L"    offset address - prints offset in dump file that matches the address (hex)\n"
+        L"    help - prints this help\n"
+        L"    exit - exit from dump viewer\n"
+        << std::endl;
+}
+
+template <class T>
+static bool doProcessing(FILE* dump, const wchar_t* path, uint8_t processBitness)
+{
+    std::wcout << L"Process Architecture: " << (processBitness == 64 ? L"X64" : L"X86") << std::endl;
     std::vector<MEMORY_BASIC_INFORMATION_T<T>> mbiArray;
     std::vector<T> threads;
     if (!readDumpInfo(dump, path, mbiArray, threads))
@@ -264,9 +231,14 @@ static bool doProcessing(FILE* dump, const wchar_t* path)
         else if (cmd == L"match")
             doMatch(mapping);
         else if (cmd == L"exit")
+        {
+            std::wcout << L"   Bye!" << std::endl;
             break;
+        }
         else if (cmd == L"offset")
             doOffset(mapping);
+        else if (cmd == L"help")
+            printHelp();
         else
             std::wcout << L"   Unknown command: \'" << cmd << L"\'" << std::endl;
     } while (true);
@@ -279,33 +251,46 @@ static bool processDump(FILE * dump, const wchar_t* path)
     char sig[sizeof(DumpSignature)];
     if (fread(sig, 1, sizeof(DumpSignature), dump) != sizeof(DumpSignature))
     {
-        std::wcout << "Error: unable to read dump " << path << std::endl;
+        std::wcout << L"Error: unable to read dump " << path << std::endl;
         return false;
     }
 
     if (memcmp(sig, DumpSignature, sizeof(DumpSignature)) != 0)
     {
-        std::wcout << "Error: invalid dump file" << path << std::endl;
+        std::wcout << L"Error: invalid dump file" << path << std::endl;
         return false;
     }
         
-    uint8_t bitness = 0;
-    if (fread(&bitness, sizeof(bitness), 1, dump) != 1)
+    uint8_t osBitness = 0;
+    if (fread(&osBitness, sizeof(osBitness), 1, dump) != 1)
     {
-        std::wcout << "Error: unable to read dump " << path << std::endl;
+        std::wcout << L"Error: unable to read dump " << path << std::endl;
         return false;
     }
 
-    switch (bitness)
+    uint8_t procBitness = 0;
+    if (fread(&procBitness, sizeof(procBitness), 1, dump) != 1)
+    {
+        std::wcout << L"Error: unable to read dump " << path << std::endl;
+        return false;
+    }
+
+    if (procBitness != 32 && procBitness != 64)
+    {
+        std::wcout << L"Error: invalid dump file" << path << std::endl;
+        return false;
+    }
+
+    switch (osBitness)
     {
     case 32:
-        std::wcout << "OS Architecture: X86" << std::endl;
-        return doProcessing<uint32_t>(dump, path);
+        std::wcout << L"OS Architecture: X86" << std::endl;
+        return doProcessing<uint32_t>(dump, path, procBitness);
     case 64:
-        std::wcout << "OS Architecture: X86" << std::endl;
-        return doProcessing<uint64_t>(dump, path);
+        std::wcout << L"OS Architecture: X64" << std::endl;
+        return doProcessing<uint64_t>(dump, path, procBitness);
     default:
-        std::wcout << "Error: invalid dump file" << path << std::endl;
+        std::wcout << L"Error: invalid dump file" << path << std::endl;
         return false;
     }
 }

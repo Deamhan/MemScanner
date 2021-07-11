@@ -4,8 +4,10 @@ project(MemScanner)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-set(COMMON_SRC source/ntdll64.cpp
+set(COMMON_SRC source/dump.cpp
+               source/ntdll64.cpp
                source/scanner.cpp
+               include/dump.h
                include/ntdll64.h
                include/system_defs.h
                include/scanner.h
@@ -20,6 +22,8 @@ set(TEST1_SRC source/test1.cpp
 )
 
 set(VIEWER_SRC source/viewer.cpp
+               source/dump.cpp
+               include/dump.h
                include/system_defs.h
 )
 

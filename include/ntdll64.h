@@ -92,4 +92,5 @@ template <CPUArchitecture arch>
 const Wow64Helper<arch>& GetWow64Helper();
 
 CPUArchitecture GetOSArch() noexcept;
+CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept;
 
