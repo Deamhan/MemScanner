@@ -42,10 +42,13 @@ static bool readDumpInfo(FILE* dump, const wchar_t* path, std::vector<MEMORY_BAS
     }
 
     threads.resize(threadCount);
-    if (fread(threads.data(), sizeof(T), threadCount, dump) != threadCount)
+    if (threadCount != 0)
     {
-        std::wcout << L"Error: unable to read dump " << path << std::endl;
-        return false;
+        if (fread(threads.data(), sizeof(T), threadCount, dump) != threadCount)
+        {
+            std::wcout << L"Error: unable to read dump " << path << std::endl;
+            return false;
+        }
     }
 
     typename MEMORY_BASIC_INFORMATION_T<T> MBI;
@@ -93,49 +96,6 @@ static void FlushInput()
     std::wcin.ignore(std::numeric_limits<std::streamsize>::max(), L'\n');
 }
 
-static const wchar_t* stateToStr(uint32_t state)
-{
-    switch (state)
-    {
-    case MEM_COMMIT:
-        return L"Commit";
-    case MEM_FREE:
-        return L"Free";
-    case MEM_RESERVE:
-        return L"Reserve";
-    default:
-        return L"Invalid";
-    }
-}
-
-static const wchar_t* typeToStr(MemType type)
-{
-    switch (type)
-    {
-    case MemType::Image:
-        return L"Image";
-    case MemType::Mapped:
-        return L"Mapped";
-    case MemType::Private:
-        return L"Private";
-    default:
-        return L"Invalid";
-    }
-}
-
-template <class T>
-static void printMBI(const MEMORY_BASIC_INFORMATION_T<T>* mbi)
-{
-    std::wcout << L"   BaseAddress:       " << std::hex << mbi->BaseAddress << std::endl;
-    std::wcout << L"   AllocationBase:    " << std::hex << mbi->AllocationBase << std::endl;
-    std::wcout << L"   AllocationProtect: " << ProtToStr(mbi->AllocationProtect) << std::endl;
-    std::wcout << L"   RegionSize:        " << std::hex << mbi->RegionSize << std::endl;
-    std::wcout << L"   State:             " << stateToStr(mbi->State) << std::endl;
-    std::wcout << L"   Protect:           " << ProtToStr(mbi->Protect) << std::endl;
-    std::wcout << L"   Type:              " << typeToStr(mbi->Type) << std::endl;
-    std::wcout << std::endl;
-}
-
 template <class T>
 static void doList(const std::map<T, MBI_ENV_T<T>>& mapping, const std::vector<T>& threads)
 {
@@ -158,35 +118,6 @@ static void doList(const std::map<T, MBI_ENV_T<T>>& mapping, const std::vector<T
 
     std::wcout << std::endl;
     FlushInput();
-}
-
-const uint32_t RFlag = 1;
-const uint32_t WFlag = 2;
-const uint32_t XFlag = 4;
-
-const uint32_t protToFlags(uint32_t prot)
-{
-    switch (prot & 0xff)
-    {
-    case PAGE_EXECUTE:
-        return XFlag;
-    case PAGE_EXECUTE_READ:
-        return XFlag | RFlag;
-    case PAGE_EXECUTE_READWRITE:
-        return XFlag | RFlag | WFlag;
-    case PAGE_EXECUTE_WRITECOPY:
-        return XFlag | RFlag | WFlag;
-    case PAGE_NOACCESS:
-        return 0;
-    case PAGE_READONLY:
-        return RFlag;
-    case PAGE_READWRITE:
-        return RFlag | WFlag;
-    case PAGE_WRITECOPY:
-        return RFlag | WFlag;
-    default:
-        return XFlag | RFlag | WFlag;
-    }
 }
 
 template <class T>

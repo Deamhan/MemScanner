@@ -43,7 +43,10 @@ static bool EnableDebugPrivilege()
 const uint32_t PAGE_SIZE = 4096;
 
 template <CPUArchitecture arch>
-static std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& api)
+using MemoryMap_t = std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>>;
+
+template <CPUArchitecture arch>
+static MemoryMap_t<arch> GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& api)
 {
     std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> result;
     PTR_T<arch> address = 0;
@@ -67,7 +70,8 @@ static std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> GetMemoryMap(HANDLE 
 */
 
 template <CPUArchitecture arch>
-static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, const wchar_t* path, const std::vector<PTR_T<arch>>& processIssues, const Wow64Helper<arch>& api)
+static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, const wchar_t* path, const std::vector<PTR_T<arch>>& processIssues,
+                       const MemoryMap_t<arch>& mm, const Wow64Helper<arch>& api)
 {
     FILE* dump = nullptr;
     _wfopen_s(&dump, path, L"wb");
@@ -102,13 +106,15 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
             return false;
         }
 
-        if (fwrite(processIssues.data(), sizeof(processIssues[0]), issuesCount, dump) != issuesCount)
+        if (issuesCount != 0)
         {
-            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
-            return false;
+            if (fwrite(processIssues.data(), sizeof(processIssues[0]), issuesCount, dump) != issuesCount)
+            {
+                wprintf(L"!>> Unable to write data to file %s <<!\n", path);
+                return false;
+            }
         }
 
-        auto mm = GetMemoryMap<arch>(hProcess, api);
         const uint32_t mmSize = (uint32_t)mm.size();
         if (fwrite(&mmSize, sizeof(mmSize), 1, dump) != 1)
         {
@@ -157,10 +163,10 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
 template <CPUArchitecture arch>
 static int ScanMemoryImpl(const wchar_t * dumpDir)
 {
+    int issues = 0;
+
     wprintf(L">>> OS Architecture: %s <<<\n", arch == CPUArchitecture::X64 ? L"X64" : L"X86");
     wprintf(L">>> Scanner Architecture: %s <<<\n", sizeof(void*) == 8 ? L"X64" : L"X86");
-
-    int issues = 0;
 
     if (!EnableDebugPrivilege())
         wprintf(L"!>> Unable to enable SeDebugPrivilege, functionality is limited <<!\n");
@@ -188,6 +194,7 @@ static int ScanMemoryImpl(const wchar_t * dumpDir)
         }
         
         wprintf(L"\n");
+        bool hasExecPrivateMemory = false;
         std::vector<PTR_T<arch>> processIssues;
         std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, CloseHandleByPtr);
         for (uint32_t i = 0; i < procInfo->NumberOfThreads; ++i)
@@ -204,21 +211,38 @@ static int ScanMemoryImpl(const wchar_t * dumpDir)
                 if (NT_SUCCESS(api.NtQueryVirtualMemory64(hProcess, startAddress, MEMORY_INFORMATION_CLASS::MemoryBasicInformation, &mbi, sizeof(mbi), nullptr))
                     && (mbi.State & MEM_COMMIT) != 0 && mbi.Type != MemType::Image)
                 {
-                    ++issues;
                     processIssues.push_back(startAddress);
                     wprintf(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread, (ull)startAddress, ProtToStr(mbi.Protect).c_str());
+                    hasExecPrivateMemory = true;
+                    ++issues;
                 }
             }
         }
 
-        if (!processIssues.empty() && dumpDir != nullptr)
+        auto mm = GetMemoryMap(hProcess, api);
+        for (const auto& region : mm)
+        {
+            bool isSuspRegion = false;
+            isSuspRegion = region.Type != MemType::Image && (region.State & MEM_COMMIT) != 0 && 
+                         ((protToFlags(region.Protect) & XFlag) != 0 || (protToFlags(region.AllocationProtect) & XFlag) != 0);
+
+            if (isSuspRegion)
+            {
+                hasExecPrivateMemory = true;
+                ++issues;
+                wprintf(L"\t Suspicious memory region:\n");
+                printMBI(&region, L"\t");
+            }
+        }
+
+        if (hasExecPrivateMemory && dumpDir != nullptr)
         {
             std::wstring path(dumpDir);
             path += L'\\';
             path += std::to_wstring((unsigned)(uintptr_t)procInfo->ProcessId);
             path += L".dump";
             
-            DumpMemory<arch>(hProcess, (uint32_t)(uintptr_t)procInfo->ProcessId, name.c_str(), path.c_str(), processIssues, api);
+            DumpMemory<arch>(hProcess, (uint32_t)(uintptr_t)procInfo->ProcessId, name.c_str(), path.c_str(), processIssues, mm, api);
         }
     }
 
