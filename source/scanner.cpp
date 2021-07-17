@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "dump.h"
@@ -64,6 +65,30 @@ static MemoryMap_t<arch> GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& 
     return result;
 }
 
+template <class T>
+static bool writeValue(const T& value, FILE* f) noexcept
+{
+    return fwrite(&value, sizeof(value), 1, f) == 1;
+}
+
+template <class T>
+static bool writeValue(const std::vector<T>& value, FILE* f) noexcept
+{
+    return fwrite(value.data(), sizeof(T), value.size(), f) == value.size();
+}
+
+template <class T>
+static bool writeValue(const std::vector<T>& value, size_t count, FILE* f) noexcept
+{
+    return fwrite(value.data(), sizeof(T), count, f) == count;
+}
+
+template <class T, int N>
+static bool writeValue(const T (&value)[N], FILE* f) noexcept
+{
+    return fwrite(value, sizeof(T), N, f) == N;
+}
+
 /*
 * Process dump file structure:
 * | signature | os bitness | process bitness | suspicious thread count | suspicious threads ep[] | memory regions count | MEMORY_BASIC_INFORMATION_T [] | raw memory regions[] |
@@ -77,82 +102,65 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
     _wfopen_s(&dump, path, L"wb");
     if (dump != nullptr)
     {
-        constexpr size_t sigLen = sizeof(DumpSignature) / sizeof(DumpSignature[0]);
-        if (fwrite(DumpSignature, sizeof(DumpSignature[0]), sigLen, dump) != sigLen)
-        {
-            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
-            return false;
-        }
-
-        uint8_t osBitness = (arch == CPUArchitecture::X64 ? 64 : 32);
-        if (fwrite(&osBitness, sizeof(osBitness), 1, dump) != 1)
-        {
-            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
-            return false;
-        }
-
-        uint8_t procBitness = (GetProcessArch(hProcess) == CPUArchitecture::X64 ? 64 : 32);
-        if (fwrite(&procBitness, sizeof(procBitness), 1, dump) != 1)
-        {
-            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
-            return false;
-        }
-
         std::unique_ptr<FILE, int(*)(FILE*)> dumpGuard(dump, fclose);
-        const uint32_t issuesCount = (uint32_t)processIssues.size();
-        if (fwrite(&issuesCount, sizeof(issuesCount), 1, dump) != 1)
+        try
         {
-            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
-            return false;
-        }
+            if (!writeValue(DumpSignature, dump))
+                throw std::system_error(errno, std::iostream_category(), "");
 
-        if (issuesCount != 0)
-        {
-            if (fwrite(processIssues.data(), sizeof(processIssues[0]), issuesCount, dump) != issuesCount)
+            uint8_t osBitness = (arch == CPUArchitecture::X64 ? 64 : 32);
+            if (!writeValue(osBitness, dump))
+                throw std::system_error(errno, std::iostream_category(), "");
+
+            uint8_t procBitness = (GetProcessArch(hProcess) == CPUArchitecture::X64 ? 64 : 32);
+            if (!writeValue(procBitness, dump))
+                throw std::system_error(errno, std::iostream_category(), "");
+
+            const uint32_t issuesCount = (uint32_t)processIssues.size();
+            if (!writeValue(issuesCount, dump))
+                throw std::system_error(errno, std::iostream_category(), "");
+
+            if (issuesCount != 0)
             {
-                wprintf(L"!>> Unable to write data to file %s <<!\n", path);
-                return false;
+                if (!writeValue(processIssues, dump))
+                    throw std::system_error(errno, std::iostream_category(), "");
             }
-        }
 
-        const uint32_t mmSize = (uint32_t)mm.size();
-        if (fwrite(&mmSize, sizeof(mmSize), 1, dump) != 1)
-        {
-            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
-            return false;
-        }
+            const uint32_t mmSize = (uint32_t)mm.size();
+            if (!writeValue(mmSize, dump))
+                throw std::system_error(errno, std::iostream_category(), "");
 
-        if (fwrite(mm.data(), sizeof(mm[0]), mmSize, dump) != mmSize)
-        {
-            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
-            return false;
-        }
+            if (!writeValue(mm, dump))
+                throw std::system_error(errno, std::iostream_category(), "");
 
-        std::vector<uint8_t> readBuffer(1024 * 1024);
-        for (const auto& mbi : mm)
-        {
-            uint64_t size = mbi.RegionSize, processed = 0;
-            while (size != 0)
+            std::vector<uint8_t> readBuffer(1024 * 1024);
+            for (const auto& mbi : mm)
             {
-                size_t blockSize = (size_t)std::min<uint64_t>(readBuffer.size(), size);
-                uint64_t result;
-                const uint64_t addr = mbi.BaseAddress + processed;
-                memset(readBuffer.data(), 0, blockSize);
-                if (!api.ReadProcessMemory64(hProcess, addr, readBuffer.data(), blockSize, &result))
-                    wprintf(L"!>> Unable to read process memory [%s, PID = %u] [0x%016llx : 0x%016llx) <<!\n", process, (unsigned)pid, (ull)addr, (ull)(addr + blockSize));
-
-                if (fwrite(readBuffer.data(), sizeof(uint8_t), blockSize, dump) != blockSize)
+                uint64_t size = mbi.RegionSize, processed = 0;
+                while (size != 0)
                 {
-                    wprintf(L"!>> Unable to write data to file %s <<!\n", path);
-                    return false;
+                    size_t blockSize = (size_t)std::min<uint64_t>(readBuffer.size(), size);
+                    uint64_t result;
+                    const uint64_t addr = mbi.BaseAddress + processed;
+                    memset(readBuffer.data(), 0, blockSize);
+                    if (!api.ReadProcessMemory64(hProcess, addr, readBuffer.data(), blockSize, &result))
+                        wprintf(L"!>> Unable to read process memory [%s, PID = %u] [0x%016llx : 0x%016llx) <<!\n", process, (unsigned)pid, (ull)addr, (ull)(addr + blockSize));
+
+                    if (!writeValue(readBuffer, blockSize, dump))
+                        throw std::system_error(errno, std::iostream_category(), "");
+
+                    size -= blockSize;
+                    processed += blockSize;
                 }
-
-                size -= blockSize;
-                processed += blockSize;
             }
-        }
 
-        return true;
+            return true;
+        }
+        catch (const std::system_error&)
+        {
+            wprintf(L"!>> Unable to write data to file %s <<!\n", path);
+            return false;
+        }
     }
     else
         wprintf(L"!>> Unable to open file %s for writing <<!\n", path);
@@ -161,7 +169,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
 }
 
 template <CPUArchitecture arch>
-static int ScanMemoryImpl(const wchar_t * dumpDir)
+static int ScanMemoryImpl(uint32_t sensitivity, uint32_t pid, const wchar_t* dumpDir)
 {
     int issues = 0;
 
@@ -220,18 +228,41 @@ static int ScanMemoryImpl(const wchar_t * dumpDir)
         }
 
         auto mm = GetMemoryMap(hProcess, api);
-        for (const auto& region : mm)
+        if (sensitivity > 0)
         {
-            bool isSuspRegion = false;
-            isSuspRegion = region.Type != MemType::Image && (region.State & MEM_COMMIT) != 0 && 
-                         ((protToFlags(region.Protect) & XFlag) != 0 || (protToFlags(region.AllocationProtect) & XFlag) != 0);
-
-            if (isSuspRegion)
+            for (const auto& region : mm)
             {
-                hasExecPrivateMemory = true;
-                ++issues;
-                wprintf(L"\t Suspicious memory region:\n");
-                printMBI(&region, L"\t");
+                uint32_t allocProtMask = 0, protMask = 0;
+                switch (sensitivity)
+                {
+                case 1:
+                    protMask = (WFlag | XFlag);
+                    break;
+                case 2:
+                    protMask = XFlag;
+                    break;
+                case 3:
+                    protMask = XFlag;
+                    allocProtMask = (WFlag | XFlag);
+                    break;
+                default:
+                case 4:
+                    allocProtMask = protMask = XFlag;
+                    break;
+                }
+
+                bool isSuspRegion = false;
+                bool allocProtRes = (allocProtMask != 0 ? (protToFlags(region.AllocationProtect) & allocProtMask) == allocProtMask : false);
+                bool protRes = (protMask != 0 ? (protToFlags(region.Protect) & protMask) == protMask : false);
+                isSuspRegion = region.Type != MemType::Image && (region.State & MEM_COMMIT) != 0 && (protRes || allocProtRes);
+
+                if (isSuspRegion)
+                {
+                    hasExecPrivateMemory = true;
+                    ++issues;
+                    wprintf(L"\t Suspicious memory region:\n");
+                    printMBI(&region, L"\t");
+                }
             }
         }
 
@@ -250,13 +281,13 @@ static int ScanMemoryImpl(const wchar_t * dumpDir)
 }
 
 #if _X64_
-int ScanMemory(const wchar_t* dumpDir)
+int ScanMemory(uint32_t sensitivity = 0, uint32_t pid = 0, const wchar_t* dumpDir = nullptr)
 {
     return ScanMemoryImpl<CPUArchitecture::X64>(dumpDir);
 }
 #else
-int ScanMemory(const wchar_t* dumpDir)
+int ScanMemory(uint32_t sensitivity, uint32_t pid, const wchar_t* dumpDir)
 {
-    return (GetOSArch() == CPUArchitecture::X64 ? ScanMemoryImpl<CPUArchitecture::X64>(dumpDir) : ScanMemoryImpl<CPUArchitecture::X86>(dumpDir));
+    return (GetOSArch() == CPUArchitecture::X64 ? ScanMemoryImpl<CPUArchitecture::X64>(sensitivity, pid, dumpDir) : ScanMemoryImpl<CPUArchitecture::X86>(sensitivity, pid, dumpDir));
 }
 #endif

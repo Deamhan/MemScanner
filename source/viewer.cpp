@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <sstream>
+#include <system_error>
 #include <vector>
 
 #include "dump.h"
@@ -26,53 +27,66 @@ struct MBI_ENV_T
 };
 
 template <class T>
+static bool readValue(T& value, FILE* f) noexcept
+{
+    return fread(&value, sizeof(value), 1, f) == 1;
+}
+
+template <class T>
+static bool readValue(std::vector<T>& value, FILE* f) noexcept
+{
+    return fread(value.data(), sizeof(T), value.size(), f) == value.size();
+}
+
+template <class T, int N>
+static bool readValue(T (&value)[N], FILE* f) noexcept
+{
+    return fread(value, sizeof(T), N, f) == N;
+}
+
+template <class T>
 static bool readDumpInfo(FILE* dump, const wchar_t* path, std::vector<MEMORY_BASIC_INFORMATION_T<T>>& mbiArray, std::vector<T>& threads)
 {
-    uint32_t threadCount = 0;
-    if (fread(&threadCount, sizeof(threadCount), 1, dump) != 1)
+    try
     {
-        std::wcout << L"Error: unable to read dump " << path << std::endl;
-        return false;
-    }
+        uint32_t threadCount = 0;
+        if (!readValue(threadCount, dump))
+            throw std::system_error(errno, std::iostream_category(), "");
 
-    if (threadCount > MAX_THREADS_COUNT)
-    {
-        std::wcout << L"Error: to many threads " << threadCount << std::endl;
-        return false;
-    }
-
-    threads.resize(threadCount);
-    if (threadCount != 0)
-    {
-        if (fread(threads.data(), sizeof(T), threadCount, dump) != threadCount)
+        if (threadCount > MAX_THREADS_COUNT)
         {
-            std::wcout << L"Error: unable to read dump " << path << std::endl;
+            std::wcout << L"Error: to many threads " << threadCount << std::endl;
             return false;
         }
-    }
 
-    typename MEMORY_BASIC_INFORMATION_T<T> MBI;
-    uint32_t mbiCount = 0;
-    if (fread(&mbiCount, sizeof(mbiCount), 1, dump) != 1)
+        threads.resize(threadCount);
+        if (threadCount != 0)
+        {
+            if (!readValue(threads, dump))
+                throw std::system_error(errno, std::iostream_category(), "");
+        }
+
+        uint32_t mbiCount = 0;
+        if (!readValue(mbiCount, dump))
+            throw std::system_error(errno, std::iostream_category(), "");
+
+        if (mbiCount > MAX_MBI_COUNT)
+        {
+            std::wcout << L"Error: to many memory regions " << threadCount << std::endl;
+            return false;
+        }
+
+        mbiArray.resize(mbiCount);
+        if (!readValue(mbiArray, dump))
+            throw std::system_error(errno, std::iostream_category(), "");
+
+        return true;
+    }
+    catch (const std::system_error&)
     {
         std::wcout << L"Error: unable to read dump " << path << std::endl;
         return false;
     }
-
-    if (mbiCount > MAX_MBI_COUNT)
-    {
-        std::wcout << L"Error: to many memory regions " << threadCount << std::endl;
-        return false;
-    }
-
-    mbiArray.resize(mbiCount);
-    if (fread(mbiArray.data(), sizeof(MBI), mbiCount, dump) != mbiCount)
-    {
-        std::wcout << L"Error: unable to read dump " << path << std::endl;
-        return false;
-    }
-
-    return true;
 }
 
 template <class T>
@@ -326,48 +340,45 @@ static bool doProcessing(FILE* dump, const wchar_t* path, uint8_t processBitness
 
 static bool processDump(FILE * dump, const wchar_t* path)
 {
-    char sig[sizeof(DumpSignature)];
-    if (fread(sig, 1, sizeof(DumpSignature), dump) != sizeof(DumpSignature))
+    try
+    {
+        char sig[sizeof(DumpSignature)];
+        if (!readValue(sig, dump))
+            throw std::system_error(errno, std::iostream_category(), "");
+
+        if (memcmp(sig, DumpSignature, sizeof(DumpSignature)) != 0)
+            throw std::logic_error("");
+
+        uint8_t osBitness = 0;
+        if (!readValue(osBitness, dump))
+            throw std::system_error(errno, std::iostream_category(), "");
+
+        uint8_t procBitness = 0;
+        if (!readValue(procBitness, dump))
+            throw std::system_error(errno, std::iostream_category(), "");
+
+        if (procBitness != 32 && procBitness != 64)
+            throw std::logic_error("");
+
+        switch (osBitness)
+        {
+        case 32:
+            std::wcout << L"OS Architecture: X86" << std::endl;
+            return doProcessing<uint32_t>(dump, path, procBitness);
+        case 64:
+            std::wcout << L"OS Architecture: X64" << std::endl;
+            return doProcessing<uint64_t>(dump, path, procBitness);
+        default:
+            throw std::logic_error("");
+        }
+    }
+    catch (const std::system_error&)
     {
         std::wcout << L"Error: unable to read dump " << path << std::endl;
         return false;
     }
-
-    if (memcmp(sig, DumpSignature, sizeof(DumpSignature)) != 0)
+    catch (const std::logic_error&)
     {
-        std::wcout << L"Error: invalid dump file" << path << std::endl;
-        return false;
-    }
-        
-    uint8_t osBitness = 0;
-    if (fread(&osBitness, sizeof(osBitness), 1, dump) != 1)
-    {
-        std::wcout << L"Error: unable to read dump " << path << std::endl;
-        return false;
-    }
-
-    uint8_t procBitness = 0;
-    if (fread(&procBitness, sizeof(procBitness), 1, dump) != 1)
-    {
-        std::wcout << L"Error: unable to read dump " << path << std::endl;
-        return false;
-    }
-
-    if (procBitness != 32 && procBitness != 64)
-    {
-        std::wcout << L"Error: invalid dump file" << path << std::endl;
-        return false;
-    }
-
-    switch (osBitness)
-    {
-    case 32:
-        std::wcout << L"OS Architecture: X86" << std::endl;
-        return doProcessing<uint32_t>(dump, path, procBitness);
-    case 64:
-        std::wcout << L"OS Architecture: X64" << std::endl;
-        return doProcessing<uint64_t>(dump, path, procBitness);
-    default:
         std::wcout << L"Error: invalid dump file" << path << std::endl;
         return false;
     }
