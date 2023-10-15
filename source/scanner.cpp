@@ -281,9 +281,9 @@ static int ScanMemoryImpl(uint32_t sensitivity, uint32_t pid, const wchar_t* dum
 }
 
 #if _X64_
-int ScanMemory(uint32_t sensitivity = 0, uint32_t pid = 0, const wchar_t* dumpDir = nullptr)
+int ScanMemory(uint32_t sensitivity, uint32_t pid, const wchar_t* dumpDir)
 {
-    return ScanMemoryImpl<CPUArchitecture::X64>(dumpDir);
+    return ScanMemoryImpl<CPUArchitecture::X64>(sensitivity, pid, dumpDir);
 }
 #else
 int ScanMemory(uint32_t sensitivity, uint32_t pid, const wchar_t* dumpDir)
