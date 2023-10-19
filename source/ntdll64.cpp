@@ -4,12 +4,12 @@
 
 using namespace SystemDefinitions;
 
-#if !_X64_
+#if !_M_AMD64
 extern "C" NT_STATUS X64Function(uint64_t Func, uint32_t Argc, uint64_t Arg0, uint64_t Arg1, uint64_t Arg2, uint64_t Arg3, ...);
 extern "C" void MemCpy(void* pDest, uint64_t pSource, uint32_t size);
 extern "C" int  MemCmp(const void* pDest, uint64_t pSource, uint32_t size);
 extern "C" void GetTEB64(uint64_t * pTeb64);
-#endif // !_X64_
+#endif // !_M_AMD64
 
 #define SURE(f) if ((f) == 0) return
 
@@ -21,9 +21,9 @@ const Wow64Helper<arch>& GetWow64Helper()
 }
 
 template const Wow64Helper<CPUArchitecture::X64>& GetWow64Helper();
-#if !_X64_
+#if !_M_AMD64
 template const Wow64Helper<CPUArchitecture::X86>& GetWow64Helper();
-#endif // _X64_
+#endif // _M_AMD64
 
 template <CPUArchitecture arch>
 Wow64Helper<arch>::Wow64Helper() : m_isOk(false)
@@ -62,7 +62,7 @@ FARPROC_T<arch> Wow64Helper<arch>::getLdrGetProcedureAddress()
     return GetProcAddress(m_Ntdll, "LdrGetProcedureAddress");
 }
 
-#if !_X64_
+#if !_M_AMD64
 template <>
 HMODULE_T<CPUArchitecture::X64> Wow64Helper<CPUArchitecture::X64>::GetModuleHandle64(const wchar_t* lpModuleName) const noexcept
 {
@@ -141,7 +141,7 @@ FARPROC_T<CPUArchitecture::X64> Wow64Helper<CPUArchitecture::X64>::GetProcAddres
     X64Function(m_LdrGetProcedureAddress, 4, (uint64_t)hModule, (uint64_t)&fName, (uint64_t)0, (uint64_t)&funcRet);
     return funcRet;
 }
-#endif // !_X64_
+#endif // !_M_AMD64
 
 
 typedef NT_STATUS (__stdcall * NtQueryVirtualMemory_t)(
@@ -269,7 +269,7 @@ BOOL Wow64Helper<arch>::WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAdd
     return NT_SUCCESS(ret) ? TRUE : FALSE;
 }
 
-#if !_X64_
+#if !_M_AMD64
 
 template <>
 NT_STATUS Wow64Helper<CPUArchitecture::X64>::NtQueryVirtualMemory64(HANDLE hProcess, uint64_t lpAddress, MEMORY_INFORMATION_CLASS memInfoClass,
@@ -330,7 +330,7 @@ BOOL Wow64Helper<CPUArchitecture::X64>::WriteProcessMemory64(HANDLE hProcess, ui
 }
 
 template class Wow64Helper<CPUArchitecture::X86>;
-#endif //_X64_
+#endif //_M_AMD64
 
 template class Wow64Helper<CPUArchitecture::X64>;
 
@@ -338,7 +338,7 @@ typedef BOOL (WINAPI* IsWow64Process_t)(HANDLE hProcess, PBOOL res);
 
 CPUArchitecture GetOSArch() noexcept
 {
-#if _X64_
+#if _M_AMD64
     return CPUArchitecture::X64;
 #else
     auto IsWow64Process = (IsWow64Process_t)GetProcAddress(GetModuleHandleA("kernel32"), "IsWow64Process");
@@ -350,12 +350,13 @@ CPUArchitecture GetOSArch() noexcept
     }
 
     return CPUArchitecture::X86;
-#endif // _X64_
+#endif // _M_AMD64
 }
 
 CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept
 {
-#if _X64_
+#if _M_AMD64
+    UNREFERENCED_PARAMETER(hProcess);
     return CPUArchitecture::X64;
 #else
     auto IsWow64Process = (IsWow64Process_t)GetProcAddress(GetModuleHandleA("kernel32"), "IsWow64Process");
@@ -367,6 +368,6 @@ CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept
     }
 
     return GetOSArch();
-#endif // _X64_
+#endif // _M_AMD64
 }
 

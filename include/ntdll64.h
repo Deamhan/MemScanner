@@ -8,9 +8,9 @@
 
 enum class CPUArchitecture
 {
-#if !_X64_
+#if !_M_AMD64
     X86,
-#endif // !_X64_
+#endif // !_M_AMD64
     X64
 };
 
@@ -19,14 +19,14 @@ struct HelperTraits
 {
     typedef HMODULE HMODULE_T;
     typedef FARPROC FARPROC_T;
-#if _X64_
+#if _M_AMD64
     typedef uint64_t PTR_T;
 #else
     typedef uint32_t PTR_T;
 #endif
 };
 
-#if !_X64_
+#if !_M_AMD64
 template <>
 struct HelperTraits<CPUArchitecture::X64>
 {
@@ -34,7 +34,7 @@ struct HelperTraits<CPUArchitecture::X64>
     typedef uint64_t FARPROC_T;
     typedef uint64_t PTR_T;
 };
-#endif // _X64_
+#endif // _M_AMD64
 
 template <CPUArchitecture arch>
 using HMODULE_T = typename HelperTraits<arch>::HMODULE_T;

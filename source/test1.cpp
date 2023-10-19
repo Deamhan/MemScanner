@@ -27,13 +27,13 @@ static void TestThreadFunc(HANDLE hEvent)
 
 int main()
 {
-#if _X64_
+#if _M_AMD64
     const uint8_t code[] = { 0x48, 0xB8, 0x78, 0x56, 0x34, 0x12, 0x78, 0x56, 0x34, 0x12, 0xFF, 0xE0 };
     const size_t offset = 2;
 #else
     const uint8_t code[] = { 0xB8, 0x78, 0x56, 0x34, 0x12, 0xFF, 0xE0 };
     const size_t offset = 1;
-#endif // _X64_
+#endif // _M_AMD64
     auto pExec = (uint8_t*)VirtualAlloc(nullptr, sizeof(code), MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
     if (pExec == nullptr)
     {

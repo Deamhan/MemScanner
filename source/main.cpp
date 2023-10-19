@@ -46,9 +46,9 @@ int wmain(int argc, const wchar_t ** argv)
         {
             if (argv[i][0] == L'-' || argv[i][0] == L'/')
             {
-                if (wcscmp(argv[i] + 1, L"sensitivity"))
+                if (wcscmp(argv[i] + 1, L"sensitivity") == 0)
                     state = CmdLineSwitch::Sensitivity;
-                else if (wcscmp(argv[i] + 1, L"pid"))
+                else if (wcscmp(argv[i] + 1, L"pid") == 0)
                     state = CmdLineSwitch::Pid;
                 else
                     throw std::invalid_argument("");

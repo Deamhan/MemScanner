@@ -30,3 +30,4 @@ _ReSharper*/
 __vs*/
 #Nuget packages folder
 packages/
+__build/
