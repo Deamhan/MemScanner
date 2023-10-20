@@ -111,17 +111,17 @@ const uint32_t protToFlags(uint32_t prot)
 }
 
 template <class T>
-void printMBI(const MEMORY_BASIC_INFORMATION_T<T>* mbi, const wchar_t* offset)
+void printMBI(const MEMORY_BASIC_INFORMATION_T<T>& mbi, const wchar_t* offset)
 {
-    std::wcout << offset << L"   BaseAddress:       " << std::hex << mbi->BaseAddress << std::endl;
-    std::wcout << offset << L"   AllocationBase:    " << std::hex << mbi->AllocationBase << std::endl;
-    std::wcout << offset << L"   AllocationProtect: " << ProtToStr(mbi->AllocationProtect) << std::endl;
-    std::wcout << offset << L"   RegionSize:        " << std::hex << mbi->RegionSize << std::endl;
-    std::wcout << offset << L"   State:             " << stateToStr(mbi->State) << std::endl;
-    std::wcout << offset << L"   Protect:           " << ProtToStr(mbi->Protect) << std::endl;
-    std::wcout << offset << L"   Type:              " << typeToStr(mbi->Type) << std::endl;
+    std::wcout << offset << L"   BaseAddress:       " << std::hex << mbi.BaseAddress << std::endl;
+    std::wcout << offset << L"   AllocationBase:    " << std::hex << mbi.AllocationBase << std::endl;
+    std::wcout << offset << L"   AllocationProtect: " << ProtToStr(mbi.AllocationProtect) << std::endl;
+    std::wcout << offset << L"   RegionSize:        " << std::hex << mbi.RegionSize << std::endl;
+    std::wcout << offset << L"   State:             " << stateToStr(mbi.State) << std::endl;
+    std::wcout << offset << L"   Protect:           " << ProtToStr(mbi.Protect) << std::endl;
+    std::wcout << offset << L"   Type:              " << typeToStr(mbi.Type) << std::endl;
     std::wcout << offset << std::endl;
 }
 
-template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint32_t>* mbi, const wchar_t* offset);
-template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint64_t>* mbi, const wchar_t* offset);
+template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint32_t>& mbi, const wchar_t* offset);
+template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi, const wchar_t* offset);

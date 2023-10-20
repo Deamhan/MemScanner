@@ -120,7 +120,7 @@ static void doList(const std::map<T, MBI_ENV_T<T>>& mapping, const std::vector<T
     if (type == L"memory")
     {
         for (const auto& item : mapping)
-            printMBI(item.second.mbi);
+            printMBI(*item.second.mbi);
     }
     else if (type == L"threads")
     {
@@ -234,7 +234,7 @@ static void doMatch(const std::map<T, MBI_ENV_T<T>>& mapping)
         if (it == mapping.end() || address < it->second.mbi->BaseAddress)
             std::wcout << L"   Not found" << std::endl;
         else
-            printMBI(it->second.mbi);
+            printMBI(*it->second.mbi);
     }
     else if (allocAddress != 0)
     {
@@ -245,7 +245,7 @@ static void doMatch(const std::map<T, MBI_ENV_T<T>>& mapping)
         {
             const auto end = mapping.end();
             for (; it != end && it->second.mbi->AllocationBase == allocAddress; ++it)
-                printMBI(it->second.mbi);
+                printMBI(*it->second.mbi);
         }
     }
     else
@@ -253,7 +253,7 @@ static void doMatch(const std::map<T, MBI_ENV_T<T>>& mapping)
         for (const auto& item : mapping)
         {
             if ((protToFlags(item.second.mbi->AllocationProtect) & attrMask) == attrMask || (protToFlags(item.second.mbi->Protect) & attrMask) == attrMask)
-                printMBI(item.second.mbi);
+                printMBI(*item.second.mbi);
         }
     }
     
