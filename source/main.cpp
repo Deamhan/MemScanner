@@ -4,7 +4,7 @@
 #include <sstream>
 #include <stdexcept>
 
-#include "scanner.h"
+#include "scanner.hpp"
 
 enum class CmdLineSwitch
 {

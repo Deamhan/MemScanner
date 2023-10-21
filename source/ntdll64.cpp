@@ -1,4 +1,4 @@
-#include "ntdll64.h"
+#include "ntdll64.hpp"
 
 #include <memory>
 

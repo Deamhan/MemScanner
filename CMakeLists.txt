@@ -4,27 +4,34 @@ project(MemScanner)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-set(COMMON_SRC source/dump.cpp
+set(COMMON_SRC source/datasource.cpp
+               source/dump.cpp
                source/ntdll64.cpp
                source/scanner.cpp
-               include/dump.h
-               include/ntdll64.h
-               include/system_defs.h
-               include/scanner.h
+               include/dump.hpp
+               include/ntdll64.hpp
+               include/system_defs.hpp
+               include/scanner.hpp
+               include/datasource.hpp
 )
 
 set(SCANNER_SRC source/main.cpp
                 ${COMMON_SRC}
 )
 
-set(TEST1_SRC source/test1.cpp
-              ${COMMON_SRC}
+set(SUSP_THREAD_SRC tests/suspThreadTest.cpp
+                    ${COMMON_SRC}
 )
 
-set(VIEWER_SRC source/viewer.cpp
-               source/dump.cpp
-               include/dump.h
-               include/system_defs.h
+set(DATASRC_SRC tests/file.cpp
+                tests/dataSourceTest.cpp
+                ${COMMON_SRC}
+)
+
+set(VIEWER_SRC source/dump.cpp
+               source/viewer.cpp      
+               include/dump.hpp
+               include/system_defs.hpp
 )
 
 if (MSVC)  
@@ -72,14 +79,15 @@ if (MSVC)
 endif()
 
 add_executable(memscan ${SCANNER_SRC})
-add_executable(test1 ${TEST1_SRC})
+add_executable(suspThreadTest ${SUSP_THREAD_SRC})
+add_executable(dataSrcTest ${DATASRC_SRC})
 add_executable(viewer ${VIEWER_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
 set(MEMSCAN_LINKER_FLAGS "/level='highestAvailable' /uiAccess='false'")
 set_target_properties(memscan PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
-set_target_properties(test1 PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
+set_target_properties(suspThreadTest PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_link_libraries(test1 ${NTDLL64LL})
@@ -89,4 +97,5 @@ endif()
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT memscan)
 
 enable_testing()
-add_test(NAME self_detection COMMAND test1)
+add_test(NAME self_detection COMMAND suspThreadTest)
+add_test(NAME datasrc_test COMMAND dataSrcTest)

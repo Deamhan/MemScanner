@@ -1,18 +1,15 @@
-#include "scanner.h"
+#include "scanner.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
-#include <map>
 #include <memory>
-#include <set>
 #include <string>
 #include <system_error>
 #include <vector>
 
-#include "dump.h"
-#include "ntdll64.h"
+#include "dump.hpp"
+#include "ntdll64.hpp"
 
 #undef max
 
@@ -47,33 +44,23 @@ static bool EnableDebugPrivilege()
 const uint32_t PAGE_SIZE = 4096;
 
 template <CPUArchitecture arch>
-using MemoryMap_t = std::map<PTR_T<arch>, MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>>;
+using MemoryMap_t = std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>>;
 
 template <CPUArchitecture arch>
 static MemoryMap_t<arch> GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& api)
 {
-    MemoryMap_t<arch> result;
+    std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> result;
     PTR_T<arch> address = 0;
     MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
     while (NT_SUCCESS(api.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemoryBasicInformation, &mbi, sizeof(mbi), nullptr)))
     {
         if ((mbi.State & MEM_COMMIT) != 0 && mbi.Type != MemType::Image)
-            result.emplace(mbi.BaseAddress, mbi);
+            result.push_back(mbi);
         auto prevAddr = address;
         address += std::max<PTR_T<arch>>(mbi.RegionSize, PAGE_SIZE);
         if (prevAddr > address)
             break;
     }
-
-    return result;
-}
-
-template <CPUArchitecture arch>
-static std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> GetFlatMemoryMap(const MemoryMap_t<arch>& mm)
-{
-    std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> result;
-    for (const auto& kv : mm)
-        result.push_back(kv.second);
 
     return result;
 }
@@ -118,8 +105,6 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
         std::unique_ptr<FILE, int(*)(FILE*)> dumpGuard(dump, fclose);
         try
         {
-            const auto& flatMm = GetFlatMemoryMap<arch>(mm);
-
             if (!writeValue(DumpSignature, dump))
                 throw std::system_error(errno, std::iostream_category(), "");
 
@@ -141,15 +126,15 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
                     throw std::system_error(errno, std::iostream_category(), "");
             }
 
-            const uint32_t mmSize = (uint32_t)flatMm.size();
+            const uint32_t mmSize = (uint32_t)mm.size();
             if (!writeValue(mmSize, dump))
                 throw std::system_error(errno, std::iostream_category(), "");
 
-            if (!writeValue(flatMm, dump))
+            if (!writeValue(mm, dump))
                 throw std::system_error(errno, std::iostream_category(), "");
 
             std::vector<uint8_t> readBuffer(1024 * 1024);
-            for (const auto& mbi : flatMm)
+            for (const auto& mbi : mm)
             {
                 uint64_t size = mbi.RegionSize, processed = 0;
                 while (size != 0)
@@ -226,12 +211,8 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
     auto mm = GetMemoryMap(hProcess, api);
     if (sensitivity > 0)
     {
-        std::set<PTR_T<arch>> processedAsRelated;
-
-        for (const auto& kv : mm)
+        for (const auto& region : mm)
         {
-            auto& region = kv.second;
-
             uint32_t allocProtMask = 0, protMask = 0;
             switch (sensitivity)
             {
@@ -261,26 +242,7 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
                 hasExecPrivateMemory = true;
                 ++issues;
                 wprintf(L"\t Suspicious memory region:\n");
-                printMBI(region, L"\t");
-                
-
-                bool firstMet = true;
-                auto it = mm.lower_bound(region.AllocationBase);
-                for (; it != mm.end() && it->second.AllocationBase == region.AllocationBase; ++it)
-                {
-                    if (it->second.BaseAddress == region.BaseAddress 
-                        || processedAsRelated.find(it->second.BaseAddress) != processedAsRelated.end())
-                        continue;
-
-                    if (firstMet)
-                    {
-                        wprintf(L"\t\tRelated Regions:\n");
-                        firstMet = false;
-                    }
-                    
-                    processedAsRelated.insert(it->first);
-                    printMBI(it->second, L"\t\t");
-                }
+                printMBI(&region, L"\t");
             }
         }
     }
@@ -296,31 +258,13 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
     }
 }
 
-class Timer
-{
-public:
-    Timer() noexcept : mBegin(std::chrono::high_resolution_clock::now())
-    {}
-
-    ~Timer()
-    {
-        auto end = std::chrono::high_resolution_clock::now();
-        auto ticks = (end - mBegin).count();
-
-        wprintf(L"Time spent: %lld us\n", ticks / 1000);
-    }
-
-private:
-    std::chrono::time_point<std::chrono::high_resolution_clock> mBegin;
-};
-
 template <CPUArchitecture arch>
 static int ScanMemoryImpl(uint32_t sensitivity, uint32_t pid, const wchar_t* dumpDir)
 {
     int issues = 0;
 
     wprintf(L">>> OS Architecture: %s <<<\n", arch == CPUArchitecture::X64 ? L"X64" : L"X86");
-    wprintf(L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
+    wprintf(L">>> Scanner Architecture: %s <<<\n", sizeof(void*) == 8 ? L"X64" : L"X86");
 
     if (!EnableDebugPrivilege())
         wprintf(L"!>> Unable to enable SeDebugPrivilege, functionality is limited <<!\n");
@@ -330,8 +274,6 @@ static int ScanMemoryImpl(uint32_t sensitivity, uint32_t pid, const wchar_t* dum
     auto& api = GetWow64Helper<arch>();
     while (IsBufferTooSmall(api.NtQuerySystemInformation64(SYSTEM_INFORMATION_CLASS::SystemProcessInformation, buffer.data(), (uint32_t)buffer.size(), &resLen)))
         buffer.resize(resLen);
-
-    Timer timer;
 
     typedef SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>> SPI, * PSPI;
     auto procInfo = (const PSPI)buffer.data();
