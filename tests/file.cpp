@@ -51,8 +51,3 @@ DataSourceError ReadOnlyFile::GetSizeImpl(uint64_t& size)
 	size = largeIntSize.QuadPart;
 	return DataSourceError::Ok;
 }
-
-DWORD ReadOnlyFile::GetLastErrorCode()
-{
-	return mLastError;
-}

@@ -8,7 +8,7 @@ class ReadOnlyFile : public ReadOnlyDataSource
 {
 public:
     ReadOnlyFile(const wchar_t* path, size_t bufferSize);
-    DWORD GetLastErrorCode();
+    DWORD GetLastErrorCode() { return mLastError; }
 
     virtual ~ReadOnlyFile()
     {

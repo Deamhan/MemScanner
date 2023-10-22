@@ -20,6 +20,16 @@ const Wow64Helper<arch>& GetWow64Helper()
     return api;
 }
 
+const IWow64Helper& GetIWow64Helper()
+{
+#if !_M_AMD64
+    return GetOSArch() == CPUArchitecture::X64 ? (IWow64Helper&)GetWow64Helper<CPUArchitecture::X64>() :
+        (IWow64Helper&)GetWow64Helper<CPUArchitecture::X86>();
+#else
+    return GetWow64Helper<CPUArchitecture::X64>();
+#endif
+}
+
 template const Wow64Helper<CPUArchitecture::X64>& GetWow64Helper();
 #if !_M_AMD64
 template const Wow64Helper<CPUArchitecture::X86>& GetWow64Helper();

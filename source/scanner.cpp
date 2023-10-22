@@ -242,7 +242,7 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
                 hasExecPrivateMemory = true;
                 ++issues;
                 wprintf(L"\t Suspicious memory region:\n");
-                printMBI(&region, L"\t");
+                printMBI(region, L"\t");
             }
         }
     }

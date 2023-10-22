@@ -11,7 +11,8 @@ namespace SystemDefinitions
     {
         STATUS_INFO_LENGTH_MISMATCH = 0xC0000004,
         STATUS_BUFFER_OVERFLOW      = 0x80000005,
-        STATUS_BUFFER_TOO_SMALL     = 0xC0000023
+        STATUS_BUFFER_TOO_SMALL     = 0xC0000023,
+        STATUS_SUCCESS              = 0x00000000,
     };
 
     enum class SYSTEM_INFORMATION_CLASS : uint32_t 

@@ -45,25 +45,43 @@ using FARPROC_T = typename HelperTraits<arch>::FARPROC_T;
 template <CPUArchitecture arch>
 using PTR_T = typename HelperTraits<arch>::PTR_T;
 
-template <CPUArchitecture arch>
-class Wow64Helper
+class IWow64Helper
 {
 public:
-    bool IsOK() const noexcept { return m_isOk; }
+    virtual bool IsOK() const noexcept = 0;
+    virtual SystemDefinitions::NT_STATUS NtQueryVirtualMemory64(HANDLE hProcess, uint64_t lpAddress, SystemDefinitions::MEMORY_INFORMATION_CLASS memInfoClass,
+        void* lpBuffer, uint64_t dwLength, uint64_t* pReturnLength) const noexcept = 0;
+    virtual SystemDefinitions::NT_STATUS NtQueryInformationProcess64(HANDLE hProcess, SystemDefinitions::PROCESSINFOCLASS procInfoClass,
+        void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept = 0;
+    virtual SystemDefinitions::NT_STATUS NtQueryInformationThread64(HANDLE hProcess, SystemDefinitions::THREADINFOCLASS threadInfoClass,
+        void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept = 0;
+    virtual SystemDefinitions::NT_STATUS NtQuerySystemInformation64(SystemDefinitions::SYSTEM_INFORMATION_CLASS SystemInformation,
+        void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept = 0;
+    virtual uint64_t VirtualAllocEx64(HANDLE hProcess, uint64_t lpAddress, uint64_t dwSize, uint32_t flAllocationType, uint32_t flProtect) const noexcept = 0;
+    virtual BOOL VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept = 0;
+    virtual BOOL ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept = 0;
+    virtual BOOL WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept = 0;
+};
+
+template <CPUArchitecture arch>
+class Wow64Helper final : public IWow64Helper
+{
+public:
+    bool IsOK() const noexcept override { return m_isOk; }
     HMODULE_T<arch> GetModuleHandle64(const wchar_t* lpModuleName) const noexcept;
     FARPROC_T<arch> GetProcAddress64(HMODULE_T<arch> hModule, const char* funcName) const noexcept;
     SystemDefinitions::NT_STATUS NtQueryVirtualMemory64(HANDLE hProcess, uint64_t lpAddress, SystemDefinitions::MEMORY_INFORMATION_CLASS memInfoClass,
-        void* lpBuffer, uint64_t dwLength, uint64_t* pReturnLength) const noexcept;
+        void* lpBuffer, uint64_t dwLength, uint64_t* pReturnLength) const noexcept override;
     SystemDefinitions::NT_STATUS NtQueryInformationProcess64(HANDLE hProcess, SystemDefinitions::PROCESSINFOCLASS procInfoClass,
-        void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept;
+        void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept override;
     SystemDefinitions::NT_STATUS NtQueryInformationThread64(HANDLE hProcess, SystemDefinitions::THREADINFOCLASS threadInfoClass,
-        void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept;
+        void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept override;
     SystemDefinitions::NT_STATUS NtQuerySystemInformation64(SystemDefinitions::SYSTEM_INFORMATION_CLASS SystemInformation,
-        void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept;
-    uint64_t VirtualAllocEx64(HANDLE hProcess, uint64_t lpAddress, uint64_t dwSize, uint32_t flAllocationType, uint32_t flProtect) const noexcept;
-    BOOL    VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept;
-    BOOL    ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept;
-    BOOL    WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept;
+        void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept override;
+    uint64_t VirtualAllocEx64(HANDLE hProcess, uint64_t lpAddress, uint64_t dwSize, uint32_t flAllocationType, uint32_t flProtect) const noexcept override;
+    BOOL VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept override;
+    BOOL ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept override;
+    BOOL WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept override;
 
 private:
     HMODULE_T<arch> m_Ntdll;
@@ -90,6 +108,8 @@ private:
 
 template <CPUArchitecture arch>
 const Wow64Helper<arch>& GetWow64Helper();
+
+const IWow64Helper& GetIWow64Helper();
 
 CPUArchitecture GetOSArch() noexcept;
 CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept;
