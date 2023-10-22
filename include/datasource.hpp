@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <type_traits>
 #include <vector>
 
 enum class DataSourceError
@@ -23,6 +24,9 @@ public:
     DataSourceError GetSize(uint64_t& size) { return GetSizeImpl(size); }
 
     virtual ~ReadOnlyDataSource() = default;
+
+    template<class T, class = std::enable_if_t<std::is_trivial<std::decay_t<T>>::value>>
+    DataSourceError Read(T& data);
 
 protected:
     ReadOnlyDataSource(size_t bufferSize);
@@ -50,3 +54,14 @@ private:
     ReadOnlyDataSource& operator = (const ReadOnlyDataSource&) = delete;
     ReadOnlyDataSource& operator = (ReadOnlyDataSource&&) = delete;
 };
+
+template<class T, class>
+inline DataSourceError ReadOnlyDataSource::Read(T& data)
+{
+    size_t read;
+    auto err = Read(&data, sizeof(data), read);
+    if (err != DataSourceError::Ok)
+        return err;
+
+    return read == sizeof(data) ? DataSourceError::Ok : DataSourceError::UnknownError;
+}

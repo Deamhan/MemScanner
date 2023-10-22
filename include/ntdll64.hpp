@@ -11,7 +11,8 @@ enum class CPUArchitecture
 #if !_M_AMD64
     X86,
 #endif // !_M_AMD64
-    X64
+    X64,
+    Unknown
 };
 
 template <CPUArchitecture arch>

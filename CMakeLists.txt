@@ -8,13 +8,15 @@ set(COMMON_SRC source/datasource.cpp
                source/dump.cpp
                source/memdatasource.cpp
                source/ntdll64.cpp
+               source/pe.cpp
                source/scanner.cpp
+               include/datasource.hpp
                include/dump.hpp
                include/memdatasource.hpp
                include/ntdll64.hpp
+               include/pe.hpp
                include/system_defs.hpp
-               include/scanner.hpp
-               include/datasource.hpp
+               include/scanner.hpp    
 )
 
 set(SCANNER_SRC source/main.cpp

@@ -1,4 +1,11 @@
-#include "memdatasource.hpp"
+#include "pe.hpp"
+
+template <CPUArchitecture arch>
+int CheckPE(ReadOnlyMemoryDataSource& ds, uint64_t offset)
+{
+	PEFile<arch> pe(ds, offset);
+	return pe.IsPeValid() ? 0 : 2;
+}
 
 int main()
 {
@@ -7,15 +14,7 @@ int main()
 	if (selfBase == nullptr)
 		return 1;
 
-	ReadOnlyMemoryDataSource bufferedFile(GetCurrentProcess(), (uintptr_t)selfBase, 1024 * 1024);
-	IMAGE_DOS_HEADER dosHeader;
-	size_t read = 0;
-	auto err = bufferedFile.Read(&dosHeader, sizeof(dosHeader), read);
-	if (err != DataSourceError::Ok)
-		return 2;
-
-	if (dosHeader.e_magic != 0x5a4d)
-		return 3;
-
-	return 0;
+	ReadOnlyMemoryDataSource selfImageDs(GetCurrentProcess(), (uintptr_t)selfBase, 1024 * 1024);
+	return PEFile<>::GetPeArch(selfImageDs, 0) == CPUArchitecture::X64 ?
+		CheckPE<CPUArchitecture::X64>(selfImageDs, 0) : CheckPE<CPUArchitecture::X86>(selfImageDs, 0);
 }
