@@ -2,15 +2,6 @@
 
 #include <algorithm>
 
-DataSourceError ReadOnlyDataSource::Read(uint64_t newOffset, void* buffer, size_t bufferLength, size_t& read)
-{
-	auto err = Seek(newOffset);
-	if (err != DataSourceError::Ok)
-		return err;
-
-	return Read(buffer, bufferLength, read);
-}
-
 void ReadOnlyDataSource::InvalidateCache()
 {
 	mCachePointer = mCacheBufferEnd;
@@ -47,64 +38,54 @@ size_t ReadOnlyDataSource::ReadCachedData(void* buffer, size_t bufferLength)
 	return dataToCopyLen;
 }
 
-DataSourceError ReadOnlyDataSource::FillCache()
+void ReadOnlyDataSource::FillCache()
 {
 	InvalidateCache();
 
 	size_t read = 0;
-	auto error = ReadImpl(mCacheBuffer.data(), mCacheBuffer.size(), read);
-	if (error != DataSourceError::Ok)
-		return error;
+	ReadImpl(mCacheBuffer.data(), mCacheBuffer.size(), read);
 
 	mRealPointer += read;
 	mCachePointer = mCacheBuffer.data();
-
-	return DataSourceError::Ok;
 }
 
-DataSourceError ReadOnlyDataSource::Read(void* buffer, size_t bufferLength, size_t& read)
+void ReadOnlyDataSource::Read(void* buffer, size_t bufferLength, size_t& read)
 {
 	read = 0;
 	if (bufferLength == 0)
-		return DataSourceError::Ok;
+		return;
 
 	read = ReadCachedData(buffer, bufferLength);
 	if (read == bufferLength)
-		return DataSourceError::Ok;
+		return;
 
 	auto byteBufferLeft = (uint8_t*)buffer + read;
 	auto left = bufferLength - read;
 	if (left > mBufferSize)
 	{
 		size_t readWithoutCache = 0;
-		auto result = ReadImpl(byteBufferLeft, left, readWithoutCache);
+		ReadImpl(byteBufferLeft, left, readWithoutCache);
 		read += readWithoutCache;
 		mRealPointer += readWithoutCache;
 		InvalidateCache();
 
-		return result;
+		return;
 	}
 
-	auto error = FillCache();
-	if (error != DataSourceError::Ok)
-		return error;
+	FillCache();
 
 	read += ReadCachedData(byteBufferLeft, left);
-	return DataSourceError::Ok;
 }
 
-DataSourceError ReadOnlyDataSource::Seek(uint64_t newOffset)
+void ReadOnlyDataSource::Seek(uint64_t newOffset)
 {
 	if (MoveCachePointer(newOffset))
-		return DataSourceError::Ok;
+		return;
 
 	InvalidateCache();
-	auto error = SeekImpl(newOffset);
-	if (error != DataSourceError::Ok)
-		return error;
+	SeekImpl(newOffset);
 
 	mRealPointer = newOffset;
-	return DataSourceError::Ok;
 }
 
 #define PAGE_SIZE 4096

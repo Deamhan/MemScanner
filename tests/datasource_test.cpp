@@ -9,22 +9,25 @@ int CompareData(ReadOnlyFile& bufferedFile, ReadOnlyFile& unbufferedFile, uint64
 	ReadOnlyFile* dsArray[2] = { &bufferedFile,  &unbufferedFile };
 	std::vector<uint8_t>* bufferArray[2] = { &buffer1,  &buffer2 };
 
-	for (size_t i = 0; i < _countof(dsArray); ++i)
+	try
 	{
-		auto& ds = *dsArray[i];
-		auto err = ds.Seek(offset);
-		if (err != DataSourceError::Ok)
+		for (size_t i = 0; i < _countof(dsArray); ++i)
+		{
+			auto& ds = *dsArray[i];
+			ds.Seek(offset);
+
+			auto& buffer = *bufferArray[i];
+			size_t read = 0;
+			ds.Read(buffer.data(), size, read);
+		}
+
+		if (memcmp(buffer1.data(), buffer2.data(), size) != 0)
 			return 11;
-
-		auto& buffer = *bufferArray[i];
-		size_t read = 0;
-		err = ds.Read(buffer.data(), size, read);
-		if (err != DataSourceError::Ok)
-			return 12;
 	}
-
-	if (memcmp(buffer1.data(), buffer2.data(), size) != 0)
-		return 13;
+	catch (const FileException&)
+	{
+		return 10;
+	}
 
 	return 0;
 }

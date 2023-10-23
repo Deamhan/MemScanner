@@ -10,9 +10,9 @@ public:
     ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size);
 
 protected:
-    virtual DataSourceError ReadImpl(void* buffer, size_t bufferLength, size_t& read) override;
-    virtual DataSourceError SeekImpl(uint64_t newOffset) override;
-    virtual DataSourceError GetSizeImpl(uint64_t& size) override { size = mSize; return DataSourceError::Ok; }
+    virtual void ReadImpl(void* buffer, size_t bufferLength, size_t& read) override;
+    virtual void SeekImpl(uint64_t newOffset) override;
+    virtual void GetSizeImpl(uint64_t& size) override { size = mSize; }
 
     uint64_t  mBaseAddress;
     uint64_t  mSize;
@@ -33,7 +33,7 @@ public:
             CloseHandle(mProcess);
     }
 
-    DataSourceError ReadImpl(void* buffer, size_t bufferLength, size_t& read) override { return ReadOnlyMemoryDataSource::ReadImpl(buffer, bufferLength, read); }
-    DataSourceError SeekImpl(uint64_t newOffset) override { return ReadOnlyMemoryDataSource::SeekImpl(newOffset); }
-    DataSourceError GetSizeImpl(uint64_t& size) override { return ReadOnlyMemoryDataSource::GetSizeImpl(size); }
+    void ReadImpl(void* buffer, size_t bufferLength, size_t& read) override { ReadOnlyMemoryDataSource::ReadImpl(buffer, bufferLength, read); }
+    void SeekImpl(uint64_t newOffset) override { ReadOnlyMemoryDataSource::SeekImpl(newOffset); }
+    void GetSizeImpl(uint64_t& size) override { ReadOnlyMemoryDataSource::GetSizeImpl(size); }
 };

@@ -2,26 +2,27 @@
 
 ReadOnlyMemoryDataSource::ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size) : ReadOnlyDataSource(64 * 1024),
 	mOffset(0), mBaseAddress(baseAddress), mSize(size), mProcess(hProcess), mApi(GetIWow64Helper())
-{}
+{
+	if (mProcess == nullptr)
+		throw DataSourceException{ DataSourceError::InvalidHandle };
+}
 
-DataSourceError ReadOnlyMemoryDataSource::ReadImpl(void* buffer, size_t bufferLength, size_t& read)
+void ReadOnlyMemoryDataSource::ReadImpl(void* buffer, size_t bufferLength, size_t& read)
 {
 	auto realAddress = mOffset + mBaseAddress;
 	uint64_t read64 = 0;
 	if (FALSE == mApi.ReadProcessMemory64(mProcess, realAddress, buffer, bufferLength, &read64))
-		return DataSourceError::UnableToRead;
+		throw DataSourceException{ DataSourceError::UnableToRead };
 
 	read = (size_t)read64;
-	return DataSourceError::Ok;
 }
 
-DataSourceError ReadOnlyMemoryDataSource::SeekImpl(uint64_t newOffset)
+void ReadOnlyMemoryDataSource::SeekImpl(uint64_t newOffset)
 {
 	if (newOffset > mSize)
-		return DataSourceError::InvalidOffset;
+		throw DataSourceException{ DataSourceError::InvalidOffset };
 
 	mOffset = newOffset;
-	return DataSourceError::Ok;
 }
 
 ReadOnlyMemoryDataSourceEx::ReadOnlyMemoryDataSourceEx(DWORD pid, uint64_t baseAddress, uint64_t size) : 
