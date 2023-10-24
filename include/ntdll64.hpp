@@ -62,6 +62,14 @@ public:
     virtual BOOL VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept = 0;
     virtual BOOL ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept = 0;
     virtual BOOL WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept = 0;
+
+    IWow64Helper(const IWow64Helper&) = delete;
+    IWow64Helper(IWow64Helper&&) = delete;
+    IWow64Helper& operator = (const IWow64Helper&) = delete;
+    IWow64Helper& operator = (IWow64Helper&&) = delete;
+
+protected:
+    IWow64Helper() = default;
 };
 
 template <CPUArchitecture arch>

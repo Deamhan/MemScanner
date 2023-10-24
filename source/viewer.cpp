@@ -9,8 +9,8 @@
 #include <system_error>
 #include <vector>
 
-#include "dump.h"
-#include "system_defs.h"
+#include "dump.hpp"
+#include "system_defs.hpp"
 
 #undef max
 

@@ -12,71 +12,9 @@
 #include <vector>
 
 #include "dump.hpp"
-#include "ntdll64.hpp"
+#include "memhelper.hpp"
 
 #undef max
-
-using namespace SystemDefinitions;
-
-static void CloseHandleByPtr(HANDLE* handle)
-{
-	CloseHandle(*handle);
-}
-
-typedef unsigned long long ull;
-
-static bool EnableDebugPrivilege()
-{
-    HANDLE hToken = nullptr;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
-        return false;
-
-    std::unique_ptr<HANDLE, void(*)(HANDLE*)> tokenGuard(&hToken, CloseHandleByPtr);
-    LUID DebugValue = {};
-    if (!LookupPrivilegeValueW(nullptr, L"SeDebugPrivilege", &DebugValue))
-        return false;
-
-    TOKEN_PRIVILEGES tkp;
-    tkp.PrivilegeCount = 1;
-    tkp.Privileges[0].Luid = DebugValue;
-    tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
-    return AdjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(TOKEN_PRIVILEGES), nullptr, nullptr);
-}
-
-const uint32_t PAGE_SIZE = 4096;
-
-template <CPUArchitecture arch>
-using MemoryMap_t = std::map<PTR_T<arch>, MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>>;
-
-template <CPUArchitecture arch>
-static MemoryMap_t<arch> GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& api)
-{
-    MemoryMap_t<arch> result;
-    PTR_T<arch> address = 0;
-    MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
-    while (NT_SUCCESS(api.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemoryBasicInformation, &mbi, sizeof(mbi), nullptr)))
-    {
-        if ((mbi.State & MEM_COMMIT) != 0 && mbi.Type != MemType::Image)
-            result.emplace(mbi.BaseAddress, mbi);
-        auto prevAddr = address;
-        address += std::max<PTR_T<arch>>(mbi.RegionSize, PAGE_SIZE);
-        if (prevAddr > address)
-            break;
-    }
-
-    return result;
-}
-
-template <CPUArchitecture arch>
-static std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> GetFlatMemoryMap(const MemoryMap_t<arch>& mm)
-{
-    std::vector<MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> result;
-    for (const auto& kv : mm)
-        result.push_back(kv.second);
-
-    return result;
-}
 
 template <class T>
 static bool writeValue(const T& value, FILE* f) noexcept
@@ -109,7 +47,7 @@ static bool writeValue(const T (&value)[N], FILE* f) noexcept
 
 template <CPUArchitecture arch>
 static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, const wchar_t* path, const std::vector<PTR_T<arch>>& processIssues,
-                       const MemoryMap_t<arch>& mm, const Wow64Helper<arch>& api)
+                       const typename MemoryHelper<arch>::MemoryMap_t& mm, const Wow64Helper<arch>& api)
 {
     FILE* dump = nullptr;
     _wfopen_s(&dump, path, L"wb");
@@ -118,7 +56,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
         std::unique_ptr<FILE, int(*)(FILE*)> dumpGuard(dump, fclose);
         try
         {
-            const auto& flatMm = GetFlatMemoryMap<arch>(mm);
+            const auto& flatMm = MemoryHelper<arch>::GetFlatMemoryMap(mm);
 
             if (!writeValue(DumpSignature, dump))
                 throw std::system_error(errno, std::iostream_category(), "");
@@ -159,7 +97,8 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
                     const uint64_t addr = mbi.BaseAddress + processed;
                     memset(readBuffer.data(), 0, blockSize);
                     if (!api.ReadProcessMemory64(hProcess, addr, readBuffer.data(), blockSize, &result))
-                        wprintf(L"!>> Unable to read process memory [%s, PID = %u] [0x%016llx : 0x%016llx) <<!\n", process, (unsigned)pid, (ull)addr, (ull)(addr + blockSize));
+                        wprintf(L"!>> Unable to read process memory [%s, PID = %u] [0x%016llx : 0x%016llx) <<!\n", process, (unsigned)pid, 
+                            (unsigned long long)addr, (unsigned long long)(addr + blockSize));
 
                     if (!writeValue(readBuffer, blockSize, dump))
                         throw std::system_error(errno, std::iostream_category(), "");
@@ -183,7 +122,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
     return false;
 }
 
-template <CPUArchitecture arch, typename SPI = SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>>>
+template <CPUArchitecture arch, typename SPI = SystemDefinitions::SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>>>
 static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& issues, uint32_t sensitivity, const wchar_t* dumpDir)
 {
     DWORD pid = (DWORD)(uint64_t)procInfo->ProcessId;
@@ -200,7 +139,7 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
 
     bool hasExecPrivateMemory = false;
     std::vector<PTR_T<arch>> processIssues;
-    std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, CloseHandleByPtr);
+    std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
     for (uint32_t i = 0; i < procInfo->NumberOfThreads; ++i)
     {
         PTR_T<arch> startAddress = 0;
@@ -208,22 +147,23 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
         if (hThread == nullptr)
             continue;
 
-        std::unique_ptr<HANDLE, void(*)(HANDLE*)> threadGuard(&hThread, CloseHandleByPtr);
-        if (NT_SUCCESS(api.NtQueryInformationThread64(hThread, THREADINFOCLASS::ThreadQuerySetWin32StartAddress, &startAddress, sizeof(startAddress), nullptr)))
+        std::unique_ptr<HANDLE, void(*)(HANDLE*)> threadGuard(&hThread, MemoryHelper<arch>::CloseHandleByPtr);
+        if (NT_SUCCESS(api.NtQueryInformationThread64(hThread, SystemDefinitions::THREADINFOCLASS::ThreadQuerySetWin32StartAddress, &startAddress, sizeof(startAddress), nullptr)))
         {
-            MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi = {};
-            if (NT_SUCCESS(api.NtQueryVirtualMemory64(hProcess, startAddress, MEMORY_INFORMATION_CLASS::MemoryBasicInformation, &mbi, sizeof(mbi), nullptr))
-                && (mbi.State & MEM_COMMIT) != 0 && mbi.Type != MemType::Image)
+            SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi = {};
+            if (NT_SUCCESS(api.NtQueryVirtualMemory64(hProcess, startAddress, SystemDefinitions::MEMORY_INFORMATION_CLASS::MemoryBasicInformation, &mbi, sizeof(mbi), nullptr))
+                && (mbi.State & MEM_COMMIT) != 0 && mbi.Type != SystemDefinitions::MemType::Image)
             {
                 processIssues.push_back(startAddress);
-                wprintf(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread, (ull)startAddress, ProtToStr(mbi.Protect).c_str());
+                wprintf(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread, 
+                    (unsigned long long)startAddress, ProtToStr(mbi.Protect).c_str());
                 hasExecPrivateMemory = true;
                 ++issues;
             }
         }
     }
 
-    auto mm = GetMemoryMap(hProcess, api);
+    auto mm = MemoryHelper<arch>::GetMemoryMap(hProcess, api);
     if (sensitivity > 0)
     {
         std::set<PTR_T<arch>> processedAsRelated;
@@ -254,7 +194,7 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
             bool isSuspRegion = false;
             bool allocProtRes = (allocProtMask != 0 ? (protToFlags(region.AllocationProtect) & allocProtMask) == allocProtMask : false);
             bool protRes = (protMask != 0 ? (protToFlags(region.Protect) & protMask) == protMask : false);
-            isSuspRegion = region.Type != MemType::Image && (region.State & MEM_COMMIT) != 0 && (protRes || allocProtRes);
+            isSuspRegion = region.Type != SystemDefinitions::MemType::Image && (region.State & MEM_COMMIT) != 0 && (protRes || allocProtRes);
 
             if (isSuspRegion)
             {
@@ -322,18 +262,18 @@ static int ScanMemoryImpl(uint32_t sensitivity, uint32_t pid, const wchar_t* dum
     wprintf(L">>> OS Architecture: %s <<<\n", arch == CPUArchitecture::X64 ? L"X64" : L"X86");
     wprintf(L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
 
-    if (!EnableDebugPrivilege())
+    if (!MemoryHelper<arch>::EnableDebugPrivilege())
         wprintf(L"!>> Unable to enable SeDebugPrivilege, functionality is limited <<!\n");
 
     std::vector<uint8_t> buffer(64 * 1024);
     uint32_t resLen = 0;
     auto& api = GetWow64Helper<arch>();
-    while (IsBufferTooSmall(api.NtQuerySystemInformation64(SYSTEM_INFORMATION_CLASS::SystemProcessInformation, buffer.data(), (uint32_t)buffer.size(), &resLen)))
+    while (IsBufferTooSmall(api.NtQuerySystemInformation64(SystemDefinitions::SYSTEM_INFORMATION_CLASS::SystemProcessInformation, buffer.data(), (uint32_t)buffer.size(), &resLen)))
         buffer.resize(resLen);
 
     Timer timer;
 
-    typedef SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>> SPI, * PSPI;
+    typedef SystemDefinitions::SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>> SPI, * PSPI;
     auto procInfo = (const PSPI)buffer.data();
     for (bool stop = false; !stop;
         stop = (procInfo->NextEntryOffset == 0), procInfo = (PSPI)((uint8_t*)procInfo + procInfo->NextEntryOffset))

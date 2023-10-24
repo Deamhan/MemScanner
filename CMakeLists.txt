@@ -6,6 +6,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 set(COMMON_SRC source/datasource.cpp
                source/dump.cpp
+               source/memhelper.cpp
                source/memdatasource.cpp
                source/ntdll64.cpp
                source/pe.cpp
@@ -13,6 +14,7 @@ set(COMMON_SRC source/datasource.cpp
                include/datasource.hpp
                include/dump.hpp
                include/memdatasource.hpp
+               include/memhelper.hpp
                include/ntdll64.hpp
                include/pe.hpp
                include/system_defs.hpp
