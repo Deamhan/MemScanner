@@ -5,8 +5,7 @@ int CheckPE(ReadOnlyDataSource& ds)
 {
 	try
 	{
-		DataSourceFragment fragment(ds, 0x1000, 50 * 1024 * 1024);
-		MappedPEFile<arch> pe(fragment);
+		MappedPEFile<arch> pe(ds);
 		pe.BuildExportMap();
 
 		return 0;
@@ -24,8 +23,18 @@ int main()
 	if (selfBase == nullptr)
 		return 1;
 
-	ReadOnlyMemoryDataSource ntdll(GetCurrentProcess(), (uintptr_t)selfBase - 0x1000, 100 * 1024 * 1024);
+	ReadOnlyMemoryDataSource ntdllShifted(GetCurrentProcess(), (uintptr_t)selfBase - 0x1000, 100 * 1024 * 1024);
+	DataSourceFragment fragment(ntdllShifted, 0x1000, 50 * 1024 * 1024);
 
-	return MappedPEFile<>::GetPeArch(ntdll) == CPUArchitecture::X64 ?
-		CheckPE<CPUArchitecture::X64>(ntdll) : CheckPE<CPUArchitecture::X86>(ntdll);
+	switch (MappedPEFile<>::GetPeArch(fragment))
+	{
+	case CPUArchitecture::X86:
+		return CheckPE<CPUArchitecture::X86>(fragment);
+
+	case CPUArchitecture::X64:
+		return CheckPE<CPUArchitecture::X64>(fragment);
+
+	default:
+		return 2;
+	}
 }
