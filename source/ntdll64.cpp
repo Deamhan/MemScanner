@@ -380,4 +380,3 @@ CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept
     return GetOSArch();
 #endif // _M_AMD64
 }
-

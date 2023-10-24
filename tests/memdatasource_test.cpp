@@ -1,11 +1,12 @@
 #include "pe.hpp"
 
 template <CPUArchitecture arch>
-int CheckPE(ReadOnlyMemoryDataSource& ds, uint64_t offset)
+int CheckPE(ReadOnlyDataSource& ds)
 {
 	try
 	{
-		MappedPEFile<arch> pe(ds, offset);
+		DataSourceFragment fragment(ds, 0x1000, 50 * 1024 * 1024);
+		MappedPEFile<arch> pe(fragment);
 		pe.BuildExportMap();
 
 		return 0;
@@ -23,7 +24,8 @@ int main()
 	if (selfBase == nullptr)
 		return 1;
 
-	ReadOnlyMemoryDataSource ntdll(GetCurrentProcess(), (uintptr_t)selfBase, 100 * 1024 * 1024);
-	return MappedPEFile<>::GetPeArch(ntdll, 0) == CPUArchitecture::X64 ?
-		CheckPE<CPUArchitecture::X64>(ntdll, 0) : CheckPE<CPUArchitecture::X86>(ntdll, 0);
+	ReadOnlyMemoryDataSource ntdll(GetCurrentProcess(), (uintptr_t)selfBase - 0x1000, 100 * 1024 * 1024);
+
+	return MappedPEFile<>::GetPeArch(ntdll) == CPUArchitecture::X64 ?
+		CheckPE<CPUArchitecture::X64>(ntdll) : CheckPE<CPUArchitecture::X86>(ntdll);
 }

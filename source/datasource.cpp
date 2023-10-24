@@ -42,39 +42,37 @@ void ReadOnlyDataSource::FillCache()
 {
 	InvalidateCache();
 
-	size_t read = 0;
-	ReadImpl(mCacheBuffer.data(), mCacheBuffer.size(), read);
+	size_t read = ReadImpl(mCacheBuffer.data(), mCacheBuffer.size());
 
 	mRealPointer += read;
 	mCachePointer = mCacheBuffer.data();
 }
 
-void ReadOnlyDataSource::Read(void* buffer, size_t bufferLength, size_t& read)
+size_t ReadOnlyDataSource::Read(void* buffer, size_t bufferLength)
 {
-	read = 0;
 	if (bufferLength == 0)
-		return;
+		return 0;
 
-	read = ReadCachedData(buffer, bufferLength);
+	size_t read = ReadCachedData(buffer, bufferLength);
 	if (read == bufferLength)
-		return;
+		return read;
 
 	auto byteBufferLeft = (uint8_t*)buffer + read;
 	auto left = bufferLength - read;
 	if (left > mBufferSize)
 	{
-		size_t readWithoutCache = 0;
-		ReadImpl(byteBufferLeft, left, readWithoutCache);
+		size_t readWithoutCache = ReadImpl(byteBufferLeft, left);
 		read += readWithoutCache;
 		mRealPointer += readWithoutCache;
 		InvalidateCache();
 
-		return;
+		return read;
 	}
 
 	FillCache();
 
 	read += ReadCachedData(byteBufferLeft, left);
+	return read;
 }
 
 void ReadOnlyDataSource::Seek(uint64_t newOffset)
@@ -95,4 +93,23 @@ ReadOnlyDataSource::ReadOnlyDataSource(size_t bufferSize) : mBufferSize(PageAlig
 	mRealPointer(0), mCacheBufferEnd(mCacheBuffer.data() + mCacheBuffer.size())
 {
 	InvalidateCache();
+}
+
+DataSourceFragment::DataSourceFragment(ReadOnlyDataSource& dataSource, uint64_t offset, uint64_t size) : 
+	ReadOnlyDataSource(0), mDataSource(dataSource), mOffset(offset), mSize(size)
+{}
+
+size_t DataSourceFragment::ReadImpl(void* buffer, size_t bufferLength)
+{
+	return mDataSource.Read(buffer, bufferLength);
+}
+
+void DataSourceFragment::SeekImpl(uint64_t newOffset)
+{
+	return mDataSource.Seek(newOffset + mOffset);
+}
+
+uint64_t DataSourceFragment::GetSizeImpl()
+{
+	return mDataSource.GetSize() - mOffset;
 }

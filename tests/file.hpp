@@ -29,9 +29,9 @@ public:
     }
 
 protected:
-    virtual void ReadImpl(void* buffer, size_t bufferLength, size_t& read) override;
+    virtual size_t ReadImpl(void* buffer, size_t bufferLength) override;
     virtual void SeekImpl(uint64_t newOffset) override;
-    virtual void GetSizeImpl(uint64_t& size) override;
+    virtual uint64_t GetSizeImpl() override;
 
     HANDLE mFileHandle;
     DWORD mLastError;

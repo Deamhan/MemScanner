@@ -7,14 +7,13 @@ ReadOnlyFile::ReadOnlyFile(const wchar_t* path, size_t bufferSize) : ReadOnlyDat
 		throw FileException{ DataSourceError::UnableToOpen, GetLastError() };
 }
 
-void ReadOnlyFile::ReadImpl(void* buffer, size_t bufferLength, size_t& read)
+size_t ReadOnlyFile::ReadImpl(void* buffer, size_t bufferLength)
 {
-	read = 0;
 	DWORD bytesRead = 0;
 	if (FALSE == ReadFile(mFileHandle, buffer, (DWORD)bufferLength, &bytesRead, nullptr))
 		throw FileException{ DataSourceError::UnableToRead, GetLastError() };
 
-	read = bytesRead;
+	return bytesRead;
 }
 
 void ReadOnlyFile::SeekImpl(uint64_t newOffset)
@@ -25,12 +24,12 @@ void ReadOnlyFile::SeekImpl(uint64_t newOffset)
 		throw FileException{ DataSourceError::InvalidOffset, GetLastError() };
 }
 
-void ReadOnlyFile::GetSizeImpl(uint64_t& size)
+uint64_t ReadOnlyFile::GetSizeImpl()
 {
 	LARGE_INTEGER largeIntSize;
 	auto result = GetFileSizeEx(mFileHandle, &largeIntSize);
 	if (result == FALSE)
 		throw FileException{ DataSourceError::UnableToGetSize, GetLastError() };
 
-	size = largeIntSize.QuadPart;
+	return largeIntSize.QuadPart;
 }

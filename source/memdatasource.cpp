@@ -7,14 +7,14 @@ ReadOnlyMemoryDataSource::ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t bas
 		throw DataSourceException{ DataSourceError::InvalidHandle };
 }
 
-void ReadOnlyMemoryDataSource::ReadImpl(void* buffer, size_t bufferLength, size_t& read)
+size_t ReadOnlyMemoryDataSource::ReadImpl(void* buffer, size_t bufferLength)
 {
 	auto realAddress = mOffset + mBaseAddress;
 	uint64_t read64 = 0;
 	if (FALSE == mApi.ReadProcessMemory64(mProcess, realAddress, buffer, bufferLength, &read64))
 		throw DataSourceException{ DataSourceError::UnableToRead };
 
-	read = (size_t)read64;
+	return (size_t)read64;
 }
 
 void ReadOnlyMemoryDataSource::SeekImpl(uint64_t newOffset)

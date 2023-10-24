@@ -17,8 +17,7 @@ int CompareData(ReadOnlyFile& bufferedFile, ReadOnlyFile& unbufferedFile, uint64
 			ds.Seek(offset);
 
 			auto& buffer = *bufferArray[i];
-			size_t read = 0;
-			ds.Read(buffer.data(), size, read);
+			ds.Read(buffer.data(), size);
 		}
 
 		if (memcmp(buffer1.data(), buffer2.data(), size) != 0)

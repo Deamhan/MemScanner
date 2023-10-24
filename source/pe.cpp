@@ -3,7 +3,7 @@
 #include <algorithm>
 
 template <CPUArchitecture arch>
-CPUArchitecture MappedPEFile<arch>::TryParseGeneralPeHeaders(ReadOnlyMemoryDataSource& ds, uint64_t offset,
+CPUArchitecture MappedPEFile<arch>::TryParseGeneralPeHeaders(ReadOnlyDataSource& ds, uint64_t offset,
 	IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader)
 {
     try
@@ -41,13 +41,13 @@ CPUArchitecture MappedPEFile<arch>::TryParseGeneralPeHeaders(ReadOnlyMemoryDataS
 }
 
 template <CPUArchitecture arch>
-MappedPEFile<arch>::MappedPEFile(ReadOnlyMemoryDataSource& ds, uint64_t offset) : mDataSource(ds), mOffset(offset)
+MappedPEFile<arch>::MappedPEFile(ReadOnlyDataSource& ds) : mDataSource(ds)
 {
     try
     {
         IMAGE_DOS_HEADER dosHeader;
         IMAGE_FILE_HEADER fileHeader;
-        auto peArch = TryParseGeneralPeHeaders(mDataSource, mOffset, dosHeader, fileHeader);
+        auto peArch = TryParseGeneralPeHeaders(mDataSource, 0, dosHeader, fileHeader);
         if (peArch != arch)
             throw PeException{ PeError::InvalidFormat };
 
@@ -56,8 +56,7 @@ MappedPEFile<arch>::MappedPEFile(ReadOnlyMemoryDataSource& ds, uint64_t offset) 
         auto sectionsCount = std::min<size_t>(256, fileHeader.NumberOfSections);
         mSections.resize(sectionsCount);
 
-        size_t read = 0;
-        ds.Read(mSections.data(), mSections.size() * sizeof(IMAGE_SECTION_HEADER), read);
+        ds.Read(mSections.data(), mSections.size() * sizeof(IMAGE_SECTION_HEADER));
     }
     catch (const DataSourceException&)
     {
@@ -66,11 +65,11 @@ MappedPEFile<arch>::MappedPEFile(ReadOnlyMemoryDataSource& ds, uint64_t offset) 
 }
 
 template <CPUArchitecture arch>
-CPUArchitecture MappedPEFile<arch>::GetPeArch(ReadOnlyMemoryDataSource& ds, uint64_t offset)
+CPUArchitecture MappedPEFile<arch>::GetPeArch(ReadOnlyDataSource& ds)
 {
 	IMAGE_DOS_HEADER dosHeader;
 	IMAGE_FILE_HEADER fileHeader;
-	return TryParseGeneralPeHeaders(ds, offset, dosHeader, fileHeader);
+	return TryParseGeneralPeHeaders(ds, 0, dosHeader, fileHeader);
 }
 
 template <CPUArchitecture arch>
@@ -84,29 +83,28 @@ void MappedPEFile<arch>::BuildExportMap()
             return;
 
         IMAGE_EXPORT_DIRECTORY Export;
-        mDataSource.Read(exportRva + mOffset, Export);
+        mDataSource.Read(exportRva, Export);
 
         std::vector<uint32_t> rvaOfFunctions(std::min<uint32_t>(Export.NumberOfFunctions, 0x10000));
         std::vector<uint32_t> rvaOfNames(std::min<uint32_t>(Export.NumberOfNames, 0x10000));
         std::vector<uint16_t> Ordinals(std::min<uint32_t>(Export.NumberOfNames, 0x10000));
 
-        size_t read = 0;
         if (rvaOfFunctions.size() != 0)
         {
-            mDataSource.Read(Export.AddressOfFunctions + mOffset, &rvaOfFunctions[0],
-                rvaOfFunctions.size() * sizeof(rvaOfFunctions[0]), read);
+            mDataSource.Read(Export.AddressOfFunctions, &rvaOfFunctions[0],
+                rvaOfFunctions.size() * sizeof(rvaOfFunctions[0]));
         }
 
         if (rvaOfNames.size() != 0)
         {
-            mDataSource.Read(Export.AddressOfNames + mOffset, &rvaOfNames[0],
-                rvaOfNames.size() * sizeof(rvaOfNames[0]), read);
+            mDataSource.Read(Export.AddressOfNames, &rvaOfNames[0],
+                rvaOfNames.size() * sizeof(rvaOfNames[0]));
         }
 
         if (Ordinals.size() != 0)
         {
-            mDataSource.Read(Export.AddressOfNameOrdinals + mOffset, &Ordinals[0],
-                Ordinals.size() * sizeof(Ordinals[0]), read);
+            mDataSource.Read(Export.AddressOfNameOrdinals, &Ordinals[0],
+                Ordinals.size() * sizeof(Ordinals[0]));
         }
 
         for (size_t i = 0; i < rvaOfFunctions.size(); ++i)
@@ -117,7 +115,7 @@ void MappedPEFile<arch>::BuildExportMap()
             if (p.first >= exportRva && p.first < exportRva + exportSize)
             {
                 std::vector<char> buffer(0x100, '\0');
-                mDataSource.Read(p.first + mOffset, &buffer[0], buffer.size(), read);
+                mDataSource.Read(p.first, &buffer[0], buffer.size());
                 p.second.forwardTarget = buffer.data();
             }
 
@@ -128,7 +126,7 @@ void MappedPEFile<arch>::BuildExportMap()
         {
             uint32_t ordinal = Ordinals[i];
             std::vector<char> buffer(0x100, '\0');
-            mDataSource.Read(rvaOfNames[i] + mOffset, &buffer[0], buffer.size(), read);
+            mDataSource.Read(rvaOfNames[i], &buffer[0], buffer.size());
             if (ordinal >= rvaOfFunctions.size())
                 continue;
 

@@ -54,10 +54,9 @@ public:
 	typedef typename PEFileTraitsT<arch>::ImageNtHeadersT      ImageNtHeadersT;
 	typedef typename PEFileTraitsT<arch>::ImageOptionalHeaderT ImageOptionalHeaderT;
 
-	MappedPEFile(ReadOnlyMemoryDataSource& ds, uint64_t offset);
+	MappedPEFile(ReadOnlyDataSource& ds);
 
-	static CPUArchitecture GetPeArch(ReadOnlyMemoryDataSource& ds, uint64_t offset);
-
+	static CPUArchitecture GetPeArch(ReadOnlyDataSource& ds);
 	void BuildExportMap();
 
 	uint32_t GetImageSize() const noexcept { return mOptionalHeader.SizeOfImage; }
@@ -69,13 +68,12 @@ public:
 	MappedPEFile& operator = (MappedPEFile&&) = delete;
 
 protected:
-	ReadOnlyMemoryDataSource& mDataSource;
-	uint64_t mOffset;
+	ReadOnlyDataSource& mDataSource;
 
 	ImageOptionalHeaderT mOptionalHeader;
 	std::vector<IMAGE_SECTION_HEADER> mSections;
 	std::map<uint32_t, ExportedFunctionDescription> mExport;
 
-	static CPUArchitecture TryParseGeneralPeHeaders(ReadOnlyMemoryDataSource& ds, uint64_t offset,
+	static CPUArchitecture TryParseGeneralPeHeaders(ReadOnlyDataSource& ds, uint64_t offset,
 		IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader);
 };
