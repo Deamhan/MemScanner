@@ -1,5 +1,6 @@
 #include "memhelper.hpp"
 
+#include <algorithm>
 #include <memory>
 
 template <CPUArchitecture arch>
@@ -29,16 +30,17 @@ bool MemoryHelper<arch>::EnableDebugPrivilege()
 }
 
 template <CPUArchitecture arch>
-typename MemoryHelper<arch>::MemoryMap_t MemoryHelper<arch>::GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& api)
+typename MemoryHelper<arch>::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& api)
 {
-    MemoryMap_t result;
+    MemoryMapT result;
     PTR_T<arch> address = 0;
     SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
     while (NT_SUCCESS(api.NtQueryVirtualMemory64(hProcess, address, SystemDefinitions::MEMORY_INFORMATION_CLASS::MemoryBasicInformation,
         &mbi, sizeof(mbi), nullptr)))
     {
-        if ((mbi.State & MEM_COMMIT) != 0 && mbi.Type != SystemDefinitions::MemType::Image)
+        if ((mbi.State & MEM_COMMIT) != 0)
             result.emplace(mbi.BaseAddress, mbi);
+
         auto prevAddr = address;
         address += std::max<PTR_T<arch>>(mbi.RegionSize, PAGE_SIZE);
         if (prevAddr > address)
@@ -49,12 +51,39 @@ typename MemoryHelper<arch>::MemoryMap_t MemoryHelper<arch>::GetMemoryMap(HANDLE
 }
 
 template <CPUArchitecture arch>
-std::vector<SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> 
-    MemoryHelper<arch>::GetFlatMemoryMap(const typename MemoryHelper<arch>::MemoryMap_t& mm)
+typename MemoryHelper<arch>::FlatMemoryMapT
+    MemoryHelper<arch>::GetFlatMemoryMap(const typename MemoryHelper<arch>::MemoryMapT& mm,
+    const std::function<bool(const typename MemoryHelper<arch>::MemInfoT&)>& filter)
 {
-    std::vector<SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>> result;
-    for (const auto& kv : mm)
-        result.push_back(kv.second);
+    FlatMemoryMapT result;
+    for (const auto& infoKeyValue : mm)
+    {
+        if (!filter(infoKeyValue.second))
+            continue;
+
+        result.push_back(infoKeyValue.second);
+    }
+
+    return result;
+}
+
+template <CPUArchitecture arch>
+typename MemoryHelper<arch>::GroupedMemoryMapT
+MemoryHelper<arch>::GetGroupedMemoryMap(const typename MemoryHelper<arch>::MemoryMapT& mm,
+    const std::function<bool(const typename MemoryHelper<arch>::MemInfoT&)>& filter)
+{
+    GroupedMemoryMapT result;
+    for (const auto& infoKeyValue : mm)
+    {
+        if (!filter(infoKeyValue.second))
+            continue;
+
+        auto iter = result.lower_bound(infoKeyValue.second.AllocationBase);
+        if (iter != result.end() && iter->first == infoKeyValue.second.AllocationBase)
+            iter->second.push_back(infoKeyValue.second);
+        else
+            result.emplace_hint(iter, infoKeyValue.second.AllocationBase, FlatMemoryMapT{ infoKeyValue.second });
+    }
 
     return result;
 }

@@ -47,7 +47,7 @@ static bool writeValue(const T (&value)[N], FILE* f) noexcept
 
 template <CPUArchitecture arch>
 static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, const wchar_t* path, const std::vector<PTR_T<arch>>& processIssues,
-                       const typename MemoryHelper<arch>::MemoryMap_t& mm, const Wow64Helper<arch>& api)
+                       const typename MemoryHelper<arch>::MemoryMapT& mm, const Wow64Helper<arch>& api)
 {
     FILE* dump = nullptr;
     _wfopen_s(&dump, path, L"wb");
@@ -56,7 +56,11 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
         std::unique_ptr<FILE, int(*)(FILE*)> dumpGuard(dump, fclose);
         try
         {
-            const auto& flatMm = MemoryHelper<arch>::GetFlatMemoryMap(mm);
+            const auto& flatMm = MemoryHelper<arch>::GetFlatMemoryMap(mm,
+                [](const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>& mbi)
+                {
+                    return mbi.Type != SystemDefinitions::MemType::Image;
+                });
 
             if (!writeValue(DumpSignature, dump))
                 throw std::system_error(errno, std::iostream_category(), "");
