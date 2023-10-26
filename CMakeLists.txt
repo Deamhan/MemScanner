@@ -5,27 +5,31 @@ project(MemScanner)
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 set(COMMON_SRC source/datasource.cpp
-               source/dump.cpp
                source/memhelper.cpp
                source/memdatasource.cpp
+               source/log.cpp
                source/ntdll64.cpp
                source/pe.cpp
-               source/scanner.cpp
                include/datasource.hpp
-               include/dump.hpp
                include/memdatasource.hpp
                include/memhelper.hpp
+               include/log.hpp
                include/ntdll64.hpp
                include/pe.hpp
                include/system_defs.hpp
                include/scanner.hpp    
 )
 
-set(SCANNER_SRC source/main.cpp
+set(SCANNER_SRC source/dump.cpp
+                source/main.cpp
+                source/scanner.cpp
+                include/dump.hpp
                 ${COMMON_SRC}
 )
 
-set(SUSP_THREAD_SRC tests/susp_thread_test.cpp
+set(SUSP_THREAD_SRC source/dump.cpp
+                    source/scanner.cpp
+                    tests/susp_thread_test.cpp            
                     ${COMMON_SRC}
 )
 
@@ -39,9 +43,9 @@ set(MEMDATASRC_SRC tests/memdatasource_test.cpp
 )
 
 set(VIEWER_SRC source/dump.cpp
-               source/viewer.cpp      
+               source/viewer.cpp     
+               source/log.cpp            
                include/dump.hpp
-               include/system_defs.hpp
 )
 
 if (MSVC)  
