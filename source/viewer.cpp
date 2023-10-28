@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "dump.hpp"
+#include "log.hpp"
 #include "system_defs.hpp"
 
 #undef max
@@ -386,6 +387,8 @@ static bool processDump(FILE * dump, const wchar_t* path)
 
 int wmain(int argc, const wchar_t** argv)
 {
+    std::ios::sync_with_stdio();
+
     if (argc < 2)
     {
         std::wcout << L"Usage: viewer path_to_dump" << std::endl;
@@ -399,6 +402,8 @@ int wmain(int argc, const wchar_t** argv)
         std::wcout << "Error: unable to open dump " << argv[1] << std::endl;
         return 1;
     }
+
+    SetDefaultLogger(&GetConsoleLoggerInstance());
 
     std::unique_ptr<FILE, int(*)(FILE*)> dumpGurad(dump, fclose);
     return processDump(dump, argv[1]) ? 0 : 1;

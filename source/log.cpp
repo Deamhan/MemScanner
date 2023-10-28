@@ -1,5 +1,7 @@
 #include "log.hpp"
 
+#include <atomic>
+
 void ConsoleLogger::Log(const wchar_t* message, ...)
 {
 	va_list args;
@@ -11,11 +13,14 @@ void ConsoleLogger::Log(const wchar_t* message, ...)
 FileLogger::FileLogger(const wchar_t* path) : mBuffer(BufferSize), mFile(nullptr, fclose)
 {
 	FILE* f = nullptr;
-	auto err = _wfopen_s(&f, path, L"wt");
+	auto err = _wfopen_s(&f, path, L"wb");
 	if (err != 0)
 		throw std::exception{ "Unable to open file" };
 
+	mBuffer.assign(BufferSize, 0);
 	mFile.reset(f);
+	const wchar_t bom = L'\xFEFF';
+	_fwrite_nolock(&bom, sizeof(wchar_t), 1, f);
 }
 
 void FileLogger::Log(const wchar_t* message, ...)
@@ -28,23 +33,43 @@ void FileLogger::Log(const wchar_t* message, ...)
 	mBuffer[len] = L'\0';
 	va_end(args);
 
-	_fwrite_nolock(mBuffer.data(), sizeof(wchar_t), len, mFile.get());
+	_fwrite_nolock(mBuffer.data(), sizeof(wchar_t), wcslen(mBuffer.data()), mFile.get());
 }
 
-ILogger& GetLoggerInstance(LoggerType type)
+FileLogger& GetFileLoggerInstance(const wchar_t* path)
 {
-	static NullLogger nullLogger;
-	static ConsoleLogger consoleLogger;
-
-	switch (type)
-	{
-	case LoggerType::None:
-		return nullLogger;
-	case LoggerType::Console:
-		return consoleLogger;
-	case LoggerType::File:
-		return nullLogger;
-	default:
-		return nullLogger;
-	}
+	static FileLogger logger(path);
+	return logger;
 }
+
+ConsoleLogger& GetConsoleLoggerInstance()
+{
+	static ConsoleLogger logger{};
+	return logger;
+}
+
+NullLogger& GetNullLoggerInstance()
+{
+	static NullLogger logger{};
+	return logger;
+}
+
+static std::atomic<ILogger*> defaultLogger;
+
+void SetDefaultLogger(ILogger* newLogger)
+{
+	defaultLogger = newLogger;
+}
+
+ILogger* GetDefaultLogger()
+{
+	return defaultLogger;
+}
+
+struct DefaultLoggerInitializer
+{
+	DefaultLoggerInitializer()
+	{
+		SetDefaultLogger(&GetNullLoggerInstance());
+	}
+} loggerInitializer;

@@ -24,6 +24,7 @@ class ConsoleLogger : public ILogger
 {
 public:
 	void Log(const wchar_t* message, ...) override;
+	ConsoleLogger() = default;
 };
 
 class FileLogger : public ILogger
@@ -40,17 +41,16 @@ protected:
 	const size_t BufferSize = 32 * 1024;
 };
 
-enum class LoggerType
-{
-	None,
-	Console,
-	File,
-};
-
 class NullLogger : public ILogger
 {
 public:
 	void Log(const wchar_t*, ...) override {}
+	NullLogger() = default;
 };
 
-ILogger& GetLoggerInstance(LoggerType type = LoggerType::None);
+FileLogger& GetFileLoggerInstance(const wchar_t* path);
+ConsoleLogger& GetConsoleLoggerInstance();
+NullLogger& GetNullLoggerInstance();
+
+void SetDefaultLogger(ILogger* newLogger);
+ILogger* GetDefaultLogger();

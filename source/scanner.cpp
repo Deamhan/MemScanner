@@ -102,7 +102,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
                     const uint64_t addr = mbi.BaseAddress + processed;
                     memset(readBuffer.data(), 0, blockSize);
                     if (!api.ReadProcessMemory64(hProcess, addr, readBuffer.data(), blockSize, &result))
-                        GetLoggerInstance().Log(L"!>> Unable to read process memory [%s, PID = %u] [0x%016llx : 0x%016llx) <<!\n", process, (unsigned)pid,
+                        GetDefaultLogger()->Log(L"!>> Unable to read process memory [%s, PID = %u] [0x%016llx : 0x%016llx) <<!\n", process, (unsigned)pid,
                             (unsigned long long)addr, (unsigned long long)(addr + blockSize));
 
                     if (!writeValue(readBuffer, blockSize, dump))
@@ -117,12 +117,12 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
         }
         catch (const std::system_error&)
         {
-            GetLoggerInstance().Log(L"!>> Unable to write data to file %s <<!\n", path);
+            GetDefaultLogger()->Log(L"!>> Unable to write data to file %s <<!\n", path);
             return false;
         }
     }
     else
-        GetLoggerInstance().Log(L"!>> Unable to open file %s for writing <<!\n", path);
+        GetDefaultLogger()->Log(L"!>> Unable to open file %s for writing <<!\n", path);
 
     return false;
 }
@@ -133,14 +133,14 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
     DWORD pid = (DWORD)(uint64_t)procInfo->ProcessId;
     std::wstring name((const wchar_t*)procInfo->ImageName.Buffer, procInfo->ImageName.Length / sizeof(wchar_t));
 
-    GetLoggerInstance().Log(L"Process %s [PID = %u]", name.c_str(), (unsigned)pid);
+    GetDefaultLogger()->Log(L"Process %s [PID = %u]", name.c_str(), (unsigned)pid);
     HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
     if (hProcess == nullptr)
     {
-        GetLoggerInstance().Log(L": unable to open\n");
+        GetDefaultLogger()->Log(L": unable to open\n");
         return;
     }
-    GetLoggerInstance().Log(L"\n");
+    GetDefaultLogger()->Log(L"\n");
 
     bool hasExecPrivateMemory = false;
     std::vector<PTR_T<arch>> processIssues;
@@ -160,7 +160,7 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
                 && (mbi.State & MEM_COMMIT) != 0 && mbi.Type != SystemDefinitions::MemType::Image)
             {
                 processIssues.push_back(startAddress);
-                GetLoggerInstance().Log(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread,
+                GetDefaultLogger()->Log(L"\t Suspicious thread [TID = %u]: Start address == 0x%016llx (%s)\n", (unsigned)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread,
                     (unsigned long long)startAddress, ProtToStr(mbi.Protect).c_str());
                 hasExecPrivateMemory = true;
                 ++issues;
@@ -205,7 +205,7 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
             {
                 hasExecPrivateMemory = true;
                 ++issues;
-                GetLoggerInstance().Log(L"\t Suspicious memory region:\n");
+                GetDefaultLogger()->Log(L"\t Suspicious memory region:\n");
                 printMBI(region, L"\t");
                 
 
@@ -219,7 +219,7 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
 
                     if (firstMet)
                     {
-                        GetLoggerInstance().Log(L"\t\tRelated Regions:\n");
+                        GetDefaultLogger()->Log(L"\t\tRelated Regions:\n");
                         firstMet = false;
                     }
                     
@@ -252,7 +252,7 @@ public:
         auto end = std::chrono::high_resolution_clock::now();
         auto ticks = (end - mBegin).count();
 
-        GetLoggerInstance(LoggerType::Console).Log(L"Time spent: %lld us\n", ticks / 1000);
+        GetDefaultLogger()->Log(L"\nTime spent: %lld us\n", ticks / 1000);
     }
 
 private:
@@ -264,11 +264,11 @@ static int ScanMemoryImpl(uint32_t sensitivity, uint32_t pid, const wchar_t* dum
 {
     int issues = 0;
 
-    GetLoggerInstance().Log(L">>> OS Architecture: %s <<<\n", arch == CPUArchitecture::X64 ? L"X64" : L"X86");
-    GetLoggerInstance().Log(L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
+    GetDefaultLogger()->Log(L">>> OS Architecture: %s <<<\n", arch == CPUArchitecture::X64 ? L"X64" : L"X86");
+    GetDefaultLogger()->Log(L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
 
     if (!MemoryHelper<arch>::EnableDebugPrivilege())
-        GetLoggerInstance().Log(L"!>> Unable to enable SeDebugPrivilege, functionality is limited <<!\n");
+        GetDefaultLogger()->Log(L"!>> Unable to enable SeDebugPrivilege, functionality is limited <<!\n");
 
     std::vector<uint8_t> buffer(64 * 1024);
     uint32_t resLen = 0;

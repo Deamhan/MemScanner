@@ -4,12 +4,14 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "log.hpp"
 #include "scanner.hpp"
 
 enum class CmdLineSwitch
 {
     Sensitivity,
     Pid,
+    Log,
     None
 };
 
@@ -36,6 +38,7 @@ static std::wstring toString(T& value)
 int wmain(int argc, const wchar_t ** argv)
 {
     const wchar_t* dir = nullptr;
+    const wchar_t* logPath = nullptr;
     uint32_t sensitivity = 0;
     uint32_t pid = 0;
 
@@ -50,6 +53,8 @@ int wmain(int argc, const wchar_t ** argv)
                     state = CmdLineSwitch::Sensitivity;
                 else if (wcscmp(argv[i] + 1, L"pid") == 0)
                     state = CmdLineSwitch::Pid;
+                else if (wcscmp(argv[i] + 1, L"log") == 0)
+                    state = CmdLineSwitch::Log;
                 else
                     throw std::invalid_argument("");
             }
@@ -62,6 +67,9 @@ int wmain(int argc, const wchar_t ** argv)
                     break;
                 case CmdLineSwitch::Pid:
                     parse(argv[i], pid);
+                    break;
+                case CmdLineSwitch::Log:
+                    logPath = argv[i];
                     break;
                 case CmdLineSwitch::None:
                     dir = argv[i];
@@ -85,10 +93,23 @@ int wmain(int argc, const wchar_t ** argv)
         }
     }
 
-    wprintf(L"Settings:\n\tsensitivity = %u\n\tpid = %s\n\tdump directory = %s\n\n", 
+    wprintf(L"Settings:\n\tsensitivity = %u\n\tpid = %s\n\tlog = %s\n\tdump directory = %s\n\n", 
             (unsigned)sensitivity, pid == 0 ? L"all" : toString(pid).c_str(), 
-            dir == nullptr ? L"None" : dir);
-    wprintf(L"Found issues: %d\n", ScanMemory(sensitivity, pid, dir));
+            logPath == nullptr ? L"console" : logPath,
+            dir == nullptr ? L"none" : dir);
+
+    try
+    {
+        ILogger* logger = logPath == nullptr ? (ILogger*)&GetConsoleLoggerInstance() : (ILogger*)&GetFileLoggerInstance(logPath);
+        SetDefaultLogger(logger);
+
+        wprintf(L"\nFound issues: %d\n", ScanMemory(sensitivity, pid, dir));
+    }
+    catch (const std::exception& e)
+    {
+        wprintf(L"Error: %S\n", e.what());
+        return 2;
+    }
 
     return 0;
 }
