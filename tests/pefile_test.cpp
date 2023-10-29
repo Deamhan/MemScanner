@@ -84,7 +84,7 @@ int main()
 
 	ReadOnlyFile ntdllFile { GetImageName(ntdllMapped).c_str()};
 
-	switch (PE<>::GetPeArch(ntdllFile))
+	switch (PE<>::GetPeArch(ntdllMapped))
 	{
 #if !_M_AMD64
 	case CPUArchitecture::X86:

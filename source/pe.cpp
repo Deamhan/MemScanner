@@ -198,7 +198,7 @@ std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::Ch
     {
         for (auto& exportedFunc : mExportByOffset)
         {
-            auto iter = parsedDiskExport.find(RvaToOffset(exportedFunc.first));
+            auto iter = parsedDiskExport.find(imageOnDisk.RvaToOffset(exportedFunc.first));
             if (iter != parsedDiskExport.end() && iter->second->firstBytes != exportedFunc.second->firstBytes)
                 result.push_back(exportedFunc.second);
         }
