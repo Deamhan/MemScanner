@@ -8,6 +8,7 @@ class ReadOnlyMemoryDataSource : public ReadOnlyDataSource
 {
 public:
     ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size);
+    uint64_t GetBaseAddress() const noexcept { return mBaseAddress; }
 
 protected:
     virtual size_t ReadImpl(void* buffer, size_t bufferLength) override;

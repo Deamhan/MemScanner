@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <map>
+#include <string>
 #include <vector>
 
 #include "ntdll64.hpp"
@@ -28,6 +29,6 @@ public:
 
 	static GroupedMemoryMapT GetGroupedMemoryMap(
 		const MemoryMapT& mm, const std::function<bool(const MemInfoT&)>& filter);
+
+	static std::wstring GetImageNameByAddress(HANDLE hProcess, PTR_T<arch> address, const Wow64Helper<arch>& api);
 };
-
-

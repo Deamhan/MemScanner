@@ -1,4 +1,5 @@
 #include "file.hpp"
+#include "memhelper.hpp"
 #include "pe.hpp"
 
 typedef std::map<uint16_t, ExportedFunctionDescription> OrdinalMapT;
@@ -35,7 +36,24 @@ bool CompareExportMaps(const OrdinalMapT& m1,
 }
 
 template <CPUArchitecture arch>
-int CheckPE(ReadOnlyDataSource& file, ReadOnlyDataSource& mapped)
+std::wstring GetImageNameForArch(ReadOnlyMemoryDataSource& mapped)
+{
+	auto& api = GetWow64Helper<arch>();
+	return MemoryHelper<arch>::GetImageNameByAddress(GetCurrentProcess(), mapped.GetBaseAddress(), api);
+}
+
+std::wstring GetImageName(ReadOnlyMemoryDataSource& mapped)
+{
+#if !_M_AMD64
+	if (GetOSArch() == CPUArchitecture::X86)
+		return GetImageNameForArch<CPUArchitecture::X86>(mapped);
+#endif // !_M_AMD64
+
+	return GetImageNameForArch<CPUArchitecture::X64>(mapped);
+}
+
+template <CPUArchitecture arch>
+int CheckPE(ReadOnlyFile& file, ReadOnlyMemoryDataSource& mapped)
 {
 	try
 	{
@@ -58,23 +76,20 @@ int CheckPE(ReadOnlyDataSource& file, ReadOnlyDataSource& mapped)
 
 int main()
 {
-	std::vector<WCHAR> pathBuffer(32 * 1024, L'\0');
 	auto ntdllHandle = GetModuleHandleW(L"ntdll");
 	if (ntdllHandle == nullptr)
 		return 1;
 
-	if (0 == GetModuleFileNameW(ntdllHandle, pathBuffer.data(), pathBuffer.size() - 1))
-		return 2;
-
-	ReadOnlyFile ntdllFile { pathBuffer.data() };
-
 	ReadOnlyMemoryDataSource ntdllMapped(GetCurrentProcess(), (uintptr_t)ntdllHandle, 100 * 1024 * 1024);
+
+	ReadOnlyFile ntdllFile { GetImageName(ntdllMapped).c_str()};
 
 	switch (PEFile<>::GetPeArch(ntdllFile))
 	{
+#if !_M_AMD64
 	case CPUArchitecture::X86:
 		return CheckPE<CPUArchitecture::X86>(ntdllFile, ntdllMapped);
-
+#endif // !_M_AMD64
 	case CPUArchitecture::X64:
 		return CheckPE<CPUArchitecture::X64>(ntdllFile, ntdllMapped);
 

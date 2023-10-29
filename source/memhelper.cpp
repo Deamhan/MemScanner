@@ -30,6 +30,25 @@ bool MemoryHelper<arch>::EnableDebugPrivilege()
 }
 
 template <CPUArchitecture arch>
+std::wstring MemoryHelper<arch>::GetImageNameByAddress(HANDLE hProcess, PTR_T<arch> address, const Wow64Helper<arch>& api)
+{
+    std::vector<uint8_t> buffer(sizeof(SystemDefinitions::UNICODE_STRING_T<PTR_T<arch>>) + 64 * 1024, L'\0');
+    auto ptr = (SystemDefinitions::UNICODE_STRING_T<PTR_T<arch>>*)buffer.data();
+
+    uint64_t retLen = 0;
+    auto result = api.NtQueryVirtualMemory64(hProcess, address, SystemDefinitions::MEMORY_INFORMATION_CLASS::MemorySectionName,
+        ptr, buffer.size(), &retLen);
+
+    if (!SystemDefinitions::NT_SUCCESS(result))
+        return L"";
+
+    std::wstring path = L"\\??\\GlobalRoot";
+    path.append((const wchar_t*)ptr->Buffer, ptr->Length / sizeof(wchar_t));
+
+    return path;
+}
+
+template <CPUArchitecture arch>
 typename MemoryHelper<arch>::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& api)
 {
     MemoryMapT result;

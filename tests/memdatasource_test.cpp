@@ -27,9 +27,10 @@ int main()
 
 	switch (PEFile<>::GetPeArch(fragment))
 	{
+#if !_M_AMD64
 	case CPUArchitecture::X86:
 		return CheckPE<CPUArchitecture::X86>(fragment);
-
+#endif //  !_M_AMD64
 	case CPUArchitecture::X64:
 		return CheckPE<CPUArchitecture::X64>(fragment);
 
