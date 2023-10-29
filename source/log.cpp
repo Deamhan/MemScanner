@@ -13,11 +13,10 @@ void ConsoleLogger::Log(const wchar_t* message, ...)
 FileLogger::FileLogger(const wchar_t* path) : mBuffer(BufferSize), mFile(nullptr, fclose)
 {
 	FILE* f = nullptr;
-	auto err = _wfopen_s(&f, path, L"wb");
-	if (err != 0)
+	_wfopen_s(&f, path, L"wb");
+	if (f == nullptr)
 		throw std::exception{ "Unable to open file" };
 
-	mBuffer.assign(BufferSize, 0);
 	mFile.reset(f);
 	const wchar_t bom = L'\xFEFF';
 	_fwrite_nolock(&bom, sizeof(wchar_t), 1, f);

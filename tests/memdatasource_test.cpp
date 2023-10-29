@@ -5,7 +5,7 @@ int CheckPE(ReadOnlyDataSource& ds)
 {
 	try
 	{
-		MappedPEFile<arch> pe(ds);
+		PEFile<true, arch> pe(ds);
 		pe.BuildExportMap();
 
 		return 0;
@@ -18,15 +18,14 @@ int CheckPE(ReadOnlyDataSource& ds)
 
 int main()
 {
-	std::vector<WCHAR> buffer(120 * 1024);
-	auto selfBase = GetModuleHandleW(L"ntdll");
-	if (selfBase == nullptr)
+	auto ntdllHandle = GetModuleHandleW(L"ntdll");
+	if (ntdllHandle == nullptr)
 		return 1;
 
-	ReadOnlyMemoryDataSource ntdllShifted(GetCurrentProcess(), (uintptr_t)selfBase - 0x1000, 100 * 1024 * 1024);
+	ReadOnlyMemoryDataSource ntdllShifted(GetCurrentProcess(), (uintptr_t)ntdllHandle - 0x1000, 100 * 1024 * 1024);
 	DataSourceFragment fragment(ntdllShifted, 0x1000, 50 * 1024 * 1024);
 
-	switch (MappedPEFile<>::GetPeArch(fragment))
+	switch (PEFile<>::GetPeArch(fragment))
 	{
 	case CPUArchitecture::X86:
 		return CheckPE<CPUArchitecture::X86>(fragment);

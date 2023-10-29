@@ -5,15 +5,17 @@ project(MemScanner)
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 set(COMMON_SRC source/datasource.cpp
+               source/file.cpp
+               source/log.cpp
                source/memhelper.cpp
                source/memdatasource.cpp
-               source/log.cpp
                source/ntdll64.cpp
                source/pe.cpp
                include/datasource.hpp
+               include/file.hpp
+               include/log.hpp
                include/memdatasource.hpp
                include/memhelper.hpp
-               include/log.hpp
                include/ntdll64.hpp
                include/pe.hpp
                include/system_defs.hpp
@@ -33,8 +35,11 @@ set(SUSP_THREAD_SRC source/dump.cpp
                     ${COMMON_SRC}
 )
 
-set(DATASRC_SRC tests/file.cpp
-                tests/datasource_test.cpp
+set(PEFILE_SRC tests/pefile_test.cpp            
+               ${COMMON_SRC}
+)
+
+set(DATASRC_SRC tests/datasource_test.cpp
                 ${COMMON_SRC}
 )
 
@@ -97,6 +102,7 @@ add_executable(susp_thread_test ${SUSP_THREAD_SRC})
 add_executable(datasource_test ${DATASRC_SRC})
 add_executable(viewer ${VIEWER_SRC})
 add_executable(memdatasource_test ${MEMDATASRC_SRC})
+add_executable(pefile_test ${PEFILE_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -107,12 +113,14 @@ set_target_properties(viewer PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 set_target_properties(susp_thread_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 set_target_properties(datasource_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 set_target_properties(memdatasource_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
+set_target_properties(pefile_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_link_libraries(susp_thread_test ${NTDLL64LL})
     target_link_libraries(datasource_test ${NTDLL64LL})
     target_link_libraries(memscan ${NTDLL64LL})
     target_link_libraries(memdatasource_test ${NTDLL64LL})
+    target_link_libraries(pefile_test ${NTDLL64LL})
 endif()
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT memscan)
@@ -121,3 +129,4 @@ enable_testing()
 add_test(NAME self_detection COMMAND susp_thread_test)
 add_test(NAME datasrc_test COMMAND datasource_test)
 add_test(NAME memdatasrc_test COMMAND memdatasource_test)
+add_test(NAME pediskfile_test COMMAND pefile_test)

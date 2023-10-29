@@ -2,8 +2,8 @@
 
 #include <algorithm>
 
-template <CPUArchitecture arch>
-CPUArchitecture MappedPEFile<arch>::TryParseGeneralPeHeaders(ReadOnlyDataSource& ds, uint64_t offset,
+template <bool isMapped, CPUArchitecture arch>
+CPUArchitecture PEFile<isMapped, arch>::TryParseGeneralPeHeaders(ReadOnlyDataSource& ds, uint64_t offset,
 	IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader)
 {
     try
@@ -40,8 +40,8 @@ CPUArchitecture MappedPEFile<arch>::TryParseGeneralPeHeaders(ReadOnlyDataSource&
     }
 }
 
-template <CPUArchitecture arch>
-MappedPEFile<arch>::MappedPEFile(ReadOnlyDataSource& ds) : mDataSource(ds)
+template <bool isMapped, CPUArchitecture arch>
+PEFile<isMapped, arch>::PEFile(ReadOnlyDataSource& ds) : mDataSource(ds)
 {
     try
     {
@@ -54,9 +54,14 @@ MappedPEFile<arch>::MappedPEFile(ReadOnlyDataSource& ds) : mDataSource(ds)
         ds.Read(mOptionalHeader);
 
         auto sectionsCount = std::min<size_t>(256, fileHeader.NumberOfSections);
-        mSections.resize(sectionsCount);
 
-        ds.Read(mSections.data(), mSections.size() * sizeof(IMAGE_SECTION_HEADER));
+        for (size_t i = 0; i < sectionsCount; ++i)
+        {
+            IMAGE_SECTION_HEADER header;
+            ds.Read(header);
+
+            mSections.emplace(header.VirtualAddress + PageAlignUp(header.Misc.VirtualSize), header);
+        }
     }
     catch (const DataSourceException&)
     {
@@ -64,16 +69,16 @@ MappedPEFile<arch>::MappedPEFile(ReadOnlyDataSource& ds) : mDataSource(ds)
     }
 }
 
-template <CPUArchitecture arch>
-CPUArchitecture MappedPEFile<arch>::GetPeArch(ReadOnlyDataSource& ds)
+template <bool isMapped, CPUArchitecture arch>
+CPUArchitecture PEFile<isMapped, arch>::GetPeArch(ReadOnlyDataSource& ds)
 {
 	IMAGE_DOS_HEADER dosHeader;
 	IMAGE_FILE_HEADER fileHeader;
 	return TryParseGeneralPeHeaders(ds, 0, dosHeader, fileHeader);
 }
 
-template <CPUArchitecture arch>
-void MappedPEFile<arch>::BuildExportMap()
+template <bool isMapped, CPUArchitecture arch>
+void PEFile<isMapped, arch>::BuildExportMap()
 {
     try
     {
@@ -83,54 +88,66 @@ void MappedPEFile<arch>::BuildExportMap()
             return;
 
         IMAGE_EXPORT_DIRECTORY Export;
-        mDataSource.Read(exportRva, Export);
+        auto exportOffset = RvaToOffset(exportRva);
+        mDataSource.Read(exportOffset, Export);
 
-        std::vector<uint32_t> rvaOfFunctions(std::min<uint32_t>(Export.NumberOfFunctions, 0x10000));
-        std::vector<uint32_t> rvaOfNames(std::min<uint32_t>(Export.NumberOfNames, 0x10000));
-        std::vector<uint16_t> Ordinals(std::min<uint32_t>(Export.NumberOfNames, 0x10000));
+        std::vector<uint32_t> functions(std::min<uint32_t>(Export.NumberOfFunctions, 0x10000));
+        std::vector<uint32_t> names(std::min<uint32_t>(Export.NumberOfNames, 0x10000));
+        std::vector<uint16_t> ordinals(std::min<uint32_t>(Export.NumberOfNames, 0x10000));
 
-        if (rvaOfFunctions.size() != 0)
+        auto rvaToOffsetFunc = [this](uint32_t rva) { return RvaToOffset(rva); };
+
+        if (functions.size() != 0)
         {
-            mDataSource.Read(Export.AddressOfFunctions, &rvaOfFunctions[0],
-                rvaOfFunctions.size() * sizeof(rvaOfFunctions[0]));
+            mDataSource.Read(RvaToOffset(Export.AddressOfFunctions), &functions[0],
+                functions.size() * sizeof(functions[0]));
+
+            std::transform(functions.begin(), functions.end(), functions.begin(),
+                rvaToOffsetFunc);
         }
 
-        if (rvaOfNames.size() != 0)
+        if (names.size() != 0)
         {
-            mDataSource.Read(Export.AddressOfNames, &rvaOfNames[0],
-                rvaOfNames.size() * sizeof(rvaOfNames[0]));
+            mDataSource.Read(RvaToOffset(Export.AddressOfNames), &names[0],
+                names.size() * sizeof(names[0]));
+
+            std::transform(names.begin(), names.end(), names.begin(),
+                rvaToOffsetFunc);
         }
 
-        if (Ordinals.size() != 0)
+        if (ordinals.size() != 0)
         {
-            mDataSource.Read(Export.AddressOfNameOrdinals, &Ordinals[0],
-                Ordinals.size() * sizeof(Ordinals[0]));
+            mDataSource.Read(RvaToOffset(Export.AddressOfNameOrdinals), &ordinals[0],
+                ordinals.size() * sizeof(ordinals[0]));
         }
 
-        for (size_t i = 0; i < rvaOfFunctions.size(); ++i)
+        for (size_t i = 0; i < functions.size(); ++i)
         {
             std::pair<uint32_t, ExportedFunctionDescription> p;
-            p.first = rvaOfFunctions[i];
+            p.first = functions[i];
             p.second.ordinal = (uint16_t)(i + Export.Base);
-            if (p.first >= exportRva && p.first < exportRva + exportSize)
+            if (p.first >= exportOffset && p.first < exportOffset + exportSize)
             {
                 std::vector<char> buffer(0x100, '\0');
                 mDataSource.Read(p.first, &buffer[0], buffer.size());
                 p.second.forwardTarget = buffer.data();
+                p.second.offset = 0;
             }
+            else
+                p.second.offset = p.first;
 
             mExport.insert(std::move(p));
         }
 
-        for (size_t i = 0; i < Ordinals.size(); i++)
+        for (size_t i = 0; i < ordinals.size(); i++)
         {
-            uint32_t ordinal = Ordinals[i];
+            uint32_t ordinal = ordinals[i];
             std::vector<char> buffer(0x100, '\0');
-            mDataSource.Read(rvaOfNames[i], &buffer[0], buffer.size());
-            if (ordinal >= rvaOfFunctions.size())
+            mDataSource.Read(names[i], &buffer[0], buffer.size());
+            if (ordinal >= functions.size())
                 continue;
 
-            auto exportedFunc = mExport.find(rvaOfFunctions[ordinal]);
+            auto exportedFunc = mExport.find(functions[ordinal]);
             if (exportedFunc != mExport.end())
                 exportedFunc->second.names.emplace_back(buffer.data());
         }
@@ -141,8 +158,26 @@ void MappedPEFile<arch>::BuildExportMap()
     }
 }
 
+template <bool isMapped, CPUArchitecture arch>
+uint32_t PEFile<isMapped, arch>::RvaToOffset(uint32_t rva) const
+{
+    if (isMapped)
+        return rva;
+
+    auto iter = mSections.upper_bound(rva);
+    if (rva >= iter->second.VirtualAddress)
+        return iter->second.PointerToRawData + (rva - iter->second.VirtualAddress);
+
+    if (!mSections.empty() && mSections.begin()->second.VirtualAddress > rva)
+        return rva;
+
+    throw PeException{ PeError::InvalidRva };
+}
+
 #if !_M_AMD64
-template class MappedPEFile<CPUArchitecture::X86>;
+template class PEFile<false, CPUArchitecture::X86>;
+template class PEFile<true, CPUArchitecture::X86>;
 #endif // !_M_AMD64
 
-template class MappedPEFile<CPUArchitecture::X64>;
+template class PEFile<false, CPUArchitecture::X64>;
+template class PEFile<true, CPUArchitecture::X64>;

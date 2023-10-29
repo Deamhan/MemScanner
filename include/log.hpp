@@ -34,11 +34,11 @@ public:
 	FileLogger(const wchar_t* path);
 
 protected:
+	const size_t BufferSize = 32 * 1024;
+
 	std::vector<wchar_t> mBuffer;
 	std::mutex mBufferGuard;
 	std::unique_ptr<FILE, int(*)(FILE*)> mFile;
-
-	const size_t BufferSize = 32 * 1024;
 };
 
 class NullLogger : public ILogger

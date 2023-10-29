@@ -86,9 +86,6 @@ void ReadOnlyDataSource::Seek(uint64_t newOffset)
 	mRealPointer = newOffset;
 }
 
-#define PAGE_SIZE 4096
-size_t PageAlignUp(size_t value) { return (value + PAGE_SIZE - 1) & (~(PAGE_SIZE - 1)); }
-
 ReadOnlyDataSource::ReadOnlyDataSource(size_t bufferSize) : mBufferSize(PageAlignUp(bufferSize)), mCacheBuffer(mBufferSize),
 	mRealPointer(0), mCacheBufferEnd(mCacheBuffer.data() + mCacheBuffer.size())
 {

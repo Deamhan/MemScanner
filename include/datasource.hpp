@@ -103,3 +103,6 @@ inline void ReadOnlyDataSource::Read(T& data)
     if (read != sizeof(data))
         throw DataSourceException{ DataSourceError::UnknownError };
 }
+
+#define PAGE_SIZE 4096
+inline size_t PageAlignUp(size_t value) { return (value + PAGE_SIZE - 1) & (~(PAGE_SIZE - 1)); }

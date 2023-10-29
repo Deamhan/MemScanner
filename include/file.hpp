@@ -19,7 +19,7 @@ protected:
 class ReadOnlyFile : public ReadOnlyDataSource
 {
 public:
-    ReadOnlyFile(const wchar_t* path, size_t bufferSize);
+    ReadOnlyFile(const wchar_t* path, size_t bufferSize = 64 * 1024);
     DWORD GetLastErrorCode() { return mLastError; }
 
     virtual ~ReadOnlyFile()
