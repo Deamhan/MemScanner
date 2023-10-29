@@ -104,9 +104,6 @@ void PE<isMapped, arch>::BuildExportMap()
         {
             mDataSource.Read(RvaToOffset(Export.AddressOfFunctions), &functions[0],
                 functions.size() * sizeof(functions[0]));
-
-            std::transform(functions.begin(), functions.end(), functions.begin(),
-                rvaToOffsetFunc);
         }
 
         if (names.size() != 0)
@@ -130,7 +127,7 @@ void PE<isMapped, arch>::BuildExportMap()
             p.second.reset(new ExportedFunctionDescription);
             p.first = functions[i];
             p.second->ordinal = (uint16_t)(i + Export.Base);
-            if (p.first >= exportOffset && p.first < exportOffset + exportSize)
+            if (p.first >= exportRva && p.first < exportRva + exportSize)
             {
                 std::vector<char> buffer(0x100, '\0');
                 mDataSource.Read(p.first, &buffer[0], buffer.size());
@@ -138,9 +135,10 @@ void PE<isMapped, arch>::BuildExportMap()
                 p.second->offset = 0;
             }
             else
-                p.second->offset = p.first;
+                p.second->offset = RvaToOffset(p.first);
 
-            mExportByOffset.insert(std::move(p));
+            if (IsExecutableSectionRva(p.first))
+                mExportByRva.insert(std::move(p));
         }
 
         for (size_t i = 0; i < ordinals.size(); i++)
@@ -151,16 +149,13 @@ void PE<isMapped, arch>::BuildExportMap()
             if (ordinal >= functions.size())
                 continue;
 
-            auto exportedFunc = mExportByOffset.find(functions[ordinal]);
-            if (exportedFunc != mExportByOffset.end())
+            auto exportedFunc = mExportByRva.find(functions[ordinal]);
+            if (exportedFunc != mExportByRva.end())
                 exportedFunc->second->names.emplace_back(buffer.data());
         }
 
-        for (auto& exportedFunc : mExportByOffset)
-        {
-            uint64_t firstBytes = 0;
-            mDataSource.Read(exportedFunc.first, firstBytes);
-        }
+        for (auto& exportedFunc : mExportByRva)
+            mDataSource.Read(exportedFunc.second->offset, exportedFunc.second->firstByte);
     }
     catch (const DataSourceException&)
     {
@@ -185,6 +180,16 @@ uint32_t PE<isMapped, arch>::RvaToOffset(uint32_t rva) const
 }
 
 template <bool isMapped, CPUArchitecture arch>
+bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva)
+{
+    auto iter = mSections.upper_bound(rva);
+    if (rva >= iter->second.VirtualAddress)
+        return (iter->second.Characteristics & (IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE)) != 0;
+
+    return false;
+}
+
+template <bool isMapped, CPUArchitecture arch>
 std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::CheckExportForHooks(PE<false, arch>& imageOnDisk)
 {
     std::vector<std::shared_ptr<ExportedFunctionDescription>> result;
@@ -196,11 +201,14 @@ std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::Ch
 
     try
     {
-        for (auto& exportedFunc : mExportByOffset)
+        for (auto& exportedFunc : mExportByRva)
         {
-            auto iter = parsedDiskExport.find(imageOnDisk.RvaToOffset(exportedFunc.first));
-            if (iter != parsedDiskExport.end() && iter->second->firstBytes != exportedFunc.second->firstBytes)
-                result.push_back(exportedFunc.second);
+            auto iter = parsedDiskExport.find(exportedFunc.first);
+            if (iter == parsedDiskExport.end())
+                continue;
+
+            if (iter->second->firstByte != exportedFunc.second->firstByte)
+                result.push_back(exportedFunc.second);  
         }
     }
     catch (const DataSourceException&)

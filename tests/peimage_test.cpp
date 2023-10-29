@@ -16,9 +16,9 @@ int CheckPE(ReadOnlyDataSource& mapped)
 		ReadOnlyFile fileOnDisk{ imagePath.c_str() };
 		PE<false, arch> imageOnDisk(fileOnDisk);
 		
-		peMapped.CheckExportForHooks(imageOnDisk);
+		auto result = peMapped.CheckExportForHooks(imageOnDisk);
 
-		return 0;
+		return result.size() == 1 ? 0 : 11; // can fail if there are unexpected hooks
 	}
 	catch (const PeException&)
 	{
@@ -28,11 +28,18 @@ int CheckPE(ReadOnlyDataSource& mapped)
 
 int main()
 {
-	auto ntdllHandle = GetModuleHandleW(L"ntdll");
-	if (ntdllHandle == nullptr)
+	auto moduleHandle = GetModuleHandleW(L"kernelbase");
+	if (moduleHandle == nullptr)
 		return 1;
 
-	ReadOnlyMemoryDataSource ntdllMapped(GetCurrentProcess(), (uintptr_t)ntdllHandle - 0x1000, 100 * 1024 * 1024);
+	auto ptr = (uint8_t*)GetProcAddress(moduleHandle, "EnumDeviceDrivers");
+	DWORD oldProt = 0;
+	if (!VirtualProtect(ptr, 0x1000, PAGE_EXECUTE_READWRITE, &oldProt))
+		return 4;
+
+	*ptr = 0xe9;
+
+	ReadOnlyMemoryDataSource ntdllMapped(GetCurrentProcess(), (uintptr_t)moduleHandle - 0x1000, 100 * 1024 * 1024);
 	DataSourceFragment fragment(ntdllMapped, 0x1000, 50 * 1024 * 1024);
 
 	switch (PE<>::GetPeArch(fragment))
