@@ -4,10 +4,11 @@
 
 #include <list>
 #include <map>
+#include <mutex>
 #include <string>
 
 template <CPUArchitecture arch>
-struct PEFileTraitsT
+struct PeTraitsT
 {
 	typedef IMAGE_OPTIONAL_HEADER ImageOptionalHeaderT;
 	typedef IMAGE_NT_HEADERS ImageNtHeadersT;
@@ -15,7 +16,7 @@ struct PEFileTraitsT
 };
 
 template <>
-struct PEFileTraitsT<CPUArchitecture::X64>
+struct PeTraitsT<CPUArchitecture::X64>
 {
 	typedef IMAGE_OPTIONAL_HEADER64 ImageOptionalHeaderT;
 	typedef IMAGE_NT_HEADERS64 ImageNtHeadersT;
@@ -28,6 +29,8 @@ struct ExportedFunctionDescription
 	uint16_t ordinal;
 	std::string forwardTarget;
 	uint32_t offset;
+
+	uint64_t firstBytes;
 };
 
 enum class PeError
@@ -49,37 +52,38 @@ protected:
 };
 
 template <bool isMapped = true, CPUArchitecture arch = CPUArchitecture::X64>
-class PEFile
+class PE
 {
 public:
-	typedef typename PEFileTraitsT<arch>::ImageNtHeadersT      ImageNtHeadersT;
-	typedef typename PEFileTraitsT<arch>::ImageOptionalHeaderT ImageOptionalHeaderT;
+	typedef typename PeTraitsT<arch>::ImageNtHeadersT      ImageNtHeadersT;
+	typedef typename PeTraitsT<arch>::ImageOptionalHeaderT ImageOptionalHeaderT;
 
-	PEFile(ReadOnlyDataSource& ds);
+	PE(ReadOnlyDataSource& ds);
 
 	static CPUArchitecture GetPeArch(ReadOnlyDataSource& ds);
 	void BuildExportMap();
 
 	uint32_t GetImageSize() const noexcept { return mOptionalHeader.SizeOfImage; }
 
-	PEFile(const PEFile&) = delete;
-	PEFile(PEFile&&) = delete;
+	PE(const PE&) = delete;
+	PE(PE&&) = delete;
 
-	PEFile& operator = (const PEFile&) = delete;
-	PEFile& operator = (PEFile&&) = delete;
+	PE& operator = (const PE&) = delete;
+	PE& operator = (PE&&) = delete;
 
 	uint32_t RvaToOffset(uint32_t rva) const;
 
-	const std::map<uint32_t, ExportedFunctionDescription>& GetExportMap() const noexcept { return mExport; }
+	const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& GetExportMap() const noexcept { return mExportByOffset; }
+
+	std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckExportForHooks(PE<false, arch>& imageOnDisk);
 
 protected:
 	ReadOnlyDataSource& mDataSource;
 
 	ImageOptionalHeaderT mOptionalHeader;
 	std::map<uint32_t, IMAGE_SECTION_HEADER> mSections;
-	std::map<uint32_t, ExportedFunctionDescription> mExport;
+	std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>> mExportByOffset;
 
 	static CPUArchitecture TryParseGeneralPeHeaders(ReadOnlyDataSource& ds, uint64_t offset,
 		IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader);
-
 };

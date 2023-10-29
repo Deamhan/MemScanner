@@ -2,14 +2,14 @@
 #include "memhelper.hpp"
 #include "pe.hpp"
 
-typedef std::map<uint16_t, ExportedFunctionDescription> OrdinalMapT;
-typedef std::map<uint32_t, ExportedFunctionDescription> RvaMapT;
+typedef std::map<uint16_t, std::shared_ptr<ExportedFunctionDescription>> OrdinalMapT;
+typedef std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>> RvaMapT;
 
 static OrdinalMapT RvaToOrdinalMap(const RvaMapT& rvaMap)
 {
 	OrdinalMapT result;
 	for (const auto& item : rvaMap)
-		result.emplace(item.second.ordinal, item.second);
+		result.emplace(item.second->ordinal, item.second);
 
 	return result;
 }
@@ -25,10 +25,10 @@ bool CompareExportMaps(const OrdinalMapT& m1,
 	int count = 0;
 	for (; it1 != m1.end(); ++it1, ++it2, ++count)
 	{
-		if (it1->second.names.size() != it2->second.names.size())
+		if (it1->second->names.size() != it2->second->names.size())
 			return false;
 
-		if (!std::equal(it1->second.names.begin(), it1->second.names.end(), it2->second.names.begin()))
+		if (!std::equal(it1->second->names.begin(), it1->second->names.end(), it2->second->names.begin()))
 			return false;
 	}
 
@@ -39,7 +39,7 @@ template <CPUArchitecture arch>
 std::wstring GetImageNameForArch(ReadOnlyMemoryDataSource& mapped)
 {
 	auto& api = GetWow64Helper<arch>();
-	return MemoryHelper<arch>::GetImageNameByAddress(GetCurrentProcess(), mapped.GetBaseAddress(), api);
+	return MemoryHelper<arch>::GetImageNameByAddress(GetCurrentProcess(), (PTR_T<arch>)mapped.GetOffset(), api);
 }
 
 std::wstring GetImageName(ReadOnlyMemoryDataSource& mapped)
@@ -57,10 +57,10 @@ int CheckPE(ReadOnlyFile& file, ReadOnlyMemoryDataSource& mapped)
 {
 	try
 	{
-		PEFile<false, arch> peFile(file);
+		PE<false, arch> peFile(file);
 		peFile.BuildExportMap();
 
-		PEFile<true, arch> peMapped(mapped);
+		PE<true, arch> peMapped(mapped);
 		peMapped.BuildExportMap();
 
 		if (!CompareExportMaps<arch>(RvaToOrdinalMap(peFile.GetExportMap()), RvaToOrdinalMap(peMapped.GetExportMap())))
@@ -84,7 +84,7 @@ int main()
 
 	ReadOnlyFile ntdllFile { GetImageName(ntdllMapped).c_str()};
 
-	switch (PEFile<>::GetPeArch(ntdllFile))
+	switch (PE<>::GetPeArch(ntdllFile))
 	{
 #if !_M_AMD64
 	case CPUArchitecture::X86:

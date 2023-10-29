@@ -1,9 +1,12 @@
 #include "pe.hpp"
 
+#include "file.hpp"
+#include "memhelper.hpp"
+
 #include <algorithm>
 
 template <bool isMapped, CPUArchitecture arch>
-CPUArchitecture PEFile<isMapped, arch>::TryParseGeneralPeHeaders(ReadOnlyDataSource& ds, uint64_t offset,
+CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(ReadOnlyDataSource& ds, uint64_t offset,
 	IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader)
 {
     try
@@ -41,7 +44,7 @@ CPUArchitecture PEFile<isMapped, arch>::TryParseGeneralPeHeaders(ReadOnlyDataSou
 }
 
 template <bool isMapped, CPUArchitecture arch>
-PEFile<isMapped, arch>::PEFile(ReadOnlyDataSource& ds) : mDataSource(ds)
+PE<isMapped, arch>::PE(ReadOnlyDataSource& ds) : mDataSource(ds)
 {
     try
     {
@@ -70,7 +73,7 @@ PEFile<isMapped, arch>::PEFile(ReadOnlyDataSource& ds) : mDataSource(ds)
 }
 
 template <bool isMapped, CPUArchitecture arch>
-CPUArchitecture PEFile<isMapped, arch>::GetPeArch(ReadOnlyDataSource& ds)
+CPUArchitecture PE<isMapped, arch>::GetPeArch(ReadOnlyDataSource& ds)
 {
 	IMAGE_DOS_HEADER dosHeader;
 	IMAGE_FILE_HEADER fileHeader;
@@ -78,7 +81,7 @@ CPUArchitecture PEFile<isMapped, arch>::GetPeArch(ReadOnlyDataSource& ds)
 }
 
 template <bool isMapped, CPUArchitecture arch>
-void PEFile<isMapped, arch>::BuildExportMap()
+void PE<isMapped, arch>::BuildExportMap()
 {
     try
     {
@@ -123,20 +126,21 @@ void PEFile<isMapped, arch>::BuildExportMap()
 
         for (size_t i = 0; i < functions.size(); ++i)
         {
-            std::pair<uint32_t, ExportedFunctionDescription> p;
+            std::pair<uint32_t, std::shared_ptr<ExportedFunctionDescription>> p;
+            p.second.reset(new ExportedFunctionDescription);
             p.first = functions[i];
-            p.second.ordinal = (uint16_t)(i + Export.Base);
+            p.second->ordinal = (uint16_t)(i + Export.Base);
             if (p.first >= exportOffset && p.first < exportOffset + exportSize)
             {
                 std::vector<char> buffer(0x100, '\0');
                 mDataSource.Read(p.first, &buffer[0], buffer.size());
-                p.second.forwardTarget = buffer.data();
-                p.second.offset = 0;
+                p.second->forwardTarget = buffer.data();
+                p.second->offset = 0;
             }
             else
-                p.second.offset = p.first;
+                p.second->offset = p.first;
 
-            mExport.insert(std::move(p));
+            mExportByOffset.insert(std::move(p));
         }
 
         for (size_t i = 0; i < ordinals.size(); i++)
@@ -147,9 +151,15 @@ void PEFile<isMapped, arch>::BuildExportMap()
             if (ordinal >= functions.size())
                 continue;
 
-            auto exportedFunc = mExport.find(functions[ordinal]);
-            if (exportedFunc != mExport.end())
-                exportedFunc->second.names.emplace_back(buffer.data());
+            auto exportedFunc = mExportByOffset.find(functions[ordinal]);
+            if (exportedFunc != mExportByOffset.end())
+                exportedFunc->second->names.emplace_back(buffer.data());
+        }
+
+        for (auto& exportedFunc : mExportByOffset)
+        {
+            uint64_t firstBytes = 0;
+            mDataSource.Read(exportedFunc.first, firstBytes);
         }
     }
     catch (const DataSourceException&)
@@ -159,7 +169,7 @@ void PEFile<isMapped, arch>::BuildExportMap()
 }
 
 template <bool isMapped, CPUArchitecture arch>
-uint32_t PEFile<isMapped, arch>::RvaToOffset(uint32_t rva) const
+uint32_t PE<isMapped, arch>::RvaToOffset(uint32_t rva) const
 {
     if (isMapped)
         return rva;
@@ -174,10 +184,37 @@ uint32_t PEFile<isMapped, arch>::RvaToOffset(uint32_t rva) const
     throw PeException{ PeError::InvalidRva };
 }
 
+template <bool isMapped, CPUArchitecture arch>
+std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::CheckExportForHooks(PE<false, arch>& imageOnDisk)
+{
+    std::vector<std::shared_ptr<ExportedFunctionDescription>> result;
+    if (!isMapped)
+        return result;
+
+    imageOnDisk.BuildExportMap();
+    const auto& parsedDiskExport = imageOnDisk.GetExportMap();
+
+    try
+    {
+        for (auto& exportedFunc : mExportByOffset)
+        {
+            auto iter = parsedDiskExport.find(RvaToOffset(exportedFunc.first));
+            if (iter != parsedDiskExport.end() && iter->second->firstBytes != exportedFunc.second->firstBytes)
+                result.push_back(exportedFunc.second);
+        }
+    }
+    catch (const DataSourceException&)
+    {
+        throw PeException(PeError::InvalidRva);
+    }
+
+    return result;
+}
+
 #if !_M_AMD64
-template class PEFile<false, CPUArchitecture::X86>;
-template class PEFile<true, CPUArchitecture::X86>;
+template class PE<false, CPUArchitecture::X86>;
+template class PE<true, CPUArchitecture::X86>;
 #endif // !_M_AMD64
 
-template class PEFile<false, CPUArchitecture::X64>;
-template class PEFile<true, CPUArchitecture::X64>;
+template class PE<false, CPUArchitecture::X64>;
+template class PE<true, CPUArchitecture::X64>;
