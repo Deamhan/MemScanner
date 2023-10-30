@@ -51,6 +51,10 @@ set(PRIVATE_PE_SRC tests/private_pe.cpp
                    ${COMMON_SRC}
 )
 
+set(SECTION_ARTIFACTS_SRC tests/exec_region_artifacts.cpp
+                          ${COMMON_SRC}
+)
+
 set(VIEWER_SRC source/dump.cpp
                source/viewer.cpp   
                include/dump.hpp
@@ -109,6 +113,7 @@ add_executable(viewer ${VIEWER_SRC})
 add_executable(peimage_test ${PEIMAGE_SRC})
 add_executable(pefile_test ${PEFILE_SRC})
 add_executable(private_pe_test ${PRIVATE_PE_SRC})
+add_executable(sections_artifacts_test ${SECTION_ARTIFACTS_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -120,6 +125,7 @@ set_target_properties(susp_thread_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_F
 set_target_properties(datasource_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 set_target_properties(peimage_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 set_target_properties(pefile_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
+set_target_properties(sections_artifacts_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_link_libraries(susp_thread_test ${NTDLL64LL})
@@ -129,6 +135,7 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_link_libraries(peimage_test ${NTDLL64LL})
     target_link_libraries(pefile_test ${NTDLL64LL})
     target_link_libraries(private_pe_test ${NTDLL64LL})
+    target_link_libraries(sections_artifacts_test ${NTDLL64LL})
 endif()
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT memscan)
@@ -139,3 +146,4 @@ add_test(NAME datasrc_test COMMAND datasource_test)
 add_test(NAME peimagemem_test COMMAND peimage_test)
 add_test(NAME pediskfile_test COMMAND pefile_test)
 add_test(NAME private_inmem_pe_test COMMAND private_pe_test)
+add_test(NAME section_border_artifacts_test COMMAND sections_artifacts_test)
