@@ -181,24 +181,24 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
             switch (sensitivity)
             {
             case 1:
-                protMask = (WFlag | XFlag);
+                protMask = (MemoryHelper<arch>::WFlag | MemoryHelper<arch>::XFlag);
                 break;
             case 2:
-                protMask = XFlag;
+                protMask = MemoryHelper<arch>::XFlag;
                 break;
             case 3:
-                protMask = XFlag;
-                allocProtMask = (WFlag | XFlag);
+                protMask = MemoryHelper<arch>::XFlag;
+                allocProtMask = (MemoryHelper<arch>::WFlag | MemoryHelper<arch>::XFlag);
                 break;
             default:
             case 4:
-                allocProtMask = protMask = XFlag;
+                allocProtMask = protMask = MemoryHelper<arch>::XFlag;
                 break;
             }
 
             bool isSuspRegion = false;
-            bool allocProtRes = (allocProtMask != 0 ? (protToFlags(region.AllocationProtect) & allocProtMask) == allocProtMask : false);
-            bool protRes = (protMask != 0 ? (protToFlags(region.Protect) & protMask) == protMask : false);
+            bool allocProtRes = (allocProtMask != 0 ? (MemoryHelper<arch>::protToFlags(region.AllocationProtect) & allocProtMask) == allocProtMask : false);
+            bool protRes = (protMask != 0 ? (MemoryHelper<arch>::protToFlags(region.Protect) & protMask) == protMask : false);
             isSuspRegion = region.Type != SystemDefinitions::MemType::Image && (region.State & MEM_COMMIT) != 0 && (protRes || allocProtRes);
 
             if (isSuspRegion)
@@ -240,24 +240,6 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
         DumpMemory<arch>(hProcess, (uint32_t)(uintptr_t)procInfo->ProcessId, name.c_str(), path.c_str(), processIssues, mm, api);
     }
 }
-
-class Timer
-{
-public:
-    Timer() noexcept : mBegin(std::chrono::high_resolution_clock::now())
-    {}
-
-    ~Timer()
-    {
-        auto end = std::chrono::high_resolution_clock::now();
-        auto ticks = (end - mBegin).count();
-
-        GetDefaultLogger()->Log(L"\nTime spent: %lld us\n", ticks / 1000);
-    }
-
-private:
-    std::chrono::time_point<std::chrono::high_resolution_clock> mBegin;
-};
 
 template <CPUArchitecture arch>
 static int ScanMemoryImpl(uint32_t sensitivity, uint32_t pid, const wchar_t* dumpDir)

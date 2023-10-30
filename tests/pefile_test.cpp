@@ -86,10 +86,8 @@ int main()
 
 	switch (PE<>::GetPeArch(ntdllMapped))
 	{
-#if !_M_AMD64
 	case CPUArchitecture::X86:
 		return CheckPE<CPUArchitecture::X86>(ntdllFile, ntdllMapped);
-#endif // !_M_AMD64
 	case CPUArchitecture::X64:
 		return CheckPE<CPUArchitecture::X64>(ntdllFile, ntdllMapped);
 

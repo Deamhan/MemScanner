@@ -3,14 +3,12 @@
 #include <algorithm>
 #include <memory>
 
-template <CPUArchitecture arch>
-void MemoryHelper<arch>::CloseHandleByPtr(HANDLE* handle)
+void MemoryHelperBase::CloseHandleByPtr(HANDLE* handle)
 {
     CloseHandle(*handle);
 }
 
-template <CPUArchitecture arch>
-bool MemoryHelper<arch>::EnableDebugPrivilege()
+bool MemoryHelperBase::EnableDebugPrivilege()
 {
     HANDLE hToken = nullptr;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
@@ -105,6 +103,31 @@ MemoryHelper<arch>::GetGroupedMemoryMap(const typename MemoryHelper<arch>::Memor
     }
 
     return result;
+}
+
+uint32_t MemoryHelperBase::protToFlags(uint32_t prot)
+{
+    switch (prot & 0xff)
+    {
+    case PAGE_EXECUTE:
+        return XFlag;
+    case PAGE_EXECUTE_READ:
+        return XFlag | RFlag;
+    case PAGE_EXECUTE_READWRITE:
+        return XFlag | RFlag | WFlag;
+    case PAGE_EXECUTE_WRITECOPY:
+        return XFlag | RFlag | WFlag;
+    case PAGE_NOACCESS:
+        return 0;
+    case PAGE_READONLY:
+        return RFlag;
+    case PAGE_READWRITE:
+        return RFlag | WFlag;
+    case PAGE_WRITECOPY:
+        return RFlag | WFlag;
+    default:
+        return XFlag | RFlag | WFlag;
+    }
 }
 
 #if !_M_AMD64

@@ -11,7 +11,7 @@
 
 #include "dump.hpp"
 #include "log.hpp"
-#include "system_defs.hpp"
+#include "memhelper.hpp"
 
 #undef max
 
@@ -183,15 +183,15 @@ static void doMatch(const std::map<T, MBI_ENV_T<T>>& mapping)
                     {
                     case L'R':
                     case L'r':
-                        attrMask |= RFlag;
+                        attrMask |= MemoryHelper<CPUArchitecture::X86>::RFlag;
                         break;
                     case L'W':
                     case L'w':
-                        attrMask |= WFlag;
+                        attrMask |= MemoryHelper<CPUArchitecture::X86>::WFlag;
                         break;
                     case L'X':
                     case L'x':
-                        attrMask |= XFlag;
+                        attrMask |= MemoryHelper<CPUArchitecture::X86>::XFlag;
                         break;
                     default:
                         std::wcout << L"   Unknown attribute: " << c << std::endl;
@@ -253,7 +253,8 @@ static void doMatch(const std::map<T, MBI_ENV_T<T>>& mapping)
     {
         for (const auto& item : mapping)
         {
-            if ((protToFlags(item.second.mbi->AllocationProtect) & attrMask) == attrMask || (protToFlags(item.second.mbi->Protect) & attrMask) == attrMask)
+            if ((MemoryHelperBase::protToFlags(item.second.mbi->AllocationProtect) & attrMask) == attrMask 
+                || (MemoryHelperBase::protToFlags(item.second.mbi->Protect) & attrMask) == attrMask)
                 printMBI(*item.second.mbi);
         }
     }

@@ -54,22 +54,22 @@ Wow64Helper<arch>::Wow64Helper() : m_isOk(false)
     m_isOk = true;
 }
 
-template <CPUArchitecture arch>
-HMODULE_T<arch> Wow64Helper<arch>::GetModuleHandle64(const wchar_t* lpModuleName) const noexcept
+template <>
+HMODULE_T<CURRENT_MODULE_ARCH> Wow64Helper<CURRENT_MODULE_ARCH>::GetModuleHandle64(const wchar_t* lpModuleName) const noexcept
 {
-    return ::GetModuleHandleW(lpModuleName);
+    return (uintptr_t)GetModuleHandleW(lpModuleName);
 }
 
-template <CPUArchitecture arch>
-FARPROC_T<arch> Wow64Helper<arch>::GetProcAddress64(HMODULE_T<arch> hModule, const char* funcName) const noexcept
+template <>
+FARPROC_T<CURRENT_MODULE_ARCH> Wow64Helper<CURRENT_MODULE_ARCH>::GetProcAddress64(HMODULE_T<CURRENT_MODULE_ARCH> hModule, const char* funcName) const noexcept
 {
-    return GetProcAddress(hModule, funcName);
+    return (uintptr_t)GetProcAddress((HMODULE)hModule, funcName);
 }
 
-template <CPUArchitecture arch>
-FARPROC_T<arch> Wow64Helper<arch>::getLdrGetProcedureAddress()
+template <>
+FARPROC_T<CURRENT_MODULE_ARCH> Wow64Helper<CURRENT_MODULE_ARCH>::getLdrGetProcedureAddress()
 {
-    return GetProcAddress(m_Ntdll, "LdrGetProcedureAddress");
+    return (uintptr_t)GetProcAddress((HMODULE)m_Ntdll, "LdrGetProcedureAddress");
 }
 
 #if !_M_AMD64

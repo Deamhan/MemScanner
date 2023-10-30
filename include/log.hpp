@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdio>
 #include <mutex>
 #include <stdarg.h>
@@ -54,3 +55,21 @@ NullLogger& GetNullLoggerInstance();
 
 void SetDefaultLogger(ILogger* newLogger);
 ILogger* GetDefaultLogger();
+
+class Timer
+{
+public:
+	Timer() noexcept : mBegin(std::chrono::high_resolution_clock::now())
+	{}
+
+	~Timer()
+	{
+		auto end = std::chrono::high_resolution_clock::now();
+		auto ticks = (end - mBegin).count();
+
+		GetDefaultLogger()->Log(L"\nTime spent: %lld us\n", ticks / 1000);
+	}
+
+private:
+	std::chrono::time_point<std::chrono::high_resolution_clock> mBegin;
+};

@@ -8,26 +8,22 @@
 
 enum class CPUArchitecture
 {
-#if !_M_AMD64
     X86,
-#endif // !_M_AMD64
     X64,
     Unknown
 };
 
 template <CPUArchitecture arch>
-struct HelperTraits
+struct HelperTraits;
+
+template <>
+struct HelperTraits<CPUArchitecture::X86>
 {
-    typedef HMODULE HMODULE_T;
-    typedef FARPROC FARPROC_T;
-#if _M_AMD64
-    typedef uint64_t PTR_T;
-#else
+    typedef uint32_t HMODULE_T;
+    typedef uint32_t FARPROC_T;
     typedef uint32_t PTR_T;
-#endif
 };
 
-#if !_M_AMD64
 template <>
 struct HelperTraits<CPUArchitecture::X64>
 {
@@ -35,7 +31,6 @@ struct HelperTraits<CPUArchitecture::X64>
     typedef uint64_t FARPROC_T;
     typedef uint64_t PTR_T;
 };
-#endif // _M_AMD64
 
 template <CPUArchitecture arch>
 using HMODULE_T = typename HelperTraits<arch>::HMODULE_T;
@@ -123,3 +118,8 @@ const IWow64Helper& GetIWow64Helper();
 CPUArchitecture GetOSArch() noexcept;
 CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept;
 
+#if _M_AMD64
+#   define CURRENT_MODULE_ARCH CPUArchitecture::X64
+#else
+#   define CURRENT_MODULE_ARCH CPUArchitecture::X86
+#endif

@@ -27,10 +27,8 @@ CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(ReadOnlyDataSource&
 
         switch (fileHeader.Machine)
         {
-#if !_M_AMD64
         case IMAGE_FILE_MACHINE_I386:
             return CPUArchitecture::X86;
-#endif // !_M_AMD64
         case IMAGE_FILE_MACHINE_AMD64:
             return CPUArchitecture::X64;
         default:
@@ -219,10 +217,8 @@ std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::Ch
     return result;
 }
 
-#if !_M_AMD64
 template class PE<false, CPUArchitecture::X86>;
 template class PE<true, CPUArchitecture::X86>;
-#endif // !_M_AMD64
 
 template class PE<false, CPUArchitecture::X64>;
 template class PE<true, CPUArchitecture::X64>;

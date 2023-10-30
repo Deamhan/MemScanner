@@ -39,19 +39,8 @@ int main()
 
 	*ptr = 0xe9;
 
-	ReadOnlyMemoryDataSource ntdllMapped(GetCurrentProcess(), (uintptr_t)moduleHandle - 0x1000, 100 * 1024 * 1024);
-	DataSourceFragment fragment(ntdllMapped, 0x1000, 50 * 1024 * 1024);
+	ReadOnlyMemoryDataSource moduleMapped(GetCurrentProcess(), (uintptr_t)moduleHandle - 0x1000, 100 * 1024 * 1024);
+	DataSourceFragment fragment(moduleMapped, 0x1000, 50 * 1024 * 1024);
 
-	switch (PE<>::GetPeArch(fragment))
-	{
-#if !_M_AMD64
-	case CPUArchitecture::X86:
-		return CheckPE<CPUArchitecture::X86>(fragment);
-#endif // !_M_AMD64
-	case CPUArchitecture::X64:
-		return CheckPE<CPUArchitecture::X64>(fragment);
-
-	default:
-		return 3;
-	}
+	return CheckPE<CURRENT_MODULE_ARCH>(fragment);
 }

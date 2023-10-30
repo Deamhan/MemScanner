@@ -110,5 +110,6 @@ inline void ReadOnlyDataSource::Read(T& data)
         throw DataSourceException{ DataSourceError::UnknownError };
 }
 
-const size_t PAGE_SIZE = 4096;
-inline size_t PageAlignUp(size_t value) { return (value + PAGE_SIZE - 1) & (~(PAGE_SIZE - 1)); }
+const uint32_t PAGE_SIZE = 4096;
+template <class T>
+inline T PageAlignUp(T value) { return (value + PAGE_SIZE - 1) & (~(PAGE_SIZE - 1)); }

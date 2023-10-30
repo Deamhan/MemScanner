@@ -47,10 +47,14 @@ set(PEIMAGE_SRC tests/peimage_test.cpp
                 ${COMMON_SRC}
 )
 
+set(PRIVATE_PE_SRC tests/private_pe.cpp
+                   ${COMMON_SRC}
+)
+
 set(VIEWER_SRC source/dump.cpp
-               source/viewer.cpp     
-               source/log.cpp            
+               source/viewer.cpp   
                include/dump.hpp
+               ${COMMON_SRC}  
 )
 
 if (MSVC)  
@@ -81,6 +85,7 @@ if (MSVC)
                         /utf-8  # utf-8 source
                         /wd4201 # disable 'nonstandard extension used: nameless struct/union'
                         /wd4200 # disable 'nonstandard extension used: zero-sized array in struct/union'
+                        /wd4324 # disable 'structure was padded due to __declspec(align())n'
                         /MP     # multiprocessor compilation
                         /GF     # enable string pooling
                         /Zc:__cplusplus # https://devblogs.microsoft.com/cppblog/msvc-now-correctly-reports-__cplusplus/
@@ -103,6 +108,7 @@ add_executable(datasource_test ${DATASRC_SRC})
 add_executable(viewer ${VIEWER_SRC})
 add_executable(peimage_test ${PEIMAGE_SRC})
 add_executable(pefile_test ${PEFILE_SRC})
+add_executable(private_pe_test ${PRIVATE_PE_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -119,8 +125,10 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_link_libraries(susp_thread_test ${NTDLL64LL})
     target_link_libraries(datasource_test ${NTDLL64LL})
     target_link_libraries(memscan ${NTDLL64LL})
+    target_link_libraries(viewer ${NTDLL64LL})
     target_link_libraries(peimage_test ${NTDLL64LL})
     target_link_libraries(pefile_test ${NTDLL64LL})
+    target_link_libraries(private_pe_test ${NTDLL64LL})
 endif()
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT memscan)
@@ -130,3 +138,4 @@ add_test(NAME self_detection COMMAND susp_thread_test)
 add_test(NAME datasrc_test COMMAND datasource_test)
 add_test(NAME peimagemem_test COMMAND peimage_test)
 add_test(NAME pediskfile_test COMMAND pefile_test)
+add_test(NAME private_inmem_pe_test COMMAND private_pe_test)

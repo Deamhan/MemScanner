@@ -8,8 +8,7 @@
 #include "ntdll64.hpp"
 #include "system_defs.hpp"
 
-template <CPUArchitecture arch>
-class MemoryHelper
+class MemoryHelperBase
 {
 public:
 	static void CloseHandleByPtr(HANDLE* handle);
@@ -17,6 +16,20 @@ public:
 
 	static const uint32_t PAGE_SIZE = 4096;
 
+	enum MemoryAttributes
+	{
+		RFlag = 1,
+		WFlag = 2,
+		XFlag = 4,
+	};
+
+	static uint32_t protToFlags(uint32_t prot);
+};
+
+template <CPUArchitecture arch>
+class MemoryHelper : public MemoryHelperBase
+{
+public:
 	using MemInfoT = SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>;
 	using MemoryMapT = std::map<PTR_T<arch>, MemInfoT>;
 	using FlatMemoryMapT = std::vector<MemInfoT>;

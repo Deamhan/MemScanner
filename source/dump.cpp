@@ -87,31 +87,6 @@ static const wchar_t* stateToStr(uint32_t state)
     }
 }
 
-const uint32_t protToFlags(uint32_t prot)
-{
-    switch (prot & 0xff)
-    {
-    case PAGE_EXECUTE:
-        return XFlag;
-    case PAGE_EXECUTE_READ:
-        return XFlag | RFlag;
-    case PAGE_EXECUTE_READWRITE:
-        return XFlag | RFlag | WFlag;
-    case PAGE_EXECUTE_WRITECOPY:
-        return XFlag | RFlag | WFlag;
-    case PAGE_NOACCESS:
-        return 0;
-    case PAGE_READONLY:
-        return RFlag;
-    case PAGE_READWRITE:
-        return RFlag | WFlag;
-    case PAGE_WRITECOPY:
-        return RFlag | WFlag;
-    default:
-        return XFlag | RFlag | WFlag;
-    }
-}
-
 template <class T>
 void printMBI(const MEMORY_BASIC_INFORMATION_T<T>& mbi, const wchar_t* offset)
 {
