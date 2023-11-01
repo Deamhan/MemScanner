@@ -4,8 +4,6 @@
 #include <windows.h>
 #include "system_defs.hpp"
 
-#pragma pack(push, 1)
-
 enum class CPUArchitecture
 {
     X86,

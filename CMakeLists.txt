@@ -67,8 +67,12 @@ if (MSVC)
                         /EHsc  # exceptions: sync
                         /J    # use unsigned char
                         /Gd   # use cdecl
-                        /we4715 # not all control paths return a value
-                        /we4828 # disallow invalid characters
+                        /we4002 # too many actual parameters for macro 'identifier'
+                        /we4003 # not enough actual parameters for macro 'identifier'
+                        /we4103 # alignment changed after including header, may be due to missing #pragma pack(pop)
+                        /we4113 # function pointers type mismatch
+                        /we4309 # truncation of constant value
+                        /wd4324 # disable 'structure was padded due to __declspec(align())n'
                         /we4473 # <function> : not enough arguments passed for format string 
                         /we4474 # <function> : too many arguments passed for format string 
                         /we4475 # <function> : length modifier <length> cannot be used with type field character <conversion-specifier> in format specifier 
@@ -76,20 +80,17 @@ if (MSVC)
                         /we4477 # <function> : format string <format-string> requires an argument of type <type>, but variadic argument <position> has type <type>
                         /we4478 # <function> : positional and non-positional placeholders cannot be mixed in the same format string 
                         /we4551 # function call missing argument list
+                        /we4715 # not all control paths return a value
                         /we4775 # nonstandard extension used in format string <format-string> of function <function> 
                         /we4776 # %<conversion-specifier> is not allowed in the format string of function <function>
                         /we4777 # <function> : format string <format-string> requires an argument of type <type>, but variadic argument <position> has type <type> 
                         /we4778 # <function> : unterminated format string <format-string>
-                        /we4002 # too many actual parameters for macro 'identifier'
-                        /we4003 # not enough actual parameters for macro 'identifier'
-                        /we4840 # prinf-like function arg type mismatch
-                        /we4309 # truncation of constant value
-                        /we4113 # function pointers type mismatch
                         /we4804 # unsafe use of type 'bool' in operation
-                        /utf-8  # utf-8 source
-                        /wd4201 # disable 'nonstandard extension used: nameless struct/union'
+                        /we4828 # disallow invalid characters
+                        /we4840 # prinf-like function arg type mismatch
                         /wd4200 # disable 'nonstandard extension used: zero-sized array in struct/union'
-                        /wd4324 # disable 'structure was padded due to __declspec(align())n'
+                        /wd4201 # disable 'nonstandard extension used: nameless struct/union'
+                        /utf-8  # utf-8 source
                         /MP     # multiprocessor compilation
                         /GF     # enable string pooling
                         /Zc:__cplusplus # https://devblogs.microsoft.com/cppblog/msvc-now-correctly-reports-__cplusplus/
