@@ -34,7 +34,7 @@ static std::vector<uint64_t> ScanCurrentProcessMemoryForSectionBorders()
 			return mbi.Type != SystemDefinitions::MemType::Image;
 		});
 
-	ReadOnlyMemoryDataSource memory(GetCurrentProcess(), 0, 0xffffffffffffffffull);
+	ReadOnlyMemoryDataSource memory(GetCurrentProcess(), 0, GetMemoryHelper().GetHighestUsermodeAddress() + 1);
 
 	for (const auto& group : groupedMm)
 	{

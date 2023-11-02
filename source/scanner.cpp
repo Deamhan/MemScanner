@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "dump.hpp"
-#include "memhelper.hpp"
 #include "log.hpp"
 
 #undef max

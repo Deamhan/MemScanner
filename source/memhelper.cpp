@@ -49,6 +49,18 @@ std::wstring MemoryHelper<arch>::GetImageNameByAddress(HANDLE hProcess, uint64_t
 }
 
 template <CPUArchitecture arch>
+uint64_t MemoryHelper<arch>::GetHighestUsermodeAddress() const
+{
+    return 0xFFFFFFFFull; // LargeAddressAware option for 32 bit apps
+}
+
+template <>
+uint64_t MemoryHelper<CPUArchitecture::X64>::GetHighestUsermodeAddress() const
+{
+    return 0x7FFFFFFFFFFFull;
+}
+
+template <CPUArchitecture arch>
 MEMORY_BASIC_INFORMATION_T<uint64_t> MemoryHelper<arch>::ConvertToMemoryBasicInfo64(
     const MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>& mbi)
 {

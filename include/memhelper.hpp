@@ -36,13 +36,15 @@ public:
 	static FlatMemoryMapT GetFlatMemoryMap(
 		const MemoryMapT& mm, const std::function<bool(const MemInfoT64&)>& filter);
 
+	virtual uint64_t GetHighestUsermodeAddress() const = 0;
+
 	virtual std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const = 0;
 	virtual MemoryMapT GetMemoryMap(HANDLE hProcess) const = 0;
 	virtual bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const = 0;
 };
 
 template <CPUArchitecture arch>
-class MemoryHelper : public MemoryHelperBase
+class MemoryHelper final : public MemoryHelperBase
 {
 public:
 	using MemInfoT = SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>;
@@ -50,6 +52,8 @@ public:
     std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const override;
     MemoryMapT GetMemoryMap(HANDLE hProcess) const override;
     bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const override;
+
+    uint64_t GetHighestUsermodeAddress() const override;
 
 	MemoryHelper() : mApi(GetWow64Helper<arch>()) {}
 
