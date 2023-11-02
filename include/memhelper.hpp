@@ -37,8 +37,8 @@ public:
 		const MemoryMapT& mm, const std::function<bool(const MemInfoT64&)>& filter);
 
 	virtual std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const = 0;
-
 	virtual MemoryMapT GetMemoryMap(HANDLE hProcess) const = 0;
+	virtual bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const = 0;
 };
 
 template <CPUArchitecture arch>
@@ -48,11 +48,14 @@ public:
 	using MemInfoT = SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>;
 
     std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const override;
-
     MemoryMapT GetMemoryMap(HANDLE hProcess) const override;
+    bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const override;
+
+	MemoryHelper() : mApi(GetWow64Helper<arch>()) {}
 
 private:
 	static MemInfoT64 ConvertToMemoryBasicInfo64(const MemInfoT& mbi);
+	const Wow64Helper<arch>& mApi;
 };
 
 template <CPUArchitecture arch>

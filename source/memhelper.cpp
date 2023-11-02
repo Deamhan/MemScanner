@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <memory>
 
+using namespace SystemDefinitions;
+
 void MemoryHelperBase::CloseHandleByPtr(HANDLE* handle)
 {
     CloseHandle(*handle);
@@ -30,16 +32,14 @@ bool MemoryHelperBase::EnableDebugPrivilege()
 template <CPUArchitecture arch>
 std::wstring MemoryHelper<arch>::GetImageNameByAddress(HANDLE hProcess, uint64_t address) const 
 {
-    const Wow64Helper<arch>& api = GetWow64Helper<arch>();
-
-    std::vector<uint8_t> buffer(sizeof(SystemDefinitions::UNICODE_STRING_T<PTR_T<arch>>) + 64 * 1024, L'\0');
-    auto ptr = (SystemDefinitions::UNICODE_STRING_T<PTR_T<arch>>*)buffer.data();
+    std::vector<uint8_t> buffer(sizeof(UNICODE_STRING_T<PTR_T<arch>>) + 64 * 1024, L'\0');
+    auto ptr = (UNICODE_STRING_T<PTR_T<arch>>*)buffer.data();
 
     uint64_t retLen = 0;
-    auto result = api.NtQueryVirtualMemory64(hProcess, address, SystemDefinitions::MEMORY_INFORMATION_CLASS::MemorySectionName,
+    auto result = mApi.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemorySectionName,
         ptr, buffer.size(), &retLen);
 
-    if (!SystemDefinitions::NT_SUCCESS(result))
+    if (!NT_SUCCESS(result))
         return L"";
 
     std::wstring path = L"\\??\\GlobalRoot";
@@ -49,10 +49,10 @@ std::wstring MemoryHelper<arch>::GetImageNameByAddress(HANDLE hProcess, uint64_t
 }
 
 template <CPUArchitecture arch>
-SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t> MemoryHelper<arch>::ConvertToMemoryBasicInfo64(
-    const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>& mbi)
+MEMORY_BASIC_INFORMATION_T<uint64_t> MemoryHelper<arch>::ConvertToMemoryBasicInfo64(
+    const MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>& mbi)
 {
-    SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t> result;
+    MEMORY_BASIC_INFORMATION_T<uint64_t> result;
 
     result.BaseAddress = mbi.BaseAddress;
     result.AllocationBase = mbi.AllocationBase;
@@ -66,8 +66,8 @@ SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t> MemoryHelper<arch>::Conv
 }
 
 template <>
-static SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t> MemoryHelper<CPUArchitecture::X64>::ConvertToMemoryBasicInfo64(
-    const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi)
+static MEMORY_BASIC_INFORMATION_T<uint64_t> MemoryHelper<CPUArchitecture::X64>::ConvertToMemoryBasicInfo64(
+    const MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi)
 {
     return mbi;
 }
@@ -75,12 +75,10 @@ static SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t> MemoryHelper<CPUA
 template <CPUArchitecture arch>
 typename MemoryHelper<arch>::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE hProcess) const 
 {
-    const Wow64Helper<arch>& api = GetWow64Helper<arch>();
-
     MemoryMapT result;
     PTR_T<arch> address = 0;
-    SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
-    while (NT_SUCCESS(api.NtQueryVirtualMemory64(hProcess, address, SystemDefinitions::MEMORY_INFORMATION_CLASS::MemoryBasicInformation,
+    MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
+    while (NT_SUCCESS(mApi.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemoryBasicInformation,
         &mbi, sizeof(mbi), nullptr)))
     {
         if ((mbi.State & MEM_COMMIT) != 0)
@@ -93,6 +91,19 @@ typename MemoryHelper<arch>::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE 
     }
 
     return result;
+}
+
+template <CPUArchitecture arch>
+bool MemoryHelper<arch>::GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, 
+    MEMORY_BASIC_INFORMATION_T<uint64_t>& result) const
+{
+    MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
+    if (!NT_SUCCESS(mApi.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemoryBasicInformation,
+        &mbi, sizeof(mbi), nullptr)))
+        return false;
+
+    result = ConvertToMemoryBasicInfo64(mbi);
+    return true;
 }
 
 typename MemoryHelperBase::FlatMemoryMapT

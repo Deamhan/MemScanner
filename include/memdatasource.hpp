@@ -10,10 +10,10 @@ public:
     ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size);
 
 protected:
-    virtual size_t ReadImpl(void* buffer, size_t bufferLength) override;
-    virtual void SeekImpl(uint64_t newOffset) override;
-    virtual uint64_t GetSizeImpl() override { return mSize; }
-    virtual uint64_t GetOffsetImpl() override { return mBaseAddress; }
+    size_t ReadImpl(void* buffer, size_t bufferLength) override;
+    void SeekImpl(uint64_t newOffset) override;
+    uint64_t GetSizeImpl() const override { return mSize; }
+    uint64_t GetOffsetImpl() const override { return mBaseAddress; }
 
     uint64_t  mBaseAddress;
     uint64_t  mSize;

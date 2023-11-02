@@ -40,9 +40,9 @@ public:
         return Read(buffer, bufferLength);
     }
 
-    uint64_t GetSize() { return GetSizeImpl(); }
+    uint64_t GetSize() const { return GetSizeImpl(); }
 
-    uint64_t GetOffset() { return GetOffsetImpl(); }
+    uint64_t GetOffset() const { return GetOffsetImpl(); }
 
     virtual ~ReadOnlyDataSource() = default;
 
@@ -61,8 +61,8 @@ protected:
 
     virtual size_t ReadImpl(void* /*buffer*/, size_t /*bufferLength*/) { throw DataSourceException{DataSourceError::Unsupported}; }
     virtual void SeekImpl(uint64_t /*newOffset*/) { throw DataSourceException { DataSourceError::Unsupported }; }
-    virtual uint64_t GetSizeImpl() { throw DataSourceException{ DataSourceError::Unsupported }; }
-    virtual uint64_t GetOffsetImpl() { throw DataSourceException{ DataSourceError::Unsupported }; }
+    virtual uint64_t GetSizeImpl() const { throw DataSourceException{ DataSourceError::Unsupported }; }
+    virtual uint64_t GetOffsetImpl() const { throw DataSourceException{ DataSourceError::Unsupported }; }
    
 private:
     const size_t mBufferSize;
@@ -91,8 +91,8 @@ public:
 
     size_t ReadImpl(void* buffer, size_t bufferLength) override;
     void SeekImpl(uint64_t newOffset) override;
-    uint64_t GetSizeImpl() override;
-    uint64_t GetOffsetImpl() override { return mOffset + mDataSource.GetOffset(); }
+    uint64_t GetSizeImpl() const override;
+    uint64_t GetOffsetImpl() const override { return mOffset + mDataSource.GetOffset(); }
 
 protected:
     ReadOnlyDataSource& mDataSource;

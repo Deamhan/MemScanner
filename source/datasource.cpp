@@ -106,7 +106,7 @@ void DataSourceFragment::SeekImpl(uint64_t newOffset)
 	return mDataSource.Seek(newOffset + mOffset);
 }
 
-uint64_t DataSourceFragment::GetSizeImpl()
+uint64_t DataSourceFragment::GetSizeImpl() const
 {
 	return mDataSource.GetSize() - mOffset;
 }

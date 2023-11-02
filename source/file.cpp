@@ -24,7 +24,7 @@ void ReadOnlyFile::SeekImpl(uint64_t newOffset)
 		throw FileException{ DataSourceError::InvalidOffset, GetLastError() };
 }
 
-uint64_t ReadOnlyFile::GetSizeImpl()
+uint64_t ReadOnlyFile::GetSizeImpl() const
 {
 	LARGE_INTEGER largeIntSize;
 	auto result = GetFileSizeEx(mFileHandle, &largeIntSize);
