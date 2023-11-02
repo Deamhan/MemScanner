@@ -23,16 +23,13 @@ static bool IsSectionBorder(const std::vector<uint8_t>& buffer)
 	return NonZeroAmount * 8 >= buffer.size();
 }
 
-template <CPUArchitecture arch>
 static std::vector<uint64_t> ScanCurrentProcessMemoryForSectionBorders()
 {
 	Timer timer;
 	std::vector<uint64_t> result;
 
-	auto& api = GetWow64Helper<arch>();
-
-	auto mm = MemoryHelper<arch>::GetMemoryMap(GetCurrentProcess(), api);
-	auto groupedMm = MemoryHelper<arch>::GetGroupedMemoryMap(mm, [](const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>& mbi)
+	auto mm = GetMemoryHelper().GetMemoryMap(GetCurrentProcess());
+	auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(mm, [](const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi)
 		{
 			return mbi.Type != SystemDefinitions::MemType::Image;
 		});
@@ -52,7 +49,7 @@ static std::vector<uint64_t> ScanCurrentProcessMemoryForSectionBorders()
 		bool isExecRelated = false;
 		for (const auto& region : group.second)
 		{
-			if ((MemoryHelper<arch>::protToFlags(region.Protect) & MemoryHelper<arch>::XFlag) != 0)
+			if ((MemoryHelperBase::protToFlags(region.Protect) & MemoryHelperBase::XFlag) != 0)
 			{
 				isExecRelated = true;
 				break;
@@ -104,7 +101,7 @@ static int MapAndCheckPeCopy()
 
 	SetDefaultLogger(&GetConsoleLoggerInstance());
 
-	auto bordersFound = ScanCurrentProcessMemoryForSectionBorders<arch>();
+	auto bordersFound = ScanCurrentProcessMemoryForSectionBorders();
 
 	return bordersFound.size() == 1 ? 0 : 3; // I assume that there is no other PEs in private memory
 }

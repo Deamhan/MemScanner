@@ -35,21 +35,9 @@ bool CompareExportMaps(const OrdinalMapT& m1,
 	return true;
 }
 
-template <CPUArchitecture arch>
-std::wstring GetImageNameForArch(ReadOnlyMemoryDataSource& mapped)
+static std::wstring GetImageName(ReadOnlyMemoryDataSource& mapped)
 {
-	auto& api = GetWow64Helper<arch>();
-	return MemoryHelper<arch>::GetImageNameByAddress(GetCurrentProcess(), (PTR_T<arch>)mapped.GetOffset(), api);
-}
-
-std::wstring GetImageName(ReadOnlyMemoryDataSource& mapped)
-{
-#if !_M_AMD64
-	if (GetOSArch() == CPUArchitecture::X86)
-		return GetImageNameForArch<CPUArchitecture::X86>(mapped);
-#endif // !_M_AMD64
-
-	return GetImageNameForArch<CPUArchitecture::X64>(mapped);
+	return GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOffset());
 }
 
 template <CPUArchitecture arch>

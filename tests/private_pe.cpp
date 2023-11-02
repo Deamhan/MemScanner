@@ -16,15 +16,12 @@ static size_t ScanBlobForMz(const std::vector<uint8_t>& buffer, size_t offset)
 	return buffer.size();
 }
 
-template <CPUArchitecture arch>
 static uint64_t ScanCurrentProcessMemoryForPe()
 {
 	Timer timer;
 
-	auto& api = GetWow64Helper<arch>();
-
-	auto mm = MemoryHelper<arch>::GetMemoryMap(GetCurrentProcess(), api);
-	auto groupedMm = MemoryHelper<arch>::GetGroupedMemoryMap(mm, [](const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>& mbi)
+	auto mm = GetMemoryHelper().GetMemoryMap(GetCurrentProcess());
+	auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(mm, [](const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi)
 		{
 			return mbi.Type != SystemDefinitions::MemType::Image;
 		});
@@ -40,7 +37,7 @@ static uint64_t ScanCurrentProcessMemoryForPe()
 		bool isExecRelated = false;
 		for (const auto& region : group.second)
 		{
-			if ((MemoryHelper<arch>::protToFlags(region.Protect) & MemoryHelper<arch>::XFlag) != 0)
+			if ((MemoryHelperBase::protToFlags(region.Protect) & MemoryHelperBase::XFlag) != 0)
 			{
 				isExecRelated = true;
 				break;
@@ -97,7 +94,7 @@ static bool MapAndCheckPeCopy()
 
 	SetDefaultLogger(&GetConsoleLoggerInstance());
 
-	return ScanCurrentProcessMemoryForPe<arch>() == (uintptr_t)moduleHandle + offset; // I assume that there is no other PEs in private memory
+	return ScanCurrentProcessMemoryForPe() == (uintptr_t)moduleHandle + offset; // I assume that there is no other PEs in private memory
 }
 
 int main()

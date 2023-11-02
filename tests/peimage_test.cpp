@@ -10,8 +10,7 @@ int CheckPE(ReadOnlyDataSource& mapped)
 		PE<true, arch> peMapped(mapped);
 		peMapped.BuildExportMap();
 
-		auto& api = GetWow64Helper<arch>();
-		auto imagePath = MemoryHelper<arch>::GetImageNameByAddress(GetCurrentProcess(), (PTR_T<arch>)mapped.GetOffset(), api);
+		auto imagePath = GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOffset());
 
 		ReadOnlyFile fileOnDisk{ imagePath.c_str() };
 		PE<false, arch> imageOnDisk(fileOnDisk);

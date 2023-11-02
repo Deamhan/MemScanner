@@ -24,6 +24,21 @@ public:
 	};
 
 	static uint32_t protToFlags(uint32_t prot);
+
+	using MemInfoT64 = SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t>;
+	using MemoryMapT = std::map<uint64_t, MemInfoT64>;
+	using FlatMemoryMapT = std::vector<MemInfoT64>;
+	using GroupedMemoryMapT = std::map<uint64_t, FlatMemoryMapT>;
+
+	static GroupedMemoryMapT GetGroupedMemoryMap(
+		const MemoryMapT& mm, const std::function<bool(const MemInfoT64&)>& filter);
+
+	static FlatMemoryMapT GetFlatMemoryMap(
+		const MemoryMapT& mm, const std::function<bool(const MemInfoT64&)>& filter);
+
+	virtual std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const = 0;
+
+	virtual MemoryMapT GetMemoryMap(HANDLE hProcess) const = 0;
 };
 
 template <CPUArchitecture arch>
@@ -31,17 +46,16 @@ class MemoryHelper : public MemoryHelperBase
 {
 public:
 	using MemInfoT = SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>;
-	using MemoryMapT = std::map<PTR_T<arch>, MemInfoT>;
-	using FlatMemoryMapT = std::vector<MemInfoT>;
-	using GroupedMemoryMapT = std::map<PTR_T<arch>, FlatMemoryMapT>;
 
-	static MemoryMapT GetMemoryMap(HANDLE hProcess, const Wow64Helper<arch>& api);
+    std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const override;
 
-	static FlatMemoryMapT GetFlatMemoryMap(
-		const MemoryMapT& mm, const std::function<bool(const MemInfoT&)>& filter);
+    MemoryMapT GetMemoryMap(HANDLE hProcess) const override;
 
-	static GroupedMemoryMapT GetGroupedMemoryMap(
-		const MemoryMapT& mm, const std::function<bool(const MemInfoT&)>& filter);
-
-	static std::wstring GetImageNameByAddress(HANDLE hProcess, PTR_T<arch> address, const Wow64Helper<arch>& api);
+private:
+	static MemInfoT64 ConvertToMemoryBasicInfo64(const MemInfoT& mbi);
 };
+
+template <CPUArchitecture arch>
+const MemoryHelper<arch>& GetMemoryHelperForArch();
+
+const MemoryHelperBase& GetMemoryHelper() noexcept;

@@ -58,7 +58,7 @@ static bool DumpMemory(HANDLE hProcess, uint32_t pid, const wchar_t* process, co
         try
         {
             const auto& flatMm = MemoryHelper<arch>::GetFlatMemoryMap(mm,
-                [](const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>& mbi)
+                [](const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi)
                 {
                     return mbi.Type != SystemDefinitions::MemType::Image;
                 });
@@ -168,10 +168,10 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
         }
     }
 
-    auto mm = MemoryHelper<arch>::GetMemoryMap(hProcess, api);
+    auto mm = GetMemoryHelper().GetMemoryMap(hProcess);
     if (sensitivity > 0)
     {
-        std::set<PTR_T<arch>> processedAsRelated;
+        std::set<uint64_t> processedAsRelated;
 
         for (const auto& kv : mm)
         {
@@ -181,24 +181,24 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
             switch (sensitivity)
             {
             case 1:
-                protMask = (MemoryHelper<arch>::WFlag | MemoryHelper<arch>::XFlag);
+                protMask = (MemoryHelperBase::WFlag | MemoryHelperBase::XFlag);
                 break;
             case 2:
-                protMask = MemoryHelper<arch>::XFlag;
+                protMask = MemoryHelperBase::XFlag;
                 break;
             case 3:
-                protMask = MemoryHelper<arch>::XFlag;
-                allocProtMask = (MemoryHelper<arch>::WFlag | MemoryHelper<arch>::XFlag);
+                protMask = MemoryHelperBase::XFlag;
+                allocProtMask = (MemoryHelperBase::WFlag | MemoryHelperBase::XFlag);
                 break;
             default:
             case 4:
-                allocProtMask = protMask = MemoryHelper<arch>::XFlag;
+                allocProtMask = protMask = MemoryHelperBase::XFlag;
                 break;
             }
 
             bool isSuspRegion = false;
-            bool allocProtRes = (allocProtMask != 0 ? (MemoryHelper<arch>::protToFlags(region.AllocationProtect) & allocProtMask) == allocProtMask : false);
-            bool protRes = (protMask != 0 ? (MemoryHelper<arch>::protToFlags(region.Protect) & protMask) == protMask : false);
+            bool allocProtRes = (allocProtMask != 0 ? (MemoryHelperBase::protToFlags(region.AllocationProtect) & allocProtMask) == allocProtMask : false);
+            bool protRes = (protMask != 0 ? (MemoryHelperBase::protToFlags(region.Protect) & protMask) == protMask : false);
             isSuspRegion = region.Type != SystemDefinitions::MemType::Image && (region.State & MEM_COMMIT) != 0 && (protRes || allocProtRes);
 
             if (isSuspRegion)
