@@ -58,9 +58,9 @@ public:
 	typedef typename PeTraitsT<arch>::ImageNtHeadersT      ImageNtHeadersT;
 	typedef typename PeTraitsT<arch>::ImageOptionalHeaderT ImageOptionalHeaderT;
 
-	PE(ReadOnlyDataSource& ds);
+	PE(DataSource& ds);
 
-	static CPUArchitecture GetPeArch(ReadOnlyDataSource& ds);
+	static CPUArchitecture GetPeArch(DataSource& ds);
 	void BuildExportMap();
 
 	uint32_t GetImageSize() const noexcept { return mOptionalHeader.SizeOfImage; }
@@ -80,12 +80,12 @@ public:
 	std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckExportForHooks(PE<false, arch>& imageOnDisk);
 
 protected:
-	ReadOnlyDataSource& mDataSource;
+	DataSource& mDataSource;
 
 	ImageOptionalHeaderT mOptionalHeader;
 	std::map<uint32_t, IMAGE_SECTION_HEADER> mSections;
 	std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>> mExportByRva;
 
-	static CPUArchitecture TryParseGeneralPeHeaders(ReadOnlyDataSource& ds, uint64_t offset,
+	static CPUArchitecture TryParseGeneralPeHeaders(DataSource& ds, uint64_t offset,
 		IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader);
 };

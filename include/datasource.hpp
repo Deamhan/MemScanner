@@ -10,6 +10,7 @@ enum class DataSourceError
     Unsupported,
     UnableToOpen,
     UnableToRead,
+    UnableToWrite,
     InvalidOffset,
     InvalidHandle,
     UnableToGetSize,
@@ -28,7 +29,7 @@ protected:
     DataSourceError mErrorCode;
 };
 
-class ReadOnlyDataSource
+class DataSource
 {
 public:   
     void Seek(uint64_t newOffset);
@@ -40,11 +41,18 @@ public:
         return Read(buffer, bufferLength);
     }
 
+    size_t Write(const void* buffer, size_t bufferLength);
+    size_t Write(uint64_t newOffset, const void* buffer, size_t bufferLength)
+    {
+        Seek(newOffset);
+        return Write(buffer, bufferLength);
+    }
+
     uint64_t GetSize() const { return GetSizeImpl(); }
 
     uint64_t GetOffset() const { return GetOffsetImpl(); }
 
-    virtual ~ReadOnlyDataSource() = default;
+    virtual ~DataSource() = default;
 
     template<class T, class = std::enable_if_t<std::is_trivial<std::decay_t<T>>::value>>
     void Read(T& data);
@@ -56,10 +64,21 @@ public:
         Read(data);
     }
 
+    template<class T, class = std::enable_if_t<std::is_trivial<std::decay_t<T>>::value>>
+    void Write(const T& data);
+
+    template<class T, class = std::enable_if_t<std::is_trivial<std::decay_t<T>>::value>>
+    void Write(uint64_t newOffset, const T& data)
+    {
+        Seek(newOffset);
+        Read(data);
+    }
+
 protected:
-    ReadOnlyDataSource(size_t bufferSize);
+    DataSource(size_t bufferSize);
 
     virtual size_t ReadImpl(void* /*buffer*/, size_t /*bufferLength*/) { throw DataSourceException{DataSourceError::Unsupported}; }
+    virtual size_t WriteImpl(const void* /*buffer*/, size_t /*bufferLength*/) { throw DataSourceException{ DataSourceError::Unsupported }; }
     virtual void SeekImpl(uint64_t /*newOffset*/) { throw DataSourceException { DataSourceError::Unsupported }; }
     virtual uint64_t GetSizeImpl() const { throw DataSourceException{ DataSourceError::Unsupported }; }
     virtual uint64_t GetOffsetImpl() const { throw DataSourceException{ DataSourceError::Unsupported }; }
@@ -78,16 +97,16 @@ private:
     size_t GetCachedDataSize();
     bool MoveCachePointer(uint64_t newOffset);
 
-    ReadOnlyDataSource(const ReadOnlyDataSource&) = delete;
-    ReadOnlyDataSource(ReadOnlyDataSource&&) = delete;
-    ReadOnlyDataSource& operator = (const ReadOnlyDataSource&) = delete;
-    ReadOnlyDataSource& operator = (ReadOnlyDataSource&&) = delete;
+    DataSource(const DataSource&) = delete;
+    DataSource(DataSource&&) = delete;
+    DataSource& operator = (const DataSource&) = delete;
+    DataSource& operator = (DataSource&&) = delete;
 };
 
-class DataSourceFragment : public ReadOnlyDataSource
+class DataSourceFragment : public DataSource
 {
 public:
-    DataSourceFragment(ReadOnlyDataSource& dataSource, uint64_t offset, uint64_t size);
+    DataSourceFragment(DataSource& dataSource, uint64_t offset, uint64_t size);
 
     size_t ReadImpl(void* buffer, size_t bufferLength) override;
     void SeekImpl(uint64_t newOffset) override;
@@ -95,18 +114,27 @@ public:
     uint64_t GetOffsetImpl() const override { return mOffset + mDataSource.GetOffset(); }
 
 protected:
-    ReadOnlyDataSource& mDataSource;
+    DataSource& mDataSource;
     uint64_t mOffset;
     uint64_t mSize;
 };
 
 
 template<class T, class>
-inline void ReadOnlyDataSource::Read(T& data)
+inline void DataSource::Read(T& data)
 {
     size_t read = Read(&data, sizeof(data));
 
     if (read != sizeof(data))
+        throw DataSourceException{ DataSourceError::UnknownError };
+}
+
+template<class T, class>
+inline void DataSource::Write(const T& data)
+{
+    size_t written = Write(&data, sizeof(data));
+
+    if (written != sizeof(data))
         throw DataSourceException{ DataSourceError::UnknownError };
 }
 

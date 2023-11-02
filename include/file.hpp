@@ -16,7 +16,7 @@ protected:
     DWORD mLastError;
 };
 
-class ReadOnlyFile : public ReadOnlyDataSource
+class ReadOnlyFile : public DataSource
 {
 public:
     ReadOnlyFile(const wchar_t* path, size_t bufferSize = 64 * 1024);

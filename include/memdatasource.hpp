@@ -4,7 +4,7 @@
 
 #include "ntdll64.hpp"
 
-class ReadOnlyMemoryDataSource : public ReadOnlyDataSource
+class ReadOnlyMemoryDataSource : public DataSource
 {
 public:
     ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size);

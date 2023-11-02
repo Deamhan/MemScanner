@@ -1,6 +1,6 @@
 #include "file.hpp"
 
-ReadOnlyFile::ReadOnlyFile(const wchar_t* path, size_t bufferSize) : ReadOnlyDataSource(bufferSize), mLastError(ERROR_SUCCESS)
+ReadOnlyFile::ReadOnlyFile(const wchar_t* path, size_t bufferSize) : DataSource(bufferSize), mLastError(ERROR_SUCCESS)
 {
 	mFileHandle = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if (mFileHandle == INVALID_HANDLE_VALUE)

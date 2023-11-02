@@ -2,17 +2,17 @@
 
 #include <algorithm>
 
-void ReadOnlyDataSource::InvalidateCache()
+void DataSource::InvalidateCache()
 {
 	mCachePointer = mCacheBufferEnd;
 }
 
-size_t ReadOnlyDataSource::GetCachedDataSize()
+size_t DataSource::GetCachedDataSize()
 {
 	return mCacheBufferEnd - mCachePointer;
 }
 
-bool ReadOnlyDataSource::MoveCachePointer(uint64_t newOffset)
+bool DataSource::MoveCachePointer(uint64_t newOffset)
 {
 	auto vCacheBeginPointer = mRealPointer - mBufferSize;
 	if (newOffset >= vCacheBeginPointer && newOffset < mRealPointer)
@@ -24,7 +24,7 @@ bool ReadOnlyDataSource::MoveCachePointer(uint64_t newOffset)
 	return false;
 }
 
-size_t ReadOnlyDataSource::ReadCachedData(void* buffer, size_t bufferLength)
+size_t DataSource::ReadCachedData(void* buffer, size_t bufferLength)
 {
 	auto cachedDataSize = GetCachedDataSize();
 	auto dataToCopyLen = std::min((size_t)cachedDataSize, bufferLength);
@@ -38,7 +38,7 @@ size_t ReadOnlyDataSource::ReadCachedData(void* buffer, size_t bufferLength)
 	return dataToCopyLen;
 }
 
-void ReadOnlyDataSource::FillCache()
+void DataSource::FillCache()
 {
 	InvalidateCache();
 
@@ -48,7 +48,7 @@ void ReadOnlyDataSource::FillCache()
 	mCachePointer = mCacheBuffer.data();
 }
 
-size_t ReadOnlyDataSource::Read(void* buffer, size_t bufferLength)
+size_t DataSource::Read(void* buffer, size_t bufferLength)
 {
 	if (bufferLength == 0)
 		return 0;
@@ -75,7 +75,13 @@ size_t ReadOnlyDataSource::Read(void* buffer, size_t bufferLength)
 	return read;
 }
 
-void ReadOnlyDataSource::Seek(uint64_t newOffset)
+size_t DataSource::Write(const void* buffer, size_t bufferLength)
+{
+	InvalidateCache();
+	return WriteImpl(buffer, bufferLength);
+}
+
+void DataSource::Seek(uint64_t newOffset)
 {
 	if (MoveCachePointer(newOffset))
 		return;
@@ -86,14 +92,14 @@ void ReadOnlyDataSource::Seek(uint64_t newOffset)
 	mRealPointer = newOffset;
 }
 
-ReadOnlyDataSource::ReadOnlyDataSource(size_t bufferSize) : mBufferSize(PageAlignUp(bufferSize)), mCacheBuffer(mBufferSize),
+DataSource::DataSource(size_t bufferSize) : mBufferSize(PageAlignUp(bufferSize)), mCacheBuffer(mBufferSize),
 	mRealPointer(0), mCacheBufferEnd(mCacheBuffer.data() + mCacheBuffer.size())
 {
 	InvalidateCache();
 }
 
-DataSourceFragment::DataSourceFragment(ReadOnlyDataSource& dataSource, uint64_t offset, uint64_t size) : 
-	ReadOnlyDataSource(0), mDataSource(dataSource), mOffset(offset), mSize(size)
+DataSourceFragment::DataSourceFragment(DataSource& dataSource, uint64_t offset, uint64_t size) : 
+	DataSource(0), mDataSource(dataSource), mOffset(offset), mSize(size)
 {}
 
 size_t DataSourceFragment::ReadImpl(void* buffer, size_t bufferLength)

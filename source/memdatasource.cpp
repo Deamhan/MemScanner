@@ -1,6 +1,6 @@
 #include "memdatasource.hpp"
 
-ReadOnlyMemoryDataSource::ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size) : ReadOnlyDataSource(64 * 1024),
+ReadOnlyMemoryDataSource::ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size) : DataSource(64 * 1024),
 	mOffset(0), mBaseAddress(baseAddress), mSize(size), mProcess(hProcess), mApi(GetIWow64Helper())
 {
 	if (mProcess == nullptr)

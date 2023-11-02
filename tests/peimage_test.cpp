@@ -3,7 +3,7 @@
 #include "pe.hpp"
 
 template <CPUArchitecture arch>
-int CheckPE(ReadOnlyDataSource& mapped)
+int CheckPE(DataSource& mapped)
 {
 	try
 	{

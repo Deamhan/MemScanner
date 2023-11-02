@@ -6,7 +6,7 @@
 #include <algorithm>
 
 template <bool isMapped, CPUArchitecture arch>
-CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(ReadOnlyDataSource& ds, uint64_t offset,
+CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(DataSource& ds, uint64_t offset,
 	IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader)
 {
     try
@@ -42,7 +42,7 @@ CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(ReadOnlyDataSource&
 }
 
 template <bool isMapped, CPUArchitecture arch>
-PE<isMapped, arch>::PE(ReadOnlyDataSource& ds) : mDataSource(ds)
+PE<isMapped, arch>::PE(DataSource& ds) : mDataSource(ds)
 {
     try
     {
@@ -71,7 +71,7 @@ PE<isMapped, arch>::PE(ReadOnlyDataSource& ds) : mDataSource(ds)
 }
 
 template <bool isMapped, CPUArchitecture arch>
-CPUArchitecture PE<isMapped, arch>::GetPeArch(ReadOnlyDataSource& ds)
+CPUArchitecture PE<isMapped, arch>::GetPeArch(DataSource& ds)
 {
 	IMAGE_DOS_HEADER dosHeader;
 	IMAGE_FILE_HEADER fileHeader;
