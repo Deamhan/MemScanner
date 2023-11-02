@@ -41,7 +41,7 @@ static std::wstring GetImageName(ReadOnlyMemoryDataSource& mapped)
 }
 
 template <CPUArchitecture arch>
-int CheckPE(ReadOnlyFile& file, ReadOnlyMemoryDataSource& mapped)
+int CheckPE(File& file, ReadOnlyMemoryDataSource& mapped)
 {
 	try
 	{
@@ -70,7 +70,7 @@ int main()
 
 	ReadOnlyMemoryDataSource ntdllMapped(GetCurrentProcess(), (uintptr_t)ntdllHandle, 100 * 1024 * 1024);
 
-	ReadOnlyFile ntdllFile { GetImageName(ntdllMapped).c_str()};
+	File ntdllFile { GetImageName(ntdllMapped).c_str()};
 
 	switch (PE<>::GetPeArch(ntdllMapped))
 	{

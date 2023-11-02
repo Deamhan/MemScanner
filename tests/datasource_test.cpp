@@ -3,10 +3,10 @@
 #include <utility>
 #include <vector>
 
-int CompareData(ReadOnlyFile& bufferedFile, ReadOnlyFile& unbufferedFile, uint64_t offset, size_t size)
+int CompareData(File& bufferedFile, File& unbufferedFile, uint64_t offset, size_t size)
 {
 	std::vector<uint8_t> buffer1(size), buffer2(size);
-	ReadOnlyFile* dsArray[2] = { &bufferedFile,  &unbufferedFile };
+	File* dsArray[2] = { &bufferedFile,  &unbufferedFile };
 	std::vector<uint8_t>* bufferArray[2] = { &buffer1,  &buffer2 };
 
 	try
@@ -38,7 +38,7 @@ int main()
 	if (len == 0)
 		return 1;
 
-	ReadOnlyFile bufferedFile(buffer.data(), 4096), unbufferedFile(buffer.data(), 0);
+	File bufferedFile(buffer.data(), 4096), unbufferedFile(buffer.data(), 0);
 	if (bufferedFile.GetLastErrorCode() != ERROR_SUCCESS || unbufferedFile.GetLastErrorCode() != ERROR_SUCCESS)
 		return 2;
 

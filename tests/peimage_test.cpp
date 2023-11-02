@@ -12,7 +12,7 @@ int CheckPE(DataSource& mapped)
 
 		auto imagePath = GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOffset());
 
-		ReadOnlyFile fileOnDisk{ imagePath.c_str() };
+		File fileOnDisk{ imagePath.c_str() };
 		PE<false, arch> imageOnDisk(fileOnDisk);
 		
 		auto result = peMapped.CheckExportForHooks(imageOnDisk);

@@ -1,13 +1,14 @@
 #include "file.hpp"
 
-ReadOnlyFile::ReadOnlyFile(const wchar_t* path, size_t bufferSize) : DataSource(bufferSize), mLastError(ERROR_SUCCESS)
+File::File(const wchar_t* path, bool readOnly, size_t bufferSize) : DataSource(bufferSize), mLastError(ERROR_SUCCESS)
 {
-	mFileHandle = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	mFileHandle = CreateFileW(path, GENERIC_READ | (readOnly ? 0 : GENERIC_WRITE), FILE_SHARE_READ | FILE_SHARE_WRITE,
+		nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if (mFileHandle == INVALID_HANDLE_VALUE)
 		throw FileException{ DataSourceError::UnableToOpen, GetLastError() };
 }
 
-size_t ReadOnlyFile::ReadImpl(void* buffer, size_t bufferLength)
+size_t File::ReadImpl(void* buffer, size_t bufferLength)
 {
 	DWORD bytesRead = 0;
 	if (FALSE == ReadFile(mFileHandle, buffer, (DWORD)bufferLength, &bytesRead, nullptr))
@@ -16,7 +17,16 @@ size_t ReadOnlyFile::ReadImpl(void* buffer, size_t bufferLength)
 	return bytesRead;
 }
 
-void ReadOnlyFile::SeekImpl(uint64_t newOffset)
+size_t File::WriteImpl(const void* buffer, size_t bufferLength)
+{
+	DWORD bytesWritten = 0;
+	if (FALSE == WriteFile(mFileHandle, buffer, (DWORD)bufferLength, &bytesWritten, nullptr))
+		throw FileException{ DataSourceError::UnableToRead, GetLastError() };
+
+	return bytesWritten;
+}
+
+void File::SeekImpl(uint64_t newOffset)
 {
 	LARGE_INTEGER newLargeIntPointer, newPointer;
 	newLargeIntPointer.QuadPart = newOffset;
@@ -24,7 +34,7 @@ void ReadOnlyFile::SeekImpl(uint64_t newOffset)
 		throw FileException{ DataSourceError::InvalidOffset, GetLastError() };
 }
 
-uint64_t ReadOnlyFile::GetSizeImpl() const
+uint64_t File::GetSizeImpl() const
 {
 	LARGE_INTEGER largeIntSize;
 	auto result = GetFileSizeEx(mFileHandle, &largeIntSize);
