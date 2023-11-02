@@ -21,7 +21,7 @@ size_t File::WriteImpl(const void* buffer, size_t bufferLength)
 {
 	DWORD bytesWritten = 0;
 	if (FALSE == WriteFile(mFileHandle, buffer, (DWORD)bufferLength, &bytesWritten, nullptr))
-		throw FileException{ DataSourceError::UnableToRead, GetLastError() };
+		throw FileException{ DataSourceError::UnableToWrite, GetLastError() };
 
 	return bytesWritten;
 }
