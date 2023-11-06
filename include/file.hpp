@@ -19,7 +19,14 @@ protected:
 class File : public DataSource
 {
 public:
-    File(const wchar_t* path, bool readOnly = true, size_t bufferSize = 64 * 1024);
+    enum FileMode
+    {
+        OpenForRead,
+        OpenForReadWrite,
+        CreateNew,
+    };
+
+    File(const wchar_t* path, FileMode mode = OpenForRead, size_t bufferSize = 64 * 1024);
     DWORD GetLastErrorCode() { return mLastError; }
 
     virtual ~File()
@@ -33,7 +40,7 @@ protected:
     size_t WriteImpl(const void* buffer, size_t bufferLength) override;
     void SeekImpl(uint64_t newOffset) override;
     uint64_t GetSizeImpl() const override;
-    uint64_t GetOffsetImpl() const override { return 0; }
+    uint64_t GetOriginImpl() const override { return 0; }
 
     HANDLE mFileHandle;
     DWORD mLastError;

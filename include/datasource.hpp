@@ -50,7 +50,9 @@ public:
 
     uint64_t GetSize() const { return GetSizeImpl(); }
 
-    uint64_t GetOffset() const { return GetOffsetImpl(); }
+    uint64_t GetOrigin() const { return GetOriginImpl(); }
+
+    uint64_t GetOffset() const noexcept;
 
     virtual ~DataSource() = default;
 
@@ -71,7 +73,7 @@ public:
     void Write(uint64_t newOffset, const T& data)
     {
         Seek(newOffset);
-        Read(data);
+        Write(data);
     }
 
 protected:
@@ -81,7 +83,7 @@ protected:
     virtual size_t WriteImpl(const void* /*buffer*/, size_t /*bufferLength*/) { throw DataSourceException{ DataSourceError::Unsupported }; }
     virtual void SeekImpl(uint64_t /*newOffset*/) { throw DataSourceException { DataSourceError::Unsupported }; }
     virtual uint64_t GetSizeImpl() const { throw DataSourceException{ DataSourceError::Unsupported }; }
-    virtual uint64_t GetOffsetImpl() const { throw DataSourceException{ DataSourceError::Unsupported }; }
+    virtual uint64_t GetOriginImpl() const { throw DataSourceException{ DataSourceError::Unsupported }; }
    
 private:
     const size_t mBufferSize;
@@ -94,7 +96,7 @@ private:
     void InvalidateCache();
     void FillCache();
     size_t ReadCachedData(void* buffer, size_t bufferLength);
-    size_t GetCachedDataSize();
+    size_t GetCachedDataSize() const noexcept;
     bool MoveCachePointer(uint64_t newOffset);
 
     DataSource(const DataSource&) = delete;
@@ -111,11 +113,11 @@ public:
     size_t ReadImpl(void* buffer, size_t bufferLength) override;
     void SeekImpl(uint64_t newOffset) override;
     uint64_t GetSizeImpl() const override;
-    uint64_t GetOffsetImpl() const override { return mOffset + mDataSource.GetOffset(); }
+    uint64_t GetOriginImpl() const override { return mOrigin + mDataSource.GetOrigin(); }
 
 protected:
     DataSource& mDataSource;
-    uint64_t mOffset;
+    uint64_t mOrigin;
     uint64_t mSize;
 };
 

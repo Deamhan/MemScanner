@@ -7,7 +7,7 @@ void DataSource::InvalidateCache()
 	mCachePointer = mCacheBufferEnd;
 }
 
-size_t DataSource::GetCachedDataSize()
+size_t DataSource::GetCachedDataSize() const noexcept
 {
 	return mCacheBufferEnd - mCachePointer;
 }
@@ -77,8 +77,19 @@ size_t DataSource::Read(void* buffer, size_t bufferLength)
 
 size_t DataSource::Write(const void* buffer, size_t bufferLength)
 {
-	InvalidateCache();
-	return WriteImpl(buffer, bufferLength);
+	if (GetCachedDataSize() != 0)
+	{
+		auto logicalOffset = GetOffset();
+		SeekImpl(logicalOffset);
+		InvalidateCache();
+
+		mRealPointer = logicalOffset;
+	}
+
+	size_t written = WriteImpl(buffer, bufferLength);
+	mRealPointer += written;
+
+	return written;
 }
 
 void DataSource::Seek(uint64_t newOffset)
@@ -98,8 +109,13 @@ DataSource::DataSource(size_t bufferSize) : mBufferSize(PageAlignUp(bufferSize))
 	InvalidateCache();
 }
 
+uint64_t DataSource::GetOffset() const noexcept
+{
+	return mRealPointer - GetCachedDataSize();
+}
+
 DataSourceFragment::DataSourceFragment(DataSource& dataSource, uint64_t offset, uint64_t size) : 
-	DataSource(0), mDataSource(dataSource), mOffset(offset), mSize(size)
+	DataSource(0), mDataSource(dataSource), mOrigin(offset), mSize(size)
 {}
 
 size_t DataSourceFragment::ReadImpl(void* buffer, size_t bufferLength)
@@ -109,10 +125,10 @@ size_t DataSourceFragment::ReadImpl(void* buffer, size_t bufferLength)
 
 void DataSourceFragment::SeekImpl(uint64_t newOffset)
 {
-	return mDataSource.Seek(newOffset + mOffset);
+	return mDataSource.Seek(newOffset + mOrigin);
 }
 
 uint64_t DataSourceFragment::GetSizeImpl() const
 {
-	return mDataSource.GetSize() - mOffset;
+	return mDataSource.GetSize() - mOrigin;
 }

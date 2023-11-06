@@ -14,6 +14,7 @@ size_t ReadOnlyMemoryDataSource::ReadImpl(void* buffer, size_t bufferLength)
 	if (FALSE == mApi.ReadProcessMemory64(mProcess, realAddress, buffer, bufferLength, &read64))
 		throw DataSourceException{ DataSourceError::UnableToRead };
 
+	mOffset += read64;
 	return (size_t)read64;
 }
 

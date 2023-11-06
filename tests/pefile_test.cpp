@@ -37,7 +37,7 @@ bool CompareExportMaps(const OrdinalMapT& m1,
 
 static std::wstring GetImageName(ReadOnlyMemoryDataSource& mapped)
 {
-	return GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOffset());
+	return GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOrigin());
 }
 
 template <CPUArchitecture arch>

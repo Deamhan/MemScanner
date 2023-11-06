@@ -38,7 +38,7 @@ int main()
 	if (len == 0)
 		return 1;
 
-	File bufferedFile(buffer.data(), 4096), unbufferedFile(buffer.data(), 0);
+	File bufferedFile(buffer.data(), File::OpenForRead, 4096), unbufferedFile(buffer.data(), File::OpenForRead, 0);
 	if (bufferedFile.GetLastErrorCode() != ERROR_SUCCESS || unbufferedFile.GetLastErrorCode() != ERROR_SUCCESS)
 		return 2;
 

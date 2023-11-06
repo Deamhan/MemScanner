@@ -1,9 +1,9 @@
 #include "file.hpp"
 
-File::File(const wchar_t* path, bool readOnly, size_t bufferSize) : DataSource(bufferSize), mLastError(ERROR_SUCCESS)
+File::File(const wchar_t* path, FileMode mode, size_t bufferSize) : DataSource(bufferSize), mLastError(ERROR_SUCCESS)
 {
-	mFileHandle = CreateFileW(path, GENERIC_READ | (readOnly ? 0 : GENERIC_WRITE), FILE_SHARE_READ | FILE_SHARE_WRITE,
-		nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	mFileHandle = CreateFileW(path, GENERIC_READ | (mode == OpenForRead ? 0 : GENERIC_WRITE), FILE_SHARE_READ | FILE_SHARE_WRITE,
+		nullptr, mode == CreateNew ? CREATE_ALWAYS : OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if (mFileHandle == INVALID_HANDLE_VALUE)
 		throw FileException{ DataSourceError::UnableToOpen, GetLastError() };
 }

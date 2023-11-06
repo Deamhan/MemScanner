@@ -13,7 +13,7 @@ protected:
     size_t ReadImpl(void* buffer, size_t bufferLength) override;
     void SeekImpl(uint64_t newOffset) override;
     uint64_t GetSizeImpl() const override { return mSize; }
-    uint64_t GetOffsetImpl() const override { return mBaseAddress; }
+    uint64_t GetOriginImpl() const override { return mBaseAddress; }
 
     uint64_t  mBaseAddress;
     uint64_t  mSize;

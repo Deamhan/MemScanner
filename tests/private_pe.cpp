@@ -26,7 +26,7 @@ static uint64_t ScanCurrentProcessMemoryForPe()
 			return mbi.Type != SystemDefinitions::MemType::Image;
 		});
 
-	ReadOnlyMemoryDataSource memory(GetCurrentProcess(), 0, 0xffffffffffffffffull);
+	ReadOnlyMemoryDataSource memory(GetCurrentProcess(), 0, GetMemoryHelper().GetHighestUsermodeAddress());
 
 	for (const auto& group : groupedMm)
 	{
@@ -62,7 +62,7 @@ static uint64_t ScanCurrentProcessMemoryForPe()
 
 					DataSourceFragment fragment(memory, beginAddr + mzPos, 50 * 1024 * 1024);
 					if (PE<>::GetPeArch(fragment) != CPUArchitecture::Unknown)
-						return fragment.GetOffset();
+						return fragment.GetOrigin();
 
 					mzPos += 2;
 				} while (true);
@@ -72,6 +72,29 @@ static uint64_t ScanCurrentProcessMemoryForPe()
 	}
 
 	return 0;
+}
+
+template <CPUArchitecture arch>
+static bool LoadAndDumpPE(const void* address, uint32_t size)
+{
+	auto copyAddress = VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+	if (copyAddress == nullptr)
+		return false;
+
+	memcpy(copyAddress, address, size);
+
+	ReadOnlyMemoryDataSource memory(GetCurrentProcess(), (uintptr_t)copyAddress, 100 * 1024 * 1024);
+
+	PE<true, arch> peCopy(memory);
+	peCopy.Dump(L".\\dump.dll");
+
+	File dump(L".\\dump.dll");
+	PE<false, arch> peDump(dump);
+
+	peDump.BuildExportMap();
+	auto exportFromDump = peDump.GetExportMap();
+
+	return exportFromDump.size() != 0;
 }
 
 template <CPUArchitecture arch>
@@ -86,6 +109,10 @@ static bool MapAndCheckPeCopy()
 
 	const uintptr_t offset = 0x123;
 	auto size = peMapped.GetImageSize();
+
+	if (!LoadAndDumpPE<arch>(moduleHandle, peMapped.GetImageSize()))
+		return false;
+
 	auto address = VirtualAlloc(nullptr, size + offset, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 	if (address == nullptr)
 		return false;

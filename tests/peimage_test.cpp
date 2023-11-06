@@ -10,7 +10,7 @@ int CheckPE(DataSource& mapped)
 		PE<true, arch> peMapped(mapped);
 		peMapped.BuildExportMap();
 
-		auto imagePath = GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOffset());
+		auto imagePath = GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOrigin());
 
 		File fileOnDisk{ imagePath.c_str() };
 		PE<false, arch> imageOnDisk(fileOnDisk);
