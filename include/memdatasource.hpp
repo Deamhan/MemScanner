@@ -9,6 +9,8 @@ class ReadOnlyMemoryDataSource : public DataSource
 public:
     ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size);
 
+    void Dump(const wchar_t* path, uint64_t begin, uint64_t size);
+
 protected:
     size_t ReadImpl(void* buffer, size_t bufferLength) override;
     void SeekImpl(uint64_t newOffset) override;
