@@ -114,6 +114,33 @@ uint64_t DataSource::GetOffset() const noexcept
 	return mRealPointer - GetCachedDataSize();
 }
 
+void DataSource::Dump(DataSource& dst, uint64_t begin, uint64_t size, size_t blockSize, bool useZeroFilling)
+{
+	Seek(begin);
+	std::vector<uint64_t> buffer(blockSize);
+
+	uint64_t left = size;
+	while (left != 0)
+	{
+		auto chunkSize = (size_t)std::min<uint64_t>(buffer.size(), left);
+
+		try
+		{
+			Read(buffer.data(), chunkSize);
+		}
+		catch (DataSourceException&)
+		{
+			if (!useZeroFilling)
+				throw;
+
+			memset(buffer.data(), 0, chunkSize);
+		}
+
+		dst.Write(buffer.data(), chunkSize);
+		left -= chunkSize;
+	}
+}
+
 DataSourceFragment::DataSourceFragment(DataSource& dataSource, uint64_t offset, uint64_t size) : 
 	DataSource(0), mDataSource(dataSource), mOrigin(offset), mSize(size)
 {}

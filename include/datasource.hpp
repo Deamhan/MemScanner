@@ -76,6 +76,8 @@ public:
         Write(data);
     }
 
+    void Dump(DataSource& dst, uint64_t begin, uint64_t size, size_t blockSize, bool useZeroFilling);
+
 protected:
     DataSource(size_t bufferSize);
 
