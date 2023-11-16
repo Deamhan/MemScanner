@@ -92,12 +92,14 @@ HMODULE_T<CPUArchitecture::X64> Wow64Helper<CPUArchitecture::X64>::GetModuleHand
     do
     {
         MemCpy(&head, head.InLoadOrderLinks.Flink, sizeof(LDR_DATA_TABLE_ENTRY64));
-        std::unique_ptr<wchar_t[]> p(new wchar_t[head.BaseDllName.MaximumLength / 2]);
-        MemCpy(p.get(), head.BaseDllName.Buffer, head.BaseDllName.MaximumLength);
+        const auto lenInChars = head.BaseDllName.Length / 2;
+        auto p = std::make_unique<wchar_t[]>(lenInChars + 1);
+        MemCpy(p.get(), head.BaseDllName.Buffer, head.BaseDllName.Length);
+        p[lenInChars] = L'\0';
         int result = _wcsicmp(lpModuleName, p.get());
         if (0 == result)
             return head.DllBase;
-    }     while (head.InLoadOrderLinks.Flink != LastEntry);
+    } while (head.InLoadOrderLinks.Flink != LastEntry);
 
     return 0;
 }

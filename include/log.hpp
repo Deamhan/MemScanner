@@ -9,7 +9,14 @@
 class ILogger
 {
 public:
-	virtual void Log(const wchar_t* message, ...) = 0;
+	enum Level
+	{
+		Debug,
+		Info,
+		Error
+	};
+
+	virtual void Log(Level level, const wchar_t* message, ...) = 0;
 	virtual ~ILogger() = default;
 
 protected:
@@ -24,14 +31,14 @@ protected:
 class ConsoleLogger : public ILogger
 {
 public:
-	void Log(const wchar_t* message, ...) override;
+	void Log(Level level, const wchar_t* message, ...) override;
 	ConsoleLogger() = default;
 };
 
 class FileLogger : public ILogger
 {
 public:
-	void Log(const wchar_t* message, ...) override;
+	void Log(Level level, const wchar_t* message, ...) override;
 	FileLogger(const wchar_t* path);
 
 protected:
@@ -45,7 +52,7 @@ protected:
 class NullLogger : public ILogger
 {
 public:
-	void Log(const wchar_t*, ...) override {}
+	void Log(Level, const wchar_t*, ...) override {}
 	NullLogger() = default;
 };
 
@@ -67,7 +74,7 @@ public:
 		auto end = std::chrono::high_resolution_clock::now();
 		auto ticks = (end - mBegin).count();
 
-		GetDefaultLogger()->Log(L"\nTime spent: %lld us\n", ticks / 1000);
+		GetDefaultLogger()->Log(ILogger::Debug,  L"\nTime spent: %lld us\n", ticks / 1000);
 	}
 
 private:

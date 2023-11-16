@@ -2,7 +2,7 @@
 
 #include <atomic>
 
-void ConsoleLogger::Log(const wchar_t* message, ...)
+void ConsoleLogger::Log(ILogger::Level /*level*/, const wchar_t* message, ...)
 {
 	va_list args;
 	va_start(args, message);
@@ -22,7 +22,7 @@ FileLogger::FileLogger(const wchar_t* path) : mBuffer(BufferSize), mFile(nullptr
 	_fwrite_nolock(&bom, sizeof(wchar_t), 1, f);
 }
 
-void FileLogger::Log(const wchar_t* message, ...)
+void FileLogger::Log(ILogger::Level /*level*/, const wchar_t* message, ...)
 {
 	std::unique_lock<std::mutex> lm(mBufferGuard);
 
