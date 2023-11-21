@@ -2,22 +2,26 @@
 
 #include <algorithm>
 
-void DataSource::InvalidateCache()
+void DataSource::ReinitCache(size_t newSize)
 {
-	mCachePointer = mCacheBufferEnd;
+	mCacheBuffer.resize(newSize);
+	mCurrentCacheOffset = 0;
 }
 
 size_t DataSource::GetCachedDataSize() const noexcept
 {
-	return mCacheBufferEnd - mCachePointer;
+	return mCacheBuffer.size() - mCurrentCacheOffset;
 }
 
 bool DataSource::MoveCachePointer(uint64_t newOffset)
 {
-	auto vCacheBeginPointer = mRealPointer - mBufferSize;
+	if (mCacheBuffer.empty())
+		return false;
+
+	auto vCacheBeginPointer = mRealPointer - mCacheBuffer.size();
 	if (newOffset >= vCacheBeginPointer && newOffset < mRealPointer)
 	{
-		mCachePointer = mCacheBuffer.data() + (newOffset - vCacheBeginPointer);
+		mCurrentCacheOffset = (size_t)(newOffset - vCacheBeginPointer);
 		return true;
 	}
 
@@ -32,20 +36,31 @@ size_t DataSource::ReadCachedData(void* buffer, size_t bufferLength)
 	if (dataToCopyLen == 0)
 		return 0;
 	
-	memcpy(buffer, mCachePointer, dataToCopyLen);
-	mCachePointer += dataToCopyLen;
+	memcpy(buffer, &mCacheBuffer[mCurrentCacheOffset], dataToCopyLen);
+	mCurrentCacheOffset += dataToCopyLen;
 
 	return dataToCopyLen;
 }
 
 void DataSource::FillCache()
 {
-	InvalidateCache();
+	try
+	{
+		auto dataLeft = GetSizeImpl();
+		ReinitCache((size_t)std::min<uint64_t>(dataLeft - mRealPointer, mBufferMaxSize));
+		if (mCacheBuffer.empty())
+			return; // EOF reached
 
-	size_t read = ReadImpl(mCacheBuffer.data(), mCacheBuffer.size());
+		size_t read = ReadImpl(mCacheBuffer.data(), mCacheBuffer.size());
+		mRealPointer += read;
+		ReinitCache(read);
+	}
+	catch (const DataSourceException&)
+	{
+		ReinitCache(); // invalidate cache on error
+		throw;
+	}
 
-	mRealPointer += read;
-	mCachePointer = mCacheBuffer.data();
 }
 
 size_t DataSource::Read(void* buffer, size_t bufferLength)
@@ -59,12 +74,12 @@ size_t DataSource::Read(void* buffer, size_t bufferLength)
 
 	auto byteBufferLeft = (uint8_t*)buffer + read;
 	auto left = bufferLength - read;
-	if (left > mBufferSize)
+	if (left > mBufferMaxSize)
 	{
+		ReinitCache();
 		size_t readWithoutCache = ReadImpl(byteBufferLeft, left);
 		read += readWithoutCache;
 		mRealPointer += readWithoutCache;
-		InvalidateCache();
 
 		return read;
 	}
@@ -81,7 +96,7 @@ size_t DataSource::Write(const void* buffer, size_t bufferLength)
 	{
 		auto logicalOffset = GetOffset();
 		SeekImpl(logicalOffset);
-		InvalidateCache();
+		ReinitCache();
 
 		mRealPointer = logicalOffset;
 	}
@@ -97,17 +112,15 @@ void DataSource::Seek(uint64_t newOffset)
 	if (MoveCachePointer(newOffset))
 		return;
 
-	InvalidateCache();
+	ReinitCache();
 	SeekImpl(newOffset);
 
 	mRealPointer = newOffset;
 }
 
-DataSource::DataSource(size_t bufferSize) : mBufferSize(PageAlignUp(bufferSize)), mCacheBuffer(mBufferSize),
-	mRealPointer(0), mCacheBufferEnd(mCacheBuffer.data() + mCacheBuffer.size())
-{
-	InvalidateCache();
-}
+DataSource::DataSource(size_t bufferSize) : mBufferMaxSize(PageAlignUp(bufferSize)), mCacheBuffer(0), 
+	mCurrentCacheOffset(0), mRealPointer(0)
+{}
 
 uint64_t DataSource::GetOffset() const noexcept
 {
