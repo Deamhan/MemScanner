@@ -133,14 +133,14 @@ static void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api, int& 
     DWORD pid = (DWORD)(uint64_t)procInfo->ProcessId;
     std::wstring name((const wchar_t*)procInfo->ImageName.Buffer, procInfo->ImageName.Length / sizeof(wchar_t));
 
-    GetDefaultLogger()->Log(ILogger::Info, L"Process %s [PID = %u]", name.c_str(), (unsigned)pid);
     HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
     if (hProcess == nullptr)
     {
-        GetDefaultLogger()->Log(ILogger::Error, L": unable to open\n");
+        GetDefaultLogger()->Log(ILogger::Error, L"Process %s [PID = %u]: unable to open\n", name.c_str(), (unsigned)pid);
         return;
     }
-    GetDefaultLogger()->Log(ILogger::Info, L"\n");
+
+    GetDefaultLogger()->Log(ILogger::Info, L"Process %s [PID = %u]\n", name.c_str(), (unsigned)pid);
 
     bool hasExecPrivateMemory = false;
     std::vector<PTR_T<arch>> processIssues;

@@ -26,7 +26,7 @@ bool MemoryHelperBase::EnableDebugPrivilege()
     tkp.Privileges[0].Luid = DebugValue;
     tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
 
-    return AdjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(TOKEN_PRIVILEGES), nullptr, nullptr);
+    return AdjustTokenPrivileges(hToken, FALSE, &tkp, sizeof(TOKEN_PRIVILEGES), nullptr, nullptr) != FALSE;
 }
 
 template <CPUArchitecture arch>

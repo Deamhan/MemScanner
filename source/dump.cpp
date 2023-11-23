@@ -90,10 +90,10 @@ static const wchar_t* stateToStr(uint32_t state)
 template <class T>
 void printMBI(const MEMORY_BASIC_INFORMATION_T<T>& mbi, const wchar_t* offset)
 {
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   BaseAddress:       0x%llu\n", offset, (unsigned long long)mbi.BaseAddress);
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   AllocationBase:    0x%llu\n", offset, (unsigned long long)mbi.AllocationBase);
+    GetDefaultLogger()->Log(ILogger::Info, L"%s   BaseAddress:       0x%llx\n", offset, (unsigned long long)mbi.BaseAddress);
+    GetDefaultLogger()->Log(ILogger::Info, L"%s   AllocationBase:    0x%llx\n", offset, (unsigned long long)mbi.AllocationBase);
     GetDefaultLogger()->Log(ILogger::Info, L"%s   AllocationProtect: %s\n",     offset, ProtToStr(mbi.AllocationProtect).c_str());
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   RegionSize:        0x%llu\n", offset, mbi.RegionSize);
+    GetDefaultLogger()->Log(ILogger::Info, L"%s   RegionSize:        0x%llx\n", offset, mbi.RegionSize);
     GetDefaultLogger()->Log(ILogger::Info, L"%s   State:             %s\n",     offset, stateToStr(mbi.State));
     GetDefaultLogger()->Log(ILogger::Info, L"%s   Protect:           %s\n",     offset, ProtToStr(mbi.Protect).c_str());
     GetDefaultLogger()->Log(ILogger::Info, L"%s   Type:              %s\n",     offset, typeToStr(mbi.Type));

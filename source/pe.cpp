@@ -181,7 +181,7 @@ template <bool isMapped, CPUArchitecture arch>
 bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva)
 {
     auto iter = mSections.upper_bound(rva);
-    if (rva >= iter->second.VirtualAddress)
+    if (iter != mSections.end() && rva >= iter->second.VirtualAddress)
         return (iter->second.Characteristics & (IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE)) != 0;
 
     return false;
