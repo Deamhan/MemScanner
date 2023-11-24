@@ -60,9 +60,9 @@ static uint64_t ScanCurrentProcessMemoryForPe()
 					if (mzPos == buffer.size())
 						break;
 
-					DataSourceFragment fragment(memory, beginAddr + mzPos, 50 * 1024 * 1024);
+					auto fragment = std::make_shared<DataSourceFragment>(memory, beginAddr + mzPos, 50 * 1024 * 1024);
 					if (PE<>::GetPeArch(fragment) != CPUArchitecture::Unknown)
-						return fragment.GetOrigin();
+						return fragment->GetOrigin();
 
 					mzPos += 2;
 				} while (true);
@@ -83,18 +83,15 @@ static bool LoadAndDumpPE(const void* address, uint32_t size)
 
 	memcpy(copyAddress, address, size);
 
-	ReadOnlyMemoryDataSource memory(GetCurrentProcess(), (uintptr_t)copyAddress, 100 * 1024 * 1024);
+	auto memory = std::make_shared<ReadOnlyMemoryDataSource>(GetCurrentProcess(), (uintptr_t)copyAddress, 100 * 1024 * 1024);
 
 	PE<true, arch> peCopy(memory);
 	peCopy.Dump(L".\\dump.dll");
 
-	File dump(L".\\dump.dll");
+	auto dump = std::make_shared<File>(L".\\dump.dll");
 	PE<false, arch> peDump(dump);
 
-	peDump.BuildExportMap();
-	auto exportFromDump = peDump.GetExportMap();
-
-	return exportFromDump.size() != 0;
+	return !peDump.GetExportMap().empty();
 }
 
 template <CPUArchitecture arch>
@@ -104,7 +101,7 @@ static bool MapAndCheckPeCopy()
 	if (moduleHandle == nullptr)
 		return false;
 
-	ReadOnlyMemoryDataSource moduleMapped(GetCurrentProcess(), (uintptr_t)moduleHandle, 100 * 1024 * 1024);
+	auto moduleMapped = std::make_shared<ReadOnlyMemoryDataSource>(GetCurrentProcess(), (uintptr_t)moduleHandle, 100 * 1024 * 1024);
 	PE<true, arch> peMapped(moduleMapped);
 
 	const uintptr_t offset = 0x123;

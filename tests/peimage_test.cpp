@@ -3,19 +3,14 @@
 #include "pe.hpp"
 
 template <CPUArchitecture arch>
-int CheckPE(DataSource& mapped)
+int CheckPE(std::shared_ptr<DataSource> mapped)
 {
 	try
 	{
-		PE<true, arch> peMapped(mapped);
-		peMapped.BuildExportMap();
-
-		auto imagePath = GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOrigin());
-
-		File fileOnDisk{ imagePath.c_str() };
-		PE<false, arch> imageOnDisk(fileOnDisk);
+		auto imagePath = GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped->GetOrigin());
+		PE<false, arch> imageOnDisk(std::make_shared<File>(imagePath.c_str()));
 		
-		auto result = peMapped.CheckExportForHooks(imageOnDisk);
+		auto result = imageOnDisk.CheckExportForHooks(mapped);
 
 		return result.size() == 1 ? 0 : 11; // can fail if there are unexpected hooks
 	}
@@ -39,7 +34,5 @@ int main()
 	*ptr = 0xe9;
 
 	ReadOnlyMemoryDataSource moduleMapped(GetCurrentProcess(), (uintptr_t)moduleHandle - 0x1000, 100 * 1024 * 1024);
-	DataSourceFragment fragment(moduleMapped, 0x1000, 50 * 1024 * 1024);
-
-	return CheckPE<CURRENT_MODULE_ARCH>(fragment);
+	return CheckPE<CURRENT_MODULE_ARCH>(std::make_shared<DataSourceFragment>(moduleMapped, 0x1000, 50 * 1024 * 1024));
 }

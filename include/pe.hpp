@@ -4,6 +4,7 @@
 
 #include <list>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 
@@ -27,7 +28,6 @@ struct ExportedFunctionDescription
 {
 	std::list<std::string> names;
 	uint16_t ordinal;
-	std::string forwardTarget;
 	uint32_t offset;
 
 	uint8_t firstByte;
@@ -38,6 +38,7 @@ enum class PeError
 	InvalidFormat,
 	InvalidRva,
 	FailedToDump,
+	InvalidDataSource
 };
 
 class PeException : public std::exception
@@ -60,10 +61,9 @@ public:
 	typedef typename PeTraitsT<arch>::ImageOptionalHeaderT ImageOptionalHeaderT;
 	typedef typename PeTraitsT<arch>::PointerT             PointerT;
 
-	PE(DataSource& ds);
+	PE(std::shared_ptr<DataSource> ds);
 
-	static CPUArchitecture GetPeArch(DataSource& ds);
-	void BuildExportMap();
+	static CPUArchitecture GetPeArch(std::shared_ptr<DataSource> ds);
 
 	uint32_t GetImageSize() const noexcept { return mOptionalHeader.SizeOfImage; }
 	uint64_t GetImageBase() const noexcept { return mImageBase; }
@@ -74,28 +74,34 @@ public:
 	PE& operator = (const PE&) = delete;
 	PE& operator = (PE&&) = delete;
 
-	uint32_t RvaToOffset(uint32_t rva) const;
+	uint32_t RvaToOffset(uint32_t rva, bool useTranslation = !isMapped) const;
 
 	bool IsExecutableSectionRva(uint32_t rva);
 
-	const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& GetExportMap() const noexcept { return mExportByRva; }
+	const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& GetExportMap();
 
-	std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckExportForHooks(PE<false, arch>& imageOnDisk);
+	std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckExportForHooks(std::shared_ptr<DataSource> oppositeDs);
 
 	void Dump(const wchar_t* path);
 
+	void ReleaseDataSource() noexcept { mDataSource.reset(); }
+
 protected:
-	DataSource& mDataSource;
+	std::shared_ptr<DataSource> mDataSource;
 
 	uint64_t mImageBase;
 	IMAGE_DOS_HEADER mDosHeader;
 	IMAGE_FILE_HEADER mFileHeader;
 	ImageOptionalHeaderT mOptionalHeader;
 	std::map<uint32_t, IMAGE_SECTION_HEADER> mSections;
-	std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>> mExportByRva;
+	std::unique_ptr<std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>> mExportByRva;
 
 	const size_t MaxSectionsCount = 256;
 
-	static CPUArchitecture TryParseGeneralPeHeaders(DataSource& ds, uint64_t offset,
+	static CPUArchitecture TryParseGeneralPeHeaders(std::shared_ptr<DataSource> ds, uint64_t offset,
 		IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader);
+
+	void BuildExportMap();
+
+	const size_t MaxExportedFunctionsCount = 0x10000;
 };

@@ -35,21 +35,18 @@ bool CompareExportMaps(const OrdinalMapT& m1,
 	return true;
 }
 
-static std::wstring GetImageName(ReadOnlyMemoryDataSource& mapped)
+static std::wstring GetImageName(std::shared_ptr<ReadOnlyMemoryDataSource> mapped)
 {
-	return GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOrigin());
+	return GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped->GetOrigin());
 }
 
 template <CPUArchitecture arch>
-int CheckPE(File& file, ReadOnlyMemoryDataSource& mapped)
+int CheckPE(std::shared_ptr<File> file, std::shared_ptr<ReadOnlyMemoryDataSource> mapped)
 {
 	try
 	{
 		PE<false, arch> peFile(file);
-		peFile.BuildExportMap();
-
 		PE<true, arch> peMapped(mapped);
-		peMapped.BuildExportMap();
 
 		if (!CompareExportMaps<arch>(RvaToOrdinalMap(peFile.GetExportMap()), RvaToOrdinalMap(peMapped.GetExportMap())))
 			return 11;
@@ -68,9 +65,9 @@ int main()
 	if (ntdllHandle == nullptr)
 		return 1;
 
-	ReadOnlyMemoryDataSource ntdllMapped(GetCurrentProcess(), (uintptr_t)ntdllHandle, 100 * 1024 * 1024);
+	auto ntdllMapped = std::make_shared<ReadOnlyMemoryDataSource>(GetCurrentProcess(), (uintptr_t)ntdllHandle, 100 * 1024 * 1024);
 
-	File ntdllFile { GetImageName(ntdllMapped).c_str()};
+	auto ntdllFile = std::make_shared<File>(GetImageName(ntdllMapped).c_str());
 
 	switch (PE<>::GetPeArch(ntdllMapped))
 	{

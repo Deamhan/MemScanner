@@ -88,7 +88,7 @@ static int MapAndCheckPeCopy()
 	if (moduleHandle == nullptr)
 		return 1;
 
-	ReadOnlyMemoryDataSource moduleMapped(GetCurrentProcess(), (uintptr_t)moduleHandle, 100 * 1024 * 1024);
+	auto moduleMapped = std::make_shared<ReadOnlyMemoryDataSource>(GetCurrentProcess(), (uintptr_t)moduleHandle, 100 * 1024 * 1024);
 	PE<true, arch> peMapped(moduleMapped);
 
 	const uintptr_t offset = 0;

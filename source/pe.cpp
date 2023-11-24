@@ -6,24 +6,21 @@
 #include <algorithm>
 
 template <bool isMapped, CPUArchitecture arch>
-CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(DataSource& ds, uint64_t offset,
+CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(std::shared_ptr<DataSource> ds, uint64_t offset,
 	IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader)
 {
     try
     {
-        ds.Seek(offset);
-        ds.Read(dosHeader);
-
+        ds->Read(offset, dosHeader);
         if (dosHeader.e_magic != 0x5a4d)
             return CPUArchitecture::Unknown;
 
-        ds.Seek(dosHeader.e_lfanew + offset);
         DWORD signature = 0;
-        ds.Read(signature);
+        ds->Read(dosHeader.e_lfanew + offset, signature);
         if (signature != 0x4550)
             return CPUArchitecture::Unknown;
 
-        ds.Read(fileHeader);
+        ds->Read(fileHeader);
 
         switch (fileHeader.Machine)
         {
@@ -42,24 +39,27 @@ CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(DataSource& ds, uin
 }
 
 template <bool isMapped, CPUArchitecture arch>
-PE<isMapped, arch>::PE(DataSource& ds) : mDataSource(ds)
+PE<isMapped, arch>::PE(std::shared_ptr<DataSource> ds) : mDataSource(std::move(ds))
 {
+    if (!mDataSource)
+        throw PeException{ PeError::InvalidDataSource };
+
     try
     {
-        mImageBase = mDataSource.GetOrigin();
+        mImageBase = mDataSource->GetOrigin();
 
         auto peArch = TryParseGeneralPeHeaders(mDataSource, 0, mDosHeader, mFileHeader);
         if (peArch != arch)
             throw PeException{ PeError::InvalidFormat };
 
-        ds.Read(mOptionalHeader);
+        mDataSource->Read(mOptionalHeader);
 
         auto sectionsCount = std::min<size_t>(MaxSectionsCount, mFileHeader.NumberOfSections);
 
         for (size_t i = 0; i < sectionsCount; ++i)
         {
             IMAGE_SECTION_HEADER header;
-            ds.Read(header);
+            mDataSource->Read(header);
 
             mSections.emplace(header.VirtualAddress + PageAlignUp(header.Misc.VirtualSize), header);
         }
@@ -71,7 +71,7 @@ PE<isMapped, arch>::PE(DataSource& ds) : mDataSource(ds)
 }
 
 template <bool isMapped, CPUArchitecture arch>
-CPUArchitecture PE<isMapped, arch>::GetPeArch(DataSource& ds)
+CPUArchitecture PE<isMapped, arch>::GetPeArch(std::shared_ptr<DataSource> ds)
 {
 	IMAGE_DOS_HEADER dosHeader;
 	IMAGE_FILE_HEADER fileHeader;
@@ -81,8 +81,13 @@ CPUArchitecture PE<isMapped, arch>::GetPeArch(DataSource& ds)
 template <bool isMapped, CPUArchitecture arch>
 void PE<isMapped, arch>::BuildExportMap()
 {
+    if (!mDataSource)
+        throw PeException{ PeError::InvalidDataSource };
+
     try
     {
+        mExportByRva = std::make_unique<std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>>();
+
         uint32_t exportRva = mOptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
         uint32_t exportSize = mOptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
         if (exportRva == 0 || exportSize == 0)
@@ -90,23 +95,23 @@ void PE<isMapped, arch>::BuildExportMap()
 
         IMAGE_EXPORT_DIRECTORY Export;
         auto exportOffset = RvaToOffset(exportRva);
-        mDataSource.Read(exportOffset, Export);
+        mDataSource->Read(exportOffset, Export);
 
-        std::vector<uint32_t> functions(std::min<uint32_t>(Export.NumberOfFunctions, 0x10000));
-        std::vector<uint32_t> names(std::min<uint32_t>(Export.NumberOfNames, 0x10000));
-        std::vector<uint16_t> ordinals(std::min<uint32_t>(Export.NumberOfNames, 0x10000));
+        std::vector<uint32_t> functions(std::min<uint32_t>(Export.NumberOfFunctions, MaxExportedFunctionsCount));
+        std::vector<uint32_t> names(std::min<uint32_t>(Export.NumberOfNames, MaxExportedFunctionsCount));
+        std::vector<uint16_t> ordinals(std::min<uint32_t>(Export.NumberOfNames, MaxExportedFunctionsCount));
 
         auto rvaToOffsetFunc = [this](uint32_t rva) { return RvaToOffset(rva); };
 
         if (functions.size() != 0)
         {
-            mDataSource.Read(RvaToOffset(Export.AddressOfFunctions), &functions[0],
+            mDataSource->Read(RvaToOffset(Export.AddressOfFunctions), &functions[0],
                 functions.size() * sizeof(functions[0]));
         }
 
         if (names.size() != 0)
         {
-            mDataSource.Read(RvaToOffset(Export.AddressOfNames), &names[0],
+            mDataSource->Read(RvaToOffset(Export.AddressOfNames), &names[0],
                 names.size() * sizeof(names[0]));
 
             std::transform(names.begin(), names.end(), names.begin(),
@@ -115,7 +120,7 @@ void PE<isMapped, arch>::BuildExportMap()
 
         if (ordinals.size() != 0)
         {
-            mDataSource.Read(RvaToOffset(Export.AddressOfNameOrdinals), &ordinals[0],
+            mDataSource->Read(RvaToOffset(Export.AddressOfNameOrdinals), &ordinals[0],
                 ordinals.size() * sizeof(ordinals[0]));
         }
 
@@ -126,34 +131,29 @@ void PE<isMapped, arch>::BuildExportMap()
             p.first = functions[i];
             p.second->ordinal = (uint16_t)(i + Export.Base);
             if (p.first >= exportRva && p.first < exportRva + exportSize)
-            {
-                std::vector<char> buffer(0x100, '\0');
-                mDataSource.Read(p.first, &buffer[0], buffer.size());
-                p.second->forwardTarget = buffer.data();
-                p.second->offset = 0;
-            }
+                continue; // forward export, ignore
             else
                 p.second->offset = RvaToOffset(p.first);
 
             if (IsExecutableSectionRva(p.first))
-                mExportByRva.insert(std::move(p));
+                mExportByRva->insert(std::move(p));
         }
 
         for (size_t i = 0; i < ordinals.size(); i++)
         {
             uint32_t ordinal = ordinals[i];
             std::vector<char> buffer(0x100, '\0');
-            mDataSource.Read(names[i], &buffer[0], buffer.size());
+            mDataSource->Read(names[i], &buffer[0], buffer.size());
             if (ordinal >= functions.size())
                 continue;
 
-            auto exportedFunc = mExportByRva.find(functions[ordinal]);
-            if (exportedFunc != mExportByRva.end())
+            auto exportedFunc = mExportByRva->find(functions[ordinal]);
+            if (exportedFunc != mExportByRva->end())
                 exportedFunc->second->names.emplace_back(buffer.data());
         }
 
-        for (auto& exportedFunc : mExportByRva)
-            mDataSource.Read(exportedFunc.second->offset, exportedFunc.second->firstByte);
+        for (auto& exportedFunc : *mExportByRva)
+            mDataSource->Read(exportedFunc.second->offset, exportedFunc.second->firstByte);
     }
     catch (const DataSourceException&)
     {
@@ -162,9 +162,18 @@ void PE<isMapped, arch>::BuildExportMap()
 }
 
 template <bool isMapped, CPUArchitecture arch>
-uint32_t PE<isMapped, arch>::RvaToOffset(uint32_t rva) const
+const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& PE<isMapped, arch>::GetExportMap() 
+{ 
+    if (!mExportByRva)
+        BuildExportMap();
+
+    return *mExportByRva; 
+}
+
+template <bool isMapped, CPUArchitecture arch>
+uint32_t PE<isMapped, arch>::RvaToOffset(uint32_t rva, bool useTranslation) const
 {
-    if (isMapped)
+    if (!useTranslation)
         return rva;
 
     auto iter = mSections.upper_bound(rva);
@@ -188,24 +197,18 @@ bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva)
 }
 
 template <bool isMapped, CPUArchitecture arch>
-std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::CheckExportForHooks(PE<false, arch>& imageOnDisk)
+std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::CheckExportForHooks(std::shared_ptr<DataSource> oppositeDs)
 {
     std::vector<std::shared_ptr<ExportedFunctionDescription>> result;
-    if (!isMapped)
-        return result;
 
-    imageOnDisk.BuildExportMap();
-    const auto& parsedDiskExport = imageOnDisk.GetExportMap();
-
+    const auto& exportMap = GetExportMap();
     try
     {
-        for (auto& exportedFunc : mExportByRva)
+        for (const auto& exportedFunc : exportMap)
         {
-            auto iter = parsedDiskExport.find(exportedFunc.first);
-            if (iter == parsedDiskExport.end())
-                continue;
-
-            if (iter->second->firstByte != exportedFunc.second->firstByte)
+            uint8_t oppositeDsData = 0;
+            oppositeDs->Read(RvaToOffset(exportedFunc.first, isMapped), oppositeDsData); // is this is mapped PE so oppositeDs point to file and translation is required and vice versa
+            if (oppositeDsData != exportedFunc.second->firstByte)
                 result.push_back(exportedFunc.second);  
         }
     }
@@ -220,6 +223,9 @@ std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::Ch
 template <bool isMapped, CPUArchitecture arch>
 void PE<isMapped, arch>::Dump(const wchar_t* path)
 {
+    if (!mDataSource)
+        throw PeException{ PeError::InvalidDataSource };
+
     const size_t MaxAllowedPeHeaderOffset = 1024 * 1024;
     const size_t MaxImageSize = 256 * 1024 * 1024;
 
@@ -235,7 +241,7 @@ void PE<isMapped, arch>::Dump(const wchar_t* path)
     File dump(path, File::CreateNew);
 
     std::vector<uint8_t> buffer(MaxAllowedPeHeaderOffset);
-    mDataSource.Read(0, buffer.data(), mDosHeader.e_lfanew);
+    mDataSource->Read(0, buffer.data(), mDosHeader.e_lfanew);
     dump.Write(buffer.data(), mDosHeader.e_lfanew);
     dump.Write(uint32_t(0x4550));
     dump.Write(mFileHeader);
@@ -246,11 +252,11 @@ void PE<isMapped, arch>::Dump(const wchar_t* path)
 
     auto sectionsCount = std::min<size_t>(MaxSectionsCount, mFileHeader.NumberOfSections);
 
-    mDataSource.Seek(mDosHeader.e_lfanew + sizeof(ImageNtHeadersT));
+    mDataSource->Seek(mDosHeader.e_lfanew + sizeof(ImageNtHeadersT));
     for (size_t i = 0; i < sectionsCount; ++i)
     {
         IMAGE_SECTION_HEADER header;
-        mDataSource.Read(header);
+        mDataSource->Read(header);
         header.PointerToRawData = header.VirtualAddress;
         dump.Write(header);
     }
@@ -261,7 +267,7 @@ void PE<isMapped, arch>::Dump(const wchar_t* path)
         auto blockSize = std::min<size_t>(left, buffer.size());
         left -= blockSize;
 
-        mDataSource.Read(buffer.data(), blockSize);
+        mDataSource->Read(buffer.data(), blockSize);
         dump.Write(buffer.data(), blockSize);
     }
 }
