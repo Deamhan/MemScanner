@@ -6,6 +6,8 @@
 #include <stdarg.h>
 #include <vector>
 
+#include "system_defs.hpp"
+
 class ILogger
 {
 public:
@@ -66,7 +68,7 @@ ILogger* GetDefaultLogger();
 class Timer
 {
 public:
-	Timer() noexcept : mBegin(std::chrono::high_resolution_clock::now())
+	Timer(const wchar_t* name = L"") : mBegin(std::chrono::high_resolution_clock::now()), mName(name)
 	{}
 
 	~Timer()
@@ -74,9 +76,15 @@ public:
 		auto end = std::chrono::high_resolution_clock::now();
 		auto ticks = (end - mBegin).count();
 
-		GetDefaultLogger()->Log(ILogger::Debug,  L"\nTime spent: %lld us\n", ticks / 1000);
+		GetDefaultLogger()->Log(ILogger::Debug,  L"\nTime spent (%s): %lld us\n", mName.c_str(), ticks / 1000);
 	}
 
 private:
 	std::chrono::time_point<std::chrono::high_resolution_clock> mBegin;
+	std::wstring mName;
 };
+
+const std::wstring ProtToStr(uint32_t prot);
+
+template <class T>
+void printMBI(const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<T>& mbi, const wchar_t* offset = L"");

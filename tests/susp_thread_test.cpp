@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -25,6 +26,39 @@ static void TestThreadFunc(HANDLE hEvent)
         Sleep(1000);
 }
 
+class MyCallbacks : public MemoryScanner::DefaultCallbacks
+{
+public:
+    void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
+        const std::vector<uint64_t>& threadEntryPoints) override
+    {
+        Super::OnSuspiciousMemoryRegionFound(continiousRegions, threadEntryPoints);
+        mFoundThreadEPs.insert(threadEntryPoints.begin(), threadEntryPoints.end());
+    }
+
+    void OnHooksFound(std::vector<std::shared_ptr<ExportedFunctionDescription>>& hooks, const wchar_t* imageName) override
+    {
+        Super::OnHooksFound(hooks, imageName);
+    }
+
+    const auto& GetFoundEPs() const noexcept
+    {
+        return mFoundThreadEPs;
+    }
+
+    void RegisterNewDump(const MemoryHelperBase::MemInfoT64& info, const std::wstring& dumpPath) override
+    {
+        mDumped.emplace(info.BaseAddress, dumpPath);
+    }
+
+    const std::map<uint64_t, std::wstring>& GetDumped() const noexcept { return mDumped; }
+
+private:
+    typedef MemoryScanner::DefaultCallbacks Super;
+    std::set<uint64_t> mFoundThreadEPs;
+    std::map<uint64_t, std::wstring> mDumped;
+};
+
 int main()
 {
 #if _M_AMD64
@@ -41,8 +75,8 @@ int main()
         return 1;
     }
 
-    std::unique_ptr<void, void (*)(void*)> vGuad(pExec, FreeVirtualMemory);
-    wprintf(L">>> Thread address = 0x%016llx <<<\n", (unsigned long long)pExec);
+    std::unique_ptr<void, void (*)(void*)> vGuard(pExec, FreeVirtualMemory);
+    wprintf(L"### Thread address = 0x%016llx ###\n\n", (unsigned long long)pExec);
     memcpy(pExec, code, sizeof(code));
     *(uintptr_t*)(pExec + offset) = (uintptr_t)TestThreadFunc;
     DWORD oldProt = 0;
@@ -54,41 +88,31 @@ int main()
     std::unique_ptr<HANDLE, void(*)(HANDLE*)> threadGuard(&hThread, CloseHandleByPtr);
     WaitForSingleObject(hEvent, INFINITE);
 
-    if (ScanMemory(0, GetCurrentProcessId(), L".") == 0)
+    MemoryScanner scanner{ MemoryScanner::Medium };
+    auto myCallbacks = std::make_shared<MyCallbacks>();
+    myCallbacks->SetDumpsRoot(L".");
+    scanner.Scan(GetCurrentProcessId(), myCallbacks);
+
+    const auto& found = myCallbacks->GetFoundEPs();
+    if (found.find((uintptr_t)pExec) == found.end())
     {
-        wprintf(L"!>> Unable to find threat <<!\n");
+        wprintf(L"!>> Unable to find the threat <<!\n");
         return 1;
     }
-        
-    FILE* dump = nullptr;
-    _wfopen_s(&dump, std::to_wstring(GetCurrentProcessId()).append(L".dump").c_str(), L"rb");
-    if (dump == nullptr)
-    {
-        wprintf(L"!>> Unable to open dump <<!\n");
-        return 1;
-    }    
 
-    std::unique_ptr<FILE, int(*)(FILE*)> dumpGurad(dump, fclose);
-    fseek(dump, 0, SEEK_END);
-    auto size = ftell(dump);
-    fseek(dump, 0, SEEK_SET);
-
-    std::vector<uint8_t> buffer(size);
-    if (fread(buffer.data(), sizeof(uint8_t), size, dump) != (size_t)size)
+    const auto& dumped = myCallbacks->GetDumped();
+    auto dumpFound = dumped.find((uintptr_t)pExec);
+    if (dumpFound == dumped.end())
     {
-        wprintf(L"!>> Unable to read dump <<!\n");
-        return 1;
-    }
-        
-    for (size_t i = 0; i < size - sizeof(code) + 1; ++i)
-    {
-        if (memcmp(&buffer[i], pExec, sizeof(code)) == 0)
-        {
-            wprintf(L">>> Threat signature was successfully found! <<<\n");
-            return 0;
-        }    
+        wprintf(L"!>> Unable to find the threat dump entry <<!\n");
+        return 2;
     }
 
-    wprintf(L"!>> Unable to find the signature <<!\n");
-    return 1;
+    if (GetFileAttributesW(dumpFound->second.c_str()) == INVALID_FILE_ATTRIBUTES)
+    {
+        wprintf(L"!>> Unable to find the threat dump file<<!\n");
+        return 3;
+    }
+
+    return 0;
 }

@@ -22,15 +22,12 @@ set(COMMON_SRC source/datasource.cpp
                include/scanner.hpp    
 )
 
-set(SCANNER_SRC source/dump.cpp
-                source/main.cpp
+set(SCANNER_SRC source/main.cpp
                 source/scanner.cpp
-                include/dump.hpp
                 ${COMMON_SRC}
 )
 
-set(SUSP_THREAD_SRC source/dump.cpp
-                    source/scanner.cpp
+set(SUSP_THREAD_SRC source/scanner.cpp
                     tests/susp_thread_test.cpp            
                     ${COMMON_SRC}
 )
@@ -57,12 +54,6 @@ set(SECTION_ARTIFACTS_SRC tests/exec_region_artifacts.cpp
 
 set(SINGLE_PAGE_SRC tests/single_page_test.cpp
                     ${COMMON_SRC}
-)
-
-set(VIEWER_SRC source/dump.cpp
-               source/viewer.cpp   
-               include/dump.hpp
-               ${COMMON_SRC}  
 )
 
 if (MSVC)  
@@ -114,7 +105,6 @@ endif()
 add_executable(memscan ${SCANNER_SRC})
 add_executable(susp_thread_test ${SUSP_THREAD_SRC})
 add_executable(datasource_test ${DATASRC_SRC})
-add_executable(viewer ${VIEWER_SRC})
 add_executable(peimage_test ${PEIMAGE_SRC})
 add_executable(pefile_test ${PEFILE_SRC})
 add_executable(private_pe_test ${PRIVATE_PE_SRC})
@@ -125,7 +115,6 @@ set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
 set(MEMSCAN_LINKER_FLAGS "/level='highestAvailable' /uiAccess='false'")
 set_target_properties(memscan PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
-set_target_properties(viewer PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 
 set_target_properties(susp_thread_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 set_target_properties(datasource_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
@@ -138,7 +127,6 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_link_libraries(susp_thread_test ${NTDLL64LL})
     target_link_libraries(datasource_test ${NTDLL64LL})
     target_link_libraries(memscan ${NTDLL64LL})
-    target_link_libraries(viewer ${NTDLL64LL})
     target_link_libraries(peimage_test ${NTDLL64LL})
     target_link_libraries(pefile_test ${NTDLL64LL})
     target_link_libraries(private_pe_test ${NTDLL64LL})

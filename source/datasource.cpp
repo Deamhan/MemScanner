@@ -2,6 +2,11 @@
 
 #include <algorithm>
 
+#include <memhelper.hpp>
+
+#undef min
+#undef max
+
 void DataSource::ReinitCache(size_t newSize)
 {
 	mCacheBuffer.resize(newSize);

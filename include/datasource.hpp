@@ -140,7 +140,3 @@ inline void DataSource::Write(const T& data)
     if (written != sizeof(data))
         throw DataSourceException{ DataSourceError::UnknownError };
 }
-
-const uint32_t PAGE_SIZE = 4096;
-template <class T>
-inline T PageAlignUp(T value) { return (value + PAGE_SIZE - 1) & (~(PAGE_SIZE - 1)); }

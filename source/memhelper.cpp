@@ -97,7 +97,7 @@ typename MemoryHelper<arch>::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE 
             result.emplace(mbi.BaseAddress, ConvertToMemoryBasicInfo64(mbi));
 
         auto prevAddr = address;
-        address += std::max<PTR_T<arch>>(mbi.RegionSize, PAGE_SIZE);
+        address += std::max<PTR_T<arch>>(PageAlignUp(mbi.RegionSize), PAGE_SIZE);
         if (prevAddr > address)
             break;
     }
@@ -199,6 +199,10 @@ template const MemoryHelper<CPUArchitecture::X64>& GetMemoryHelperForArch();
 
 const MemoryHelperBase& GetMemoryHelper() noexcept 
 { 
+#if !_M_AMD64
     return GetOSArch() == CPUArchitecture::X64 ? (const MemoryHelperBase&)GetMemoryHelperForArch<CPUArchitecture::X64>()
         : (const MemoryHelperBase&)GetMemoryHelperForArch<CPUArchitecture::X86>();
+#else
+    return GetMemoryHelperForArch<CPUArchitecture::X64>();
+#endif // !_M_AMD64
 }

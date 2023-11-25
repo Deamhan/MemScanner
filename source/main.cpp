@@ -35,11 +35,18 @@ static std::wstring toString(T& value)
     return result;
 }
 
+void PrintHelp()
+{
+    wprintf(L"Help: memscan.exe [-sensitivity low|medium|high] [-pid ID] [-log path] [dumpDirectory]\n"
+        "\tdefault: low sensitivity all process scan without dumping\n");
+}
+
 int wmain(int argc, const wchar_t ** argv)
 {
-    const wchar_t* dir = nullptr;
+    std::wstring dumpsDir= L"";
     const wchar_t* logPath = nullptr;
-    uint32_t sensitivity = 0;
+    MemoryScanner::Sensitivity sensitivity = MemoryScanner::Low;
+    std::wstring sensitivityString = L"low";
     uint32_t pid = 0;
 
     CmdLineSwitch state = CmdLineSwitch::None;
@@ -55,6 +62,10 @@ int wmain(int argc, const wchar_t ** argv)
                     state = CmdLineSwitch::Pid;
                 else if (wcscmp(argv[i] + 1, L"log") == 0)
                     state = CmdLineSwitch::Log;
+                else if (wcscmp(argv[i] + 1, L"help") == 0)
+                {
+                    
+                }
                 else
                     throw std::invalid_argument("");
             }
@@ -63,8 +74,19 @@ int wmain(int argc, const wchar_t ** argv)
                 switch (state)
                 {
                 case CmdLineSwitch::Sensitivity:
-                    parse(argv[i], sensitivity);
+                {
+                    if (wcscmp(argv[i], L"low") == 0)
+                        sensitivity = MemoryScanner::Low;
+                    else if (wcscmp(argv[i], L"medium") == 0)
+                        sensitivity = MemoryScanner::Medium;
+                    else if (wcscmp(argv[i], L"high") == 0)
+                        sensitivity = MemoryScanner::High;
+                    else
+                        throw std::domain_error("");
+
+                    sensitivityString = argv[i];
                     break;
+                }
                 case CmdLineSwitch::Pid:
                     parse(argv[i], pid);
                     break;
@@ -72,7 +94,7 @@ int wmain(int argc, const wchar_t ** argv)
                     logPath = argv[i];
                     break;
                 case CmdLineSwitch::None:
-                    dir = argv[i];
+                    dumpsDir = argv[i];
                     break;
                 default:
                     break;
@@ -93,17 +115,20 @@ int wmain(int argc, const wchar_t ** argv)
         }
     }
 
-    wprintf(L"Settings:\n\tsensitivity = %u\n\tpid = %s\n\tlog = %s\n\tdump directory = %s\n\n", 
-            (unsigned)sensitivity, pid == 0 ? L"all" : toString(pid).c_str(), 
+    wprintf(L"Settings:\n\tsensitivity = %s\n\tpid = %s\n\tlog = %s\n\tdump directory = %s\n\n", 
+            sensitivityString.c_str(), pid == 0 ? L"all" : toString(pid).c_str(),
             logPath == nullptr ? L"console" : logPath,
-            dir == nullptr ? L"none" : dir);
+            dumpsDir.empty() ? L"none" : dumpsDir.c_str());
 
     try
     {
         ILogger* logger = logPath == nullptr ? (ILogger*)&GetConsoleLoggerInstance() : (ILogger*)&GetFileLoggerInstance(logPath);
         SetDefaultLogger(logger);
 
-        wprintf(L"\nFound issues: %d\n", ScanMemory(sensitivity, pid, dir));
+        MemoryScanner scanner { sensitivity };
+        auto callbacks = std::shared_ptr<MemoryScanner::DefaultCallbacks>();
+        callbacks->SetDumpsRoot(dumpsDir.c_str());
+        scanner.Scan(pid);
     }
     catch (const std::exception& e)
     {

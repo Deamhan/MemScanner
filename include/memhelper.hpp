@@ -66,3 +66,7 @@ template <CPUArchitecture arch>
 const MemoryHelper<arch>& GetMemoryHelperForArch();
 
 const MemoryHelperBase& GetMemoryHelper() noexcept;
+
+const uint32_t PAGE_SIZE = 4096;
+template <class T>
+inline T PageAlignUp(T value) { return (value + PAGE_SIZE - 1) & (~(PAGE_SIZE - 1)); }

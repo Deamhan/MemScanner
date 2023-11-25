@@ -104,5 +104,5 @@ protected:
 
 	void BuildExportMap();
 
-	const size_t MaxExportedFunctionsCount = 0x10000;
+	const unsigned MaxExportedFunctionsCount = 0x10000;
 };
