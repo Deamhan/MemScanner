@@ -1,6 +1,7 @@
 #pragma once
 
-#include "memdatasource.hpp"
+#include "datasource.hpp"
+#include "ntdll64.hpp"
 
 #include <list>
 #include <map>

@@ -2,6 +2,7 @@
 
 #include "file.hpp"
 #include "log.hpp"
+#include "memdatasource.hpp"
 #include "memhelper.hpp"
 #include "pe.hpp"
 

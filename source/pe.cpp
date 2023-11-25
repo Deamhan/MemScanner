@@ -1,6 +1,7 @@
 #include "pe.hpp"
 
 #include "file.hpp"
+#include "memdatasource.hpp"
 #include "memhelper.hpp"
 
 #include <algorithm>
@@ -207,7 +208,7 @@ std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::Ch
         for (const auto& exportedFunc : exportMap)
         {
             uint8_t oppositeDsData = 0;
-            oppositeDs->Read(RvaToOffset(exportedFunc.first, isMapped), oppositeDsData); // is this is mapped PE so oppositeDs point to file and translation is required and vice versa
+            oppositeDs->Read(RvaToOffset(exportedFunc.first, isMapped), oppositeDsData); // is this is mapped PE so oppositeDs point to file/fragment and translation is required and vice versa
             if (oppositeDsData != exportedFunc.second->firstByte)
                 result.push_back(exportedFunc.second);  
         }

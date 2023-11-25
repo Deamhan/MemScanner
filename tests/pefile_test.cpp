@@ -1,4 +1,5 @@
 #include "file.hpp"
+#include  "memdatasource.hpp"
 #include "memhelper.hpp"
 #include "pe.hpp"
 
