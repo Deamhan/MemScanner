@@ -171,7 +171,14 @@ void DataSource::Dump(DataSource& dst, uint64_t begin, uint64_t size, size_t blo
 
 DataSourceFragment::DataSourceFragment(DataSource& dataSource, uint64_t offset, uint64_t size) : 
 	DataSource(0), mDataSource(dataSource), mOrigin(offset), mSize(size)
-{}
+{
+	if (mSize != 0)
+		return;
+
+	auto realDsSize = mDataSource.GetSize();
+	if (realDsSize > offset)
+		mSize = realDsSize - offset;
+}
 
 size_t DataSourceFragment::ReadImpl(void* buffer, size_t bufferLength)
 {

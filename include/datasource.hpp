@@ -109,7 +109,7 @@ private:
 class DataSourceFragment : public DataSource
 {
 public:
-    DataSourceFragment(DataSource& dataSource, uint64_t offset, uint64_t size);
+    DataSourceFragment(DataSource& dataSource, uint64_t offset, uint64_t size = 0);
 
     size_t ReadImpl(void* buffer, size_t bufferLength) override;
     void SeekImpl(uint64_t newOffset) override;
