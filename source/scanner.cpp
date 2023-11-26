@@ -21,7 +21,7 @@
 #undef max
 
 template <CPUArchitecture arch>
-std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckForHooks(std::shared_ptr<DataSource> mapped, std::map<std::wstring, 
+std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckForHooks(DataSource& mapped, std::map<std::wstring, 
     std::shared_ptr<PE<false, arch>>>& parsed, const std::wstring& path)
 {
     try
@@ -101,7 +101,7 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
 void MemoryScanner::DefaultCallbacks::OnHooksFound(std::vector<std::shared_ptr<ExportedFunctionDescription>>& hooks, const wchar_t* imageName)
 {
     GetDefaultLogger()->Log(ILogger::Info, L"\tHooks for %s:\n", imageName);
-    for (const auto hook : hooks)
+    for (const auto& hook : hooks)
     {
         for (const auto& name : hook->names)
             GetDefaultLogger()->Log(ILogger::Info, L"\t\t%S\n", name.c_str());
@@ -220,8 +220,8 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         }
         else
         {
-            auto memDs = std::make_shared<ReadOnlyMemoryDataSource>(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
-            auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, memDs->GetOrigin());
+            ReadOnlyMemoryDataSource memDs(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
+            auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, memDs.GetOrigin());
 
             if (imagePath.empty())
                 continue;
@@ -255,8 +255,6 @@ void MemoryScanner::ScanMemoryImpl(uint32_t pid)
     while (IsBufferTooSmall(api.NtQuerySystemInformation64(SystemDefinitions::SYSTEM_INFORMATION_CLASS::SystemProcessInformation, buffer.data(), (uint32_t)buffer.size(), &resLen)))
         buffer.resize(resLen);
 
-    Timer timer { L"Memory" };
-
     typedef SystemDefinitions::SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>> SPI, * PSPI;
     auto procInfo = (const PSPI)buffer.data();
     for (bool stop = false; !stop;
@@ -269,9 +267,9 @@ void MemoryScanner::ScanMemoryImpl(uint32_t pid)
     }
 }
 
-void MemoryScanner::Scan(uint32_t pid, std::shared_ptr<MemoryScanner::ICallbacks> callbacks)
+void MemoryScanner::Scan(uint32_t pid, std::unique_ptr<MemoryScanner::ICallbacks> callbacks)
 {
-    mCallbacks = callbacks;
+    mCallbacks = std::move(callbacks);
 #if _M_AMD64
     ScanMemoryImpl<CPUArchitecture::X64>(pid);
 #else

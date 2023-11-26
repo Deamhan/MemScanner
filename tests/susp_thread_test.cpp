@@ -89,9 +89,9 @@ int main()
     WaitForSingleObject(hEvent, INFINITE);
 
     MemoryScanner scanner{ MemoryScanner::Medium };
-    auto myCallbacks = std::make_shared<MyCallbacks>();
+    auto myCallbacks = std::make_unique<MyCallbacks>();
     myCallbacks->SetDumpsRoot(L".");
-    scanner.Scan(GetCurrentProcessId(), myCallbacks);
+    scanner.Scan(GetCurrentProcessId(), std::move(myCallbacks));
 
     const auto& found = myCallbacks->GetFoundEPs();
     if (found.find((uintptr_t)pExec) == found.end())

@@ -64,7 +64,7 @@ public:
 
 	PE(std::shared_ptr<DataSource> ds);
 
-	static CPUArchitecture GetPeArch(std::shared_ptr<DataSource> ds);
+	static CPUArchitecture GetPeArch(DataSource& ds);
 
 	uint32_t GetImageSize() const noexcept { return mOptionalHeader.SizeOfImage; }
 	uint64_t GetImageBase() const noexcept { return mImageBase; }
@@ -81,7 +81,7 @@ public:
 
 	const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& GetExportMap();
 
-	std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckExportForHooks(std::shared_ptr<DataSource> oppositeDs);
+	std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckExportForHooks(DataSource& oppositeDs);
 
 	void Dump(const wchar_t* path);
 
@@ -99,7 +99,7 @@ protected:
 
 	const size_t MaxSectionsCount = 256;
 
-	static CPUArchitecture TryParseGeneralPeHeaders(std::shared_ptr<DataSource> ds, uint64_t offset,
+	static CPUArchitecture TryParseGeneralPeHeaders(DataSource& ds, uint64_t offset,
 		IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader);
 
 	void BuildExportMap();

@@ -137,6 +137,7 @@ int wmain(int argc, const wchar_t ** argv)
         GetDefaultLogger()->Log(ILogger::Info, L">>> OS Architecture: %s <<<\n", GetOSArch() == CPUArchitecture::X64 ? L"X64" : L"X86");
         GetDefaultLogger()->Log(ILogger::Info, L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
 
+        Timer timer{ L"Memory" };
         scanner.Scan(pid);
     }
     catch (const std::exception& e)

@@ -61,9 +61,9 @@ static uint64_t ScanCurrentProcessMemoryForPe()
 					if (mzPos == buffer.size())
 						break;
 
-					auto fragment = std::make_shared<DataSourceFragment>(memory, beginAddr + mzPos, 50 * 1024 * 1024);
+					DataSourceFragment fragment(memory, beginAddr + mzPos, 50 * 1024 * 1024);
 					if (PE<>::GetPeArch(fragment) != CPUArchitecture::Unknown)
-						return fragment->GetOrigin();
+						return fragment.GetOrigin();
 
 					mzPos += 2;
 				} while (true);

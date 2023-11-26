@@ -7,21 +7,21 @@
 #include <algorithm>
 
 template <bool isMapped, CPUArchitecture arch>
-CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(std::shared_ptr<DataSource> ds, uint64_t offset,
+CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(DataSource& ds, uint64_t offset,
 	IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader)
 {
     try
     {
-        ds->Read(offset, dosHeader);
+        ds.Read(offset, dosHeader);
         if (dosHeader.e_magic != 0x5a4d)
             return CPUArchitecture::Unknown;
 
         DWORD signature = 0;
-        ds->Read(dosHeader.e_lfanew + offset, signature);
+        ds.Read(dosHeader.e_lfanew + offset, signature);
         if (signature != 0x4550)
             return CPUArchitecture::Unknown;
 
-        ds->Read(fileHeader);
+        ds.Read(fileHeader);
 
         switch (fileHeader.Machine)
         {
@@ -49,7 +49,7 @@ PE<isMapped, arch>::PE(std::shared_ptr<DataSource> ds) : mDataSource(std::move(d
     {
         mImageBase = mDataSource->GetOrigin();
 
-        auto peArch = TryParseGeneralPeHeaders(mDataSource, 0, mDosHeader, mFileHeader);
+        auto peArch = TryParseGeneralPeHeaders(*mDataSource, 0, mDosHeader, mFileHeader);
         if (peArch != arch)
             throw PeException{ PeError::InvalidFormat };
 
@@ -72,7 +72,7 @@ PE<isMapped, arch>::PE(std::shared_ptr<DataSource> ds) : mDataSource(std::move(d
 }
 
 template <bool isMapped, CPUArchitecture arch>
-CPUArchitecture PE<isMapped, arch>::GetPeArch(std::shared_ptr<DataSource> ds)
+CPUArchitecture PE<isMapped, arch>::GetPeArch(DataSource& ds)
 {
 	IMAGE_DOS_HEADER dosHeader;
 	IMAGE_FILE_HEADER fileHeader;
@@ -198,7 +198,7 @@ bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva)
 }
 
 template <bool isMapped, CPUArchitecture arch>
-std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::CheckExportForHooks(std::shared_ptr<DataSource> oppositeDs)
+std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::CheckExportForHooks(DataSource& oppositeDs)
 {
     std::vector<std::shared_ptr<ExportedFunctionDescription>> result;
 
@@ -208,7 +208,7 @@ std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::Ch
         for (const auto& exportedFunc : exportMap)
         {
             uint8_t oppositeDsData = 0;
-            oppositeDs->Read(RvaToOffset(exportedFunc.first, isMapped), oppositeDsData); // is this is mapped PE so oppositeDs point to file/fragment and translation is required and vice versa
+            oppositeDs.Read(RvaToOffset(exportedFunc.first, isMapped), oppositeDsData); // is this is mapped PE so oppositeDs point to file/fragment and translation is required and vice versa
             if (oppositeDsData != exportedFunc.second->firstByte)
                 result.push_back(exportedFunc.second);  
         }

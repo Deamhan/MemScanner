@@ -20,6 +20,8 @@ public:
 
 		virtual void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) = 0;
 		virtual void OnProcessScanEnd() = 0;
+
+		virtual ~ICallbacks() = default;
 	};
 
 	class DefaultCallbacks : public ICallbacks
@@ -56,7 +58,7 @@ public:
 		virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
 	};
 
-	void Scan(uint32_t pid = 0, std::shared_ptr<ICallbacks> callbacks = std::make_shared<DefaultCallbacks>());
+	void Scan(uint32_t pid = 0, std::unique_ptr<ICallbacks> callbacks = std::make_unique<DefaultCallbacks>());
 
 	enum Sensitivity
 	{
@@ -76,7 +78,7 @@ public:
 
 private:
 	Sensitivity mSensitivity;
-	std::shared_ptr<ICallbacks> mCallbacks;
+	std::unique_ptr<ICallbacks> mCallbacks;
 
 	std::map<std::wstring, std::shared_ptr<PE<false, CPUArchitecture::X86>>> mCached32;
 	std::map<std::wstring, std::shared_ptr<PE<false, CPUArchitecture::X64>>> mCached64;
