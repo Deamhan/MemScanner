@@ -64,7 +64,8 @@ int wmain(int argc, const wchar_t ** argv)
                     state = CmdLineSwitch::Log;
                 else if (wcscmp(argv[i] + 1, L"help") == 0)
                 {
-                    
+                    PrintHelp();
+                    return 0;
                 }
                 else
                     throw std::invalid_argument("");
@@ -105,12 +106,16 @@ int wmain(int argc, const wchar_t ** argv)
         }
         catch (const std::invalid_argument&)
         {
-            wprintf(L"Unknown switch: %s\n", argv[i] + 1);
+            wprintf(L"Unknown switch: %s\n\n", argv[i] + 1);
+
+            PrintHelp();
             return 1;
         }
         catch (const std::domain_error&)
         {
-            wprintf(L"Invalid argument: %s\n", argv[i]);
+            wprintf(L"Invalid argument: %s\n\n", argv[i]);
+
+            PrintHelp();
             return 1;
         }
     }

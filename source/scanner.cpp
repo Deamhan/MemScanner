@@ -67,9 +67,12 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
     for (const auto& region : continiousRegions)
         printMBI<uint64_t>(region, L"\t\t");
 
-    GetDefaultLogger()->Log(ILogger::Info, L"\t\tRelated threads:\n");
-    for (const auto threadEP : threadEntryPoints)
-        GetDefaultLogger()->Log(ILogger::Info, L"\t\t\tRelated threads: 0x%llx\n", (unsigned long long)threadEP);
+    if (!threadEntryPoints.empty())
+    {
+        GetDefaultLogger()->Log(ILogger::Info, L"\t\tRelated threads:\n");
+        for (const auto threadEP : threadEntryPoints)
+            GetDefaultLogger()->Log(ILogger::Info, L"\t\t\tRelated threads: 0x%llx\n", (unsigned long long)threadEP);
+    }
 
     if (mDumpRoot.empty())
         return;
@@ -101,9 +104,9 @@ void MemoryScanner::DefaultCallbacks::OnHooksFound(std::vector<std::shared_ptr<E
     for (const auto hook : hooks)
     {
         for (const auto& name : hook->names)
-            GetDefaultLogger()->Log(ILogger::Info, L"\t\t%s\n", name.c_str());
+            GetDefaultLogger()->Log(ILogger::Info, L"\t\t%S\n", name.c_str());
         
-        GetDefaultLogger()->Log(ILogger::Info, L"\t\tOrdinal: %d\n", hook->ordinal);
+        GetDefaultLogger()->Log(ILogger::Info, L"\t\tOrdinal: %d\n\n", hook->ordinal);
     }
 }
 
