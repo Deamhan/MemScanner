@@ -197,7 +197,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         }
 
         const auto lastInGroup = group.second.rbegin();
-        auto groupTopBorder = group.first + lastInGroup->RegionSize;
+        auto groupTopBorder = lastInGroup->BaseAddress + lastInGroup->RegionSize;
         if (lastInGroup->Type != SystemDefinitions::MemType::Image)
         {
             bool isSuspGroup = false;
@@ -220,7 +220,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         }
         else
         {
-            auto memDs = std::make_shared<ReadOnlyMemoryDataSource>(hProcess, group.first, lastInGroup->RegionSize);
+            auto memDs = std::make_shared<ReadOnlyMemoryDataSource>(hProcess, group.first, groupTopBorder - group.first);
             auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, memDs->GetOrigin());
 
             if (imagePath.empty())

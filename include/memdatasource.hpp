@@ -7,7 +7,7 @@
 class ReadOnlyMemoryDataSource : public DataSource
 {
 public:
-    ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size);
+    ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size, size_t bufferSize = 64 * 1024);
 
 protected:
     size_t ReadImpl(void* buffer, size_t bufferLength) override;

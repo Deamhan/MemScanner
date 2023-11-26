@@ -47,25 +47,28 @@ size_t DataSource::ReadCachedData(void* buffer, size_t bufferLength)
 	return dataToCopyLen;
 }
 
-void DataSource::FillCache()
+bool DataSource::FillCache()
 {
 	try
 	{
-		auto dataLeft = GetSizeImpl();
-		ReinitCache((size_t)std::min<uint64_t>(dataLeft - mRealPointer, mBufferMaxSize));
+		auto dataTotalSize = GetSizeImpl();
+		ReinitCache((size_t)std::min<uint64_t>(dataTotalSize - mRealPointer, mBufferMaxSize));
 		if (mCacheBuffer.empty())
-			return; // EOF reached
+			return true; // EOF reached
 
 		size_t read = ReadImpl(mCacheBuffer.data(), mCacheBuffer.size());
 		mRealPointer += read;
 		ReinitCache(read);
+
+		return true;
 	}
 	catch (const DataSourceException&)
 	{
-		ReinitCache(); // invalidate cache on error
-		throw;
+		ReinitCache(); // invalidate cache on error	
+		mBufferMaxSize = 0; // disable caching, DS is not continiously readable
 	}
 
+	return false;
 }
 
 size_t DataSource::Read(void* buffer, size_t bufferLength)
@@ -79,17 +82,24 @@ size_t DataSource::Read(void* buffer, size_t bufferLength)
 
 	auto byteBufferLeft = (uint8_t*)buffer + read;
 	auto left = bufferLength - read;
-	if (left > mBufferMaxSize)
+
+	do
 	{
-		ReinitCache();
-		size_t readWithoutCache = ReadImpl(byteBufferLeft, left);
-		read += readWithoutCache;
-		mRealPointer += readWithoutCache;
+		if (left > mBufferMaxSize)
+		{
+			ReinitCache();
+			size_t readWithoutCache = ReadImpl(byteBufferLeft, left);
+			read += readWithoutCache;
+			mRealPointer += readWithoutCache;
 
-		return read;
-	}
+			return read;
+		}
 
-	FillCache();
+		if (FillCache())
+			break;
+
+	} while (true);
+
 
 	read += ReadCachedData(byteBufferLeft, left);
 	return read;

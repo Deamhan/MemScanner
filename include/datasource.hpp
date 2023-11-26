@@ -88,14 +88,14 @@ protected:
     virtual uint64_t GetOriginImpl() const { throw DataSourceException{ DataSourceError::Unsupported }; }
    
 private:
-    const size_t mBufferMaxSize;
+    size_t mBufferMaxSize;
     std::vector<uint8_t> mCacheBuffer;
     size_t mCurrentCacheOffset;
     
     uint64_t mRealPointer;
 
     void ReinitCache(size_t newSize = 0);
-    void FillCache();
+    bool FillCache();
     size_t ReadCachedData(void* buffer, size_t bufferLength);
     size_t GetCachedDataSize() const noexcept;
     bool MoveCachePointer(uint64_t newOffset);
