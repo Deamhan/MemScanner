@@ -119,7 +119,7 @@ void MemoryScanner::DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LAR
         return;
     }
 
-    GetDefaultLogger()->Log(ILogger::Info, L"Process %s [PID = %u, CreateTime = %llu]:\n", processName.c_str(),
+    GetDefaultLogger()->Log(ILogger::Info, L"Process %s [PID = %u, CreateTime = %llu]\n", processName.c_str(),
         (unsigned)processId, (unsigned long long)creationTime.QuadPart);
 
     mCurrentPid = processId;
@@ -220,7 +220,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         }
         else
         {
-            auto memDs = std::make_shared<ReadOnlyMemoryDataSource>(hProcess, group.first, groupTopBorder - group.first);
+            auto memDs = std::make_shared<ReadOnlyMemoryDataSource>(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
             auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, memDs->GetOrigin());
 
             if (imagePath.empty())
@@ -246,9 +246,6 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
 template <CPUArchitecture arch>
 void MemoryScanner::ScanMemoryImpl(uint32_t pid)
 {
-    GetDefaultLogger()->Log(ILogger::Info, L">>> OS Architecture: %s <<<\n", arch == CPUArchitecture::X64 ? L"X64" : L"X86");
-    GetDefaultLogger()->Log(ILogger::Info, L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
-
     if (!MemoryHelper<arch>::EnableDebugPrivilege())
         GetDefaultLogger()->Log(ILogger::Info, L"!>> Unable to enable SeDebugPrivilege, functionality is limited <<!\n");
 

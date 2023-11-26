@@ -133,6 +133,10 @@ int wmain(int argc, const wchar_t ** argv)
         MemoryScanner scanner { sensitivity };
         auto callbacks = std::make_shared<MemoryScanner::DefaultCallbacks>();
         callbacks->SetDumpsRoot(dumpsDir.c_str());
+
+        GetDefaultLogger()->Log(ILogger::Info, L">>> OS Architecture: %s <<<\n", GetOSArch() == CPUArchitecture::X64 ? L"X64" : L"X86");
+        GetDefaultLogger()->Log(ILogger::Info, L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
+
         scanner.Scan(pid);
     }
     catch (const std::exception& e)
