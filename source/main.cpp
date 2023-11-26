@@ -126,7 +126,7 @@ int wmain(int argc, const wchar_t ** argv)
         SetDefaultLogger(logger);
 
         MemoryScanner scanner { sensitivity };
-        auto callbacks = std::shared_ptr<MemoryScanner::DefaultCallbacks>();
+        auto callbacks = std::make_shared<MemoryScanner::DefaultCallbacks>();
         callbacks->SetDumpsRoot(dumpsDir.c_str());
         scanner.Scan(pid);
     }

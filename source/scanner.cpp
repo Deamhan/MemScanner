@@ -40,6 +40,10 @@ std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckForHooks(std::sha
 
         return pe->CheckExportForHooks(mapped);
     }
+    catch (const DataSourceException&)
+    {
+        return std::vector<std::shared_ptr<ExportedFunctionDescription>> {};
+    }
     catch (const PeException&)
     {
         return std::vector<std::shared_ptr<ExportedFunctionDescription>> {};
@@ -122,7 +126,8 @@ void MemoryScanner::DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LAR
 
 void MemoryScanner::DefaultCallbacks::OnProcessScanEnd()
 {
-    GetDefaultLogger()->Log(ILogger::Info, L"Process [PID = %u]: done\n", mCurrentPid);
+    if (mProcess != 0)
+        GetDefaultLogger()->Log(ILogger::Info, L"Process [PID = %u]: done\n", mCurrentPid);
 }
 
 class ProcessScanGuard
@@ -213,7 +218,10 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         else
         {
             auto memDs = std::make_shared<ReadOnlyMemoryDataSource>(hProcess, group.first, lastInGroup->RegionSize);
-            auto imagePath = GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), memDs->GetOrigin());
+            auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, memDs->GetOrigin());
+
+            if (imagePath.empty())
+                continue;
 
             std::vector<std::shared_ptr<ExportedFunctionDescription>> hooksFound;
             switch (PE<>::GetPeArch(memDs))
