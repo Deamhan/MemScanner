@@ -85,28 +85,7 @@ static MEMORY_BASIC_INFORMATION_T<uint64_t> MemoryHelper<CPUArchitecture::X64>::
 }
 
 template <CPUArchitecture arch>
-typename MemoryHelper<arch>::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE hProcess) const 
-{
-    MemoryMapT result;
-    PTR_T<arch> address = 0;
-    MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
-    while (NT_SUCCESS(mApi.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemoryBasicInformation,
-        &mbi, sizeof(mbi), nullptr)))
-    {
-        if ((mbi.State & MEM_COMMIT) != 0)
-            result.emplace(mbi.BaseAddress, ConvertToMemoryBasicInfo64(mbi));
-
-        auto prevAddr = address;
-        address += std::max<PTR_T<arch>>(PageAlignUp(mbi.RegionSize), PAGE_SIZE);
-        if (prevAddr > address)
-            break;
-    }
-
-    return result;
-}
-
-template <CPUArchitecture arch>
-bool MemoryHelper<arch>::GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, 
+bool MemoryHelper<arch>::GetBasicInfoByAddress(HANDLE hProcess, uint64_t address,
     MEMORY_BASIC_INFORMATION_T<uint64_t>& result) const
 {
     MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
@@ -114,8 +93,30 @@ bool MemoryHelper<arch>::GetBasicInfoByAddress(HANDLE hProcess, uint64_t address
         &mbi, sizeof(mbi), nullptr)))
         return false;
 
+    mbi.RegionSize = PageAlignUp(mbi.RegionSize);
     result = ConvertToMemoryBasicInfo64(mbi);
+
     return true;
+}
+
+template <CPUArchitecture arch>
+typename MemoryHelper<arch>::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE hProcess) const 
+{
+    MemoryMapT result;
+    uint64_t address = 0;
+    MEMORY_BASIC_INFORMATION_T<uint64_t> mbi;
+    while (GetBasicInfoByAddress(hProcess, address, mbi))
+    {
+        if ((mbi.State & MEM_COMMIT) != 0)
+            result.emplace_hint(result.end(), mbi.BaseAddress, mbi); // every next address is higher than previous so must be pushed in the end of map with less comparer
+
+        auto prevAddr = address;
+        address += std::max<uint64_t>(mbi.RegionSize, PAGE_SIZE);
+        if (prevAddr > address)
+            break;
+    }
+
+    return result;
 }
 
 typename MemoryHelperBase::FlatMemoryMapT
