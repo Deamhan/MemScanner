@@ -56,6 +56,57 @@ void MemoryScanner::DefaultCallbacks::SetDumpsRoot(const wchar_t* dumpsRoot)
         mDumpRoot += L'\\';
 }
 
+static size_t ScanBlobForMz(const std::vector<uint8_t>& buffer, size_t offset, size_t size)
+{
+    for (size_t i = offset; i < size - 1; ++i)
+    {
+        if (*(uint16_t*)(buffer.data() + i) == 0x5a4d)
+            return i;
+    }
+
+    return size;
+}
+
+static const wchar_t* CpuArchToString(CPUArchitecture arch)
+{
+    switch (arch)
+    {
+    case CPUArchitecture::X86:
+        return L"x86";
+    case CPUArchitecture::X64:
+        return L"x64";
+    default:
+        return L"Unknown";
+    }
+}
+
+static std::pair<uint64_t, CPUArchitecture> ScanRegionForPE(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region)
+{
+    ReadOnlyMemoryDataSource memory(hProcess, region.BaseAddress, region.RegionSize);
+    std::vector<uint8_t> buffer(64 * 1024);
+    for (uint64_t offs = 0; offs < region.RegionSize; offs += buffer.size())
+    {
+        try
+        {
+            auto read = (size_t)std::min<uint64_t>(buffer.size(), region.RegionSize - offs);
+            memory.Read(offs, buffer.data(), read);
+            size_t mzPos = ScanBlobForMz(buffer, 0, read);
+            if (mzPos == read)
+                break;
+
+            DataSourceFragment fragment(memory, mzPos);
+            auto arch = PE<>::GetPeArch(fragment);
+            if (arch != CPUArchitecture::Unknown)
+                return  { fragment.GetOrigin(), arch };
+        }
+        catch (const DataSourceException&)
+        {
+        }
+    }
+
+    return { 0, CPUArchitecture::Unknown };
+}
+
 void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
     const std::vector<uint64_t>& threadEntryPoints)
 {
@@ -67,8 +118,25 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
     {
         GetDefaultLogger()->Log(ILogger::Info, L"\t\tRelated threads:\n");
         for (const auto threadEP : threadEntryPoints)
-            GetDefaultLogger()->Log(ILogger::Info, L"\t\t\tRelated threads: 0x%llx\n", (unsigned long long)threadEP);
+            GetDefaultLogger()->Log(ILogger::Info, L"\t\t\t0x%llx\n", (unsigned long long)threadEP);
+
+        GetDefaultLogger()->Log(ILogger::Info, L"\n");
     }
+
+    bool isPeFound = false;
+    for (const auto& region : continiousRegions)
+    {
+        auto peFound = ScanRegionForPE(mProcess, region);
+        if (peFound.first != 0)
+        {
+            GetDefaultLogger()->Log(ILogger::Info, L"\t\tPE (%s) found: 0x%llx\n", CpuArchToString(peFound.second),
+                (unsigned long long)peFound.first);
+            isPeFound = true;
+        }
+    }
+
+    if (isPeFound)
+        GetDefaultLogger()->Log(ILogger::Info, L"\n");
 
     if (mDumpRoot.empty())
         return;
@@ -277,4 +345,3 @@ void MemoryScanner::Scan(uint32_t pid)
         ScanMemoryImpl<CPUArchitecture::X86>(pid);
 #endif
 }
-
