@@ -253,14 +253,14 @@ template <CPUArchitecture arch>
 uint64_t Wow64Helper<arch>::VirtualAllocEx64(HANDLE hProcess, uint64_t lpAddress, uint64_t dwSize, uint32_t flAllocationType, uint32_t flProtect) const noexcept
 {
     NT_STATUS status = ((NtAllocateVirtualMemory_t)m_NtAllocateVirtualMemory)(hProcess, (PVOID*)&lpAddress, 0, (PSIZE_T)&dwSize, flAllocationType, flProtect);
-    return NT_SUCCESS(status) ? lpAddress : 0;
+    return NtSuccess(status) ? lpAddress : 0;
 }
 
 template <CPUArchitecture arch>
 BOOL Wow64Helper<arch>::VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept
 {
     NT_STATUS status = ((NtFreeVirtualMemory_t)m_NtFreeVirtualMemory)(hProcess, (PVOID*)&lpAddress, (PSIZE_T)&dwSize, dwFreeType);
-    return NT_SUCCESS(status) ? TRUE : FALSE;
+    return NtSuccess(status) ? TRUE : FALSE;
 }
 
 template <CPUArchitecture arch>
@@ -269,7 +269,7 @@ BOOL Wow64Helper<arch>::ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddr
     if (lpNumberOfBytesRead != nullptr)
         *lpNumberOfBytesRead = 0;
     NT_STATUS ret = ((NtReadVirtualMemory_t)m_NtReadVirtualMemory)(hProcess, (PVOID)lpBaseAddress, lpBuffer, (SIZE_T)nSize, (PSIZE_T)lpNumberOfBytesRead);
-    return NT_SUCCESS(ret) ? TRUE : FALSE;
+    return NtSuccess(ret) ? TRUE : FALSE;
 }
 
 template <CPUArchitecture arch>
@@ -278,7 +278,7 @@ BOOL Wow64Helper<arch>::WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAdd
     if (lpNumberOfBytesWritten != nullptr)
         *lpNumberOfBytesWritten = 0;
     NT_STATUS ret = ((NtWriteVirtualMemory_t)m_NtWriteVirtualMemory)(hProcess, (PVOID)lpBaseAddress, lpBuffer, (SIZE_T)nSize, (PSIZE_T)lpNumberOfBytesWritten);
-    return NT_SUCCESS(ret) ? TRUE : FALSE;
+    return NtSuccess(ret) ? TRUE : FALSE;
 }
 
 #if !_M_AMD64
@@ -317,28 +317,28 @@ uint64_t Wow64Helper<CPUArchitecture::X64>::VirtualAllocEx64(HANDLE hProcess, ui
 {
     NT_STATUS status = X64Function(m_NtAllocateVirtualMemory, 6, (uint64_t)hProcess, (uint64_t)&lpAddress, (uint64_t)0, (uint64_t)&dwSize,
         (uint64_t)flAllocationType, (uint64_t)flProtect);
-    return NT_SUCCESS(status) ? lpAddress : 0;
+    return NtSuccess(status) ? lpAddress : 0;
 }
 
 template <>
 BOOL Wow64Helper<CPUArchitecture::X64>::VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept
 {
     NT_STATUS status = X64Function(m_NtFreeVirtualMemory, 4, (uint64_t)hProcess, (uint64_t)&lpAddress, (uint64_t)&dwSize, (uint64_t)dwFreeType);
-    return NT_SUCCESS(status) ? TRUE : FALSE;
+    return NtSuccess(status) ? TRUE : FALSE;
 }
 
 template <>
 BOOL Wow64Helper<CPUArchitecture::X64>::ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept
 {
     NT_STATUS ret = X64Function(m_NtReadVirtualMemory, 5, (uint64_t)hProcess, lpBaseAddress, (uint64_t)lpBuffer, (uint64_t)nSize, (uint64_t)lpNumberOfBytesRead);
-    return NT_SUCCESS(ret) ? TRUE : FALSE;
+    return NtSuccess(ret) ? TRUE : FALSE;
 }
 
 template <>
 BOOL Wow64Helper<CPUArchitecture::X64>::WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept
 {
     NT_STATUS ret = X64Function(m_NtWriteVirtualMemory, 5, (uint64_t)hProcess, lpBaseAddress, (uint64_t)lpBuffer, (uint64_t)nSize, (uint64_t)lpNumberOfBytesWritten);
-    return NT_SUCCESS(ret) ? TRUE : FALSE;
+    return NtSuccess(ret) ? TRUE : FALSE;
 }
 
 template class Wow64Helper<CPUArchitecture::X86>;

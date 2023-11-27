@@ -35,6 +35,12 @@ struct ExportedFunctionDescription
 	uint8_t firstByte;
 };
 
+struct HookDescription
+{
+	std::shared_ptr<ExportedFunctionDescription> functionDescription;
+	HookDescription(std::shared_ptr<ExportedFunctionDescription> funcDesc) : functionDescription(std::move(funcDesc)) {}
+};
+
 enum class PeError
 {
 	InvalidFormat,
@@ -82,7 +88,7 @@ public:
 
 	const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& GetExportMap();
 
-	void CheckExportForHooks(DataSource& oppositeDs, std::vector<std::shared_ptr<ExportedFunctionDescription>>& result);
+	void CheckExportForHooks(DataSource& oppositeDs, std::vector<HookDescription>& result);
 
 	void Dump(const wchar_t* path);
 

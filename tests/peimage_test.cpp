@@ -11,12 +11,12 @@ int CheckPE(DataSource& mapped, const char* nameOfFunc)
 		auto imagePath = GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOrigin());
 		PE<false, arch> imageOnDisk(std::make_shared<File>(imagePath.c_str()));
 		
-		std::vector<std::shared_ptr<ExportedFunctionDescription>> result;
+		std::vector<HookDescription> result;
 		imageOnDisk.CheckExportForHooks(mapped, result);
 
 		for (const auto& hook : result)
 		{
-			for (const auto& name : hook->names)
+			for (const auto& name : hook.functionDescription->names)
 			{
 				if (name == nameOfFunc)
 					return 0;

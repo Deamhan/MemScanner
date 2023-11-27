@@ -36,7 +36,7 @@ public:
         mFoundThreadEPs.insert(threadEntryPoints.begin(), threadEntryPoints.end());
     }
 
-    void OnHooksFound(std::vector<std::shared_ptr<ExportedFunctionDescription>>& hooks, const wchar_t* imageName) override
+    void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override
     {
         Super::OnHooksFound(hooks, imageName);
     }

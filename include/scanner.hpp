@@ -16,7 +16,7 @@ public:
 		virtual void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
 			const std::vector<uint64_t>& threadEntryPoints) = 0;
 
-		virtual void OnHooksFound(std::vector<std::shared_ptr<ExportedFunctionDescription>>& hooks, const wchar_t* imageName) = 0;
+		virtual void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) = 0;
 
 		virtual void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) = 0;
 		virtual void OnProcessScanEnd() = 0;
@@ -30,7 +30,7 @@ public:
 		void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
 			const std::vector<uint64_t>& threadEntryPoints) override;
 
-		void OnHooksFound(std::vector<std::shared_ptr<ExportedFunctionDescription>>& hooks, const wchar_t* imageName) override;
+		void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override;
 
 		void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) override;
 		void OnProcessScanEnd() override;

@@ -9,10 +9,10 @@ namespace SystemDefinitions
 {
     enum class NT_STATUS : uint32_t
     {
-        STATUS_INFO_LENGTH_MISMATCH = 0xC0000004,
-        STATUS_BUFFER_OVERFLOW      = 0x80000005,
-        STATUS_BUFFER_TOO_SMALL     = 0xC0000023,
-        STATUS_SUCCESS              = 0x00000000,
+        StatusInfoLengthMismatch = 0xC0000004,
+        StatusBufferOverflow     = 0x80000005,
+        StatusBufferTooSmall     = 0xC0000023,
+        StatusSuccess            = 0x00000000,
     };
 
     enum class SYSTEM_INFORMATION_CLASS : uint32_t 
@@ -194,11 +194,11 @@ namespace SystemDefinitions
         };
     };
 
-    inline bool NT_SUCCESS(NT_STATUS x) { return (int32_t)x >= 0; }
+    inline bool NtSuccess(NT_STATUS x) { return (int32_t)x >= 0; }
 
     inline bool IsBufferTooSmall(NT_STATUS status)
     {
-        return (status == NT_STATUS::STATUS_BUFFER_OVERFLOW) || (status == NT_STATUS::STATUS_BUFFER_TOO_SMALL) || (status == NT_STATUS::STATUS_INFO_LENGTH_MISMATCH);
+        return (status == NT_STATUS::StatusBufferOverflow) || (status == NT_STATUS::StatusBufferTooSmall) || (status == NT_STATUS::StatusInfoLengthMismatch);
     }
 
     template <class T>

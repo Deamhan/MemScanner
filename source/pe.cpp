@@ -201,7 +201,7 @@ bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva)
 }
 
 template <bool isMapped, CPUArchitecture arch>
-void PE<isMapped, arch>::CheckExportForHooks(DataSource& oppositeDs, std::vector<std::shared_ptr<ExportedFunctionDescription>>& result)
+void PE<isMapped, arch>::CheckExportForHooks(DataSource& oppositeDs, std::vector<HookDescription>& result)
 {
     const auto& exportMap = GetExportMap();
     try

@@ -22,7 +22,7 @@
 
 template <CPUArchitecture arch>
 void CheckForHooks(DataSource& mapped, std::map<std::wstring, 
-    PE<false, arch>>& parsed, std::wstring& path, std::vector<std::shared_ptr<ExportedFunctionDescription>>& result)
+    PE<false, arch>>& parsed, std::wstring& path, std::vector<HookDescription>& result)
 {
     try
     {
@@ -94,15 +94,15 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
     }
 }
 
-void MemoryScanner::DefaultCallbacks::OnHooksFound(std::vector<std::shared_ptr<ExportedFunctionDescription>>& hooks, const wchar_t* imageName)
+void MemoryScanner::DefaultCallbacks::OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName)
 {
     GetDefaultLogger()->Log(ILogger::Info, L"\tHooks for %s:\n", imageName);
     for (const auto& hook : hooks)
     {
-        for (const auto& name : hook->names)
+        for (const auto& name : hook.functionDescription->names)
             GetDefaultLogger()->Log(ILogger::Info, L"\t\t%S\n", name.c_str());
         
-        GetDefaultLogger()->Log(ILogger::Info, L"\t\tOrdinal: %d\n\n", hook->ordinal);
+        GetDefaultLogger()->Log(ILogger::Info, L"\t\tOrdinal: %d\n\n", hook.functionDescription->ordinal);
     }
 }
 
@@ -168,14 +168,14 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
             continue;
 
         std::unique_ptr<HANDLE, void(*)(HANDLE*)> threadGuard(&hThread, MemoryHelper<arch>::CloseHandleByPtr);
-        if (NT_SUCCESS(api.NtQueryInformationThread64(hThread, SystemDefinitions::THREADINFOCLASS::ThreadQuerySetWin32StartAddress, &startAddress, sizeof(startAddress), nullptr)))
+        if (NtSuccess(api.NtQueryInformationThread64(hThread, SystemDefinitions::THREADINFOCLASS::ThreadQuerySetWin32StartAddress, &startAddress, sizeof(startAddress), nullptr)))
             threadsEntryPoints.push_back(startAddress);
     }
 
     auto mm = GetMemoryHelper().GetMemoryMap(hProcess);
     auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(mm, [](const typename MemoryHelperBase::MemInfoT64& mbi) { return ((mbi.State & (PAGE_NOACCESS | PAGE_GUARD)) == 0); });
 
-    std::vector<std::shared_ptr<ExportedFunctionDescription>> hooksFound;
+    std::vector<HookDescription> hooksFound;
     hooksFound.reserve(30); // should be enough
 
     for (const auto& group : groupedMm)

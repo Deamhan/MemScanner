@@ -39,7 +39,7 @@ std::wstring MemoryHelper<arch>::GetImageNameByAddress(HANDLE hProcess, uint64_t
     auto result = mApi.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemorySectionName,
         ptr, buffer.size(), &retLen);
 
-    if (!NT_SUCCESS(result))
+    if (!NtSuccess(result))
         return L"";
 
     std::wstring path = L"\\??\\GlobalRoot";
@@ -89,7 +89,7 @@ bool MemoryHelper<arch>::GetBasicInfoByAddress(HANDLE hProcess, uint64_t address
     MEMORY_BASIC_INFORMATION_T<uint64_t>& result) const
 {
     MEMORY_BASIC_INFORMATION_T<PTR_T<arch>> mbi;
-    if (!NT_SUCCESS(mApi.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemoryBasicInformation,
+    if (!NtSuccess(mApi.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemoryBasicInformation,
         &mbi, sizeof(mbi), nullptr)))
         return false;
 
