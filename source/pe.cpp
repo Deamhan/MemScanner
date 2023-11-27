@@ -134,7 +134,10 @@ void PE<isMapped, arch>::BuildExportMap()
             if (p.first >= exportRva && p.first < exportRva + exportSize)
                 continue; // forward export, ignore
             else
+            {
                 p.second->offset = RvaToOffset(p.first);
+                p.second->rva = p.first;
+            }
 
             if (IsExecutableSectionRva(p.first))
                 mExportByRva->insert(std::move(p));
@@ -198,13 +201,13 @@ bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva)
 }
 
 template <bool isMapped, CPUArchitecture arch>
-std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::CheckExportForHooks(DataSource& oppositeDs)
+void PE<isMapped, arch>::CheckExportForHooks(DataSource& oppositeDs, std::vector<std::shared_ptr<ExportedFunctionDescription>>& result)
 {
-    std::vector<std::shared_ptr<ExportedFunctionDescription>> result;
-
     const auto& exportMap = GetExportMap();
     try
     {
+        result.clear();
+
         for (const auto& exportedFunc : exportMap)
         {
             uint8_t oppositeDsData = 0;
@@ -217,8 +220,6 @@ std::vector<std::shared_ptr<ExportedFunctionDescription>> PE<isMapped, arch>::Ch
     {
         throw PeException(PeError::InvalidRva);
     }
-
-    return result;
 }
 
 template <bool isMapped, CPUArchitecture arch>

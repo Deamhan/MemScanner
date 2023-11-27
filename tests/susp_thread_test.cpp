@@ -88,10 +88,10 @@ int main()
     std::unique_ptr<HANDLE, void(*)(HANDLE*)> threadGuard(&hThread, CloseHandleByPtr);
     WaitForSingleObject(hEvent, INFINITE);
 
-    MemoryScanner scanner{ MemoryScanner::Medium };
-    auto myCallbacks = std::make_unique<MyCallbacks>();
+    auto myCallbacks = std::make_shared<MyCallbacks>();
     myCallbacks->SetDumpsRoot(L".");
-    scanner.Scan(GetCurrentProcessId(), std::move(myCallbacks));
+    MemoryScanner scanner{ MemoryScanner::Medium, myCallbacks };
+    scanner.Scan(GetCurrentProcessId());
 
     const auto& found = myCallbacks->GetFoundEPs();
     if (found.find((uintptr_t)pExec) == found.end())

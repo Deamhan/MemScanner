@@ -21,33 +21,29 @@
 #undef max
 
 template <CPUArchitecture arch>
-std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckForHooks(DataSource& mapped, std::map<std::wstring, 
-    std::shared_ptr<PE<false, arch>>>& parsed, const std::wstring& path)
+void CheckForHooks(DataSource& mapped, std::map<std::wstring, 
+    PE<false, arch>>& parsed, std::wstring& path, std::vector<std::shared_ptr<ExportedFunctionDescription>>& result)
 {
     try
     {
-        std::shared_ptr<PE<false, arch>> pe;
+        PE<false, arch>* pe = nullptr;
         auto it = parsed.lower_bound(path);
         if (it != parsed.end() && it->first == path)
-            pe = it->second;
+            pe = &it->second;
         else
         {
-            pe = std::make_shared<PE<false, arch>>(std::make_shared<File>(path.c_str()));
+            it = parsed.emplace_hint(it, path, std::make_shared<File>(path.c_str()));
+            pe = &it->second;
             pe->GetExportMap();
             pe->ReleaseDataSource();
-            parsed.emplace_hint(it, path, pe);
         }
 
-        return pe->CheckExportForHooks(mapped);
+        return pe->CheckExportForHooks(mapped, result);
     }
     catch (const DataSourceException&)
-    {
-        return std::vector<std::shared_ptr<ExportedFunctionDescription>> {};
-    }
+    {}
     catch (const PeException&)
-    {
-        return std::vector<std::shared_ptr<ExportedFunctionDescription>> {};
-    }
+    {}
 }
 
 void MemoryScanner::DefaultCallbacks::SetDumpsRoot(const wchar_t* dumpsRoot)
@@ -179,6 +175,9 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
     auto mm = GetMemoryHelper().GetMemoryMap(hProcess);
     auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(mm, [](const typename MemoryHelperBase::MemInfoT64& mbi) { return ((mbi.State & (PAGE_NOACCESS | PAGE_GUARD)) == 0); });
 
+    std::vector<std::shared_ptr<ExportedFunctionDescription>> hooksFound;
+    hooksFound.reserve(30); // should be enough
+
     for (const auto& group : groupedMm)
     {
         uint32_t allocProtMask = 0, protMask = 0;
@@ -226,14 +225,14 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
             if (imagePath.empty())
                 continue;
 
-            std::vector<std::shared_ptr<ExportedFunctionDescription>> hooksFound;
+            
             switch (PE<>::GetPeArch(memDs))
             {
             case CPUArchitecture::X86:
-                hooksFound = CheckForHooks<CPUArchitecture::X86>(memDs, mCached32, imagePath);
+                CheckForHooks<CPUArchitecture::X86>(memDs, mCached32, imagePath, hooksFound);
                 break;
             case CPUArchitecture::X64:
-                hooksFound = CheckForHooks<CPUArchitecture::X64>(memDs, mCached64, imagePath);
+                CheckForHooks<CPUArchitecture::X64>(memDs, mCached64, imagePath, hooksFound);
                 break;
             }
 
@@ -267,9 +266,8 @@ void MemoryScanner::ScanMemoryImpl(uint32_t pid)
     }
 }
 
-void MemoryScanner::Scan(uint32_t pid, std::unique_ptr<MemoryScanner::ICallbacks> callbacks)
+void MemoryScanner::Scan(uint32_t pid)
 {
-    mCallbacks = std::move(callbacks);
 #if _M_AMD64
     ScanMemoryImpl<CPUArchitecture::X64>(pid);
 #else

@@ -4,16 +4,26 @@
 #include "pe.hpp"
 
 template <CPUArchitecture arch>
-int CheckPE(DataSource& mapped)
+int CheckPE(DataSource& mapped, const char* nameOfFunc)
 {
 	try
 	{
 		auto imagePath = GetMemoryHelper().GetImageNameByAddress(GetCurrentProcess(), mapped.GetOrigin());
 		PE<false, arch> imageOnDisk(std::make_shared<File>(imagePath.c_str()));
 		
-		auto result = imageOnDisk.CheckExportForHooks(mapped);
+		std::vector<std::shared_ptr<ExportedFunctionDescription>> result;
+		imageOnDisk.CheckExportForHooks(mapped, result);
 
-		return result.size() == 1 ? 0 : 11; // can fail if there are unexpected hooks
+		for (const auto& hook : result)
+		{
+			for (const auto& name : hook->names)
+			{
+				if (name == nameOfFunc)
+					return 0;
+			}
+		}
+
+		return 11;
 	}
 	catch (const PeException&)
 	{
@@ -37,5 +47,5 @@ int main()
 	ReadOnlyMemoryDataSource moduleMapped(GetCurrentProcess(), (uintptr_t)moduleHandle - 0x1000, 100 * 1024 * 1024);
 	DataSourceFragment fragment(moduleMapped, 0x1000);
 
-	return CheckPE<CURRENT_MODULE_ARCH>(fragment);
+	return CheckPE<CURRENT_MODULE_ARCH>(fragment, "EnumDeviceDrivers");
 }

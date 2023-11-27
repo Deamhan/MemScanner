@@ -30,6 +30,7 @@ struct ExportedFunctionDescription
 	std::list<std::string> names;
 	uint16_t ordinal;
 	uint32_t offset;
+	uint32_t rva;
 
 	uint8_t firstByte;
 };
@@ -81,7 +82,7 @@ public:
 
 	const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& GetExportMap();
 
-	std::vector<std::shared_ptr<ExportedFunctionDescription>> CheckExportForHooks(DataSource& oppositeDs);
+	void CheckExportForHooks(DataSource& oppositeDs, std::vector<std::shared_ptr<ExportedFunctionDescription>>& result);
 
 	void Dump(const wchar_t* path);
 

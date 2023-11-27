@@ -58,7 +58,7 @@ public:
 		virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
 	};
 
-	void Scan(uint32_t pid = 0, std::unique_ptr<ICallbacks> callbacks = std::make_unique<DefaultCallbacks>());
+	void Scan(uint32_t pid = 0);
 
 	enum Sensitivity
 	{
@@ -67,7 +67,10 @@ public:
 		High
 	};
 
-	MemoryScanner(Sensitivity sensitivity) noexcept : mSensitivity(sensitivity) {}
+	MemoryScanner(Sensitivity sensitivity, std::shared_ptr<ICallbacks> callbacks = std::make_shared<DefaultCallbacks>()) noexcept :
+		mSensitivity(sensitivity), mCallbacks(std::move(callbacks)){}
+	
+	const std::shared_ptr<ICallbacks>& GetCallbacks() const noexcept { return mCallbacks; }
 
 	Sensitivity GetSensitivity() const noexcept { return mSensitivity; }
 
@@ -78,10 +81,10 @@ public:
 
 private:
 	Sensitivity mSensitivity;
-	std::unique_ptr<ICallbacks> mCallbacks;
+	std::shared_ptr<ICallbacks> mCallbacks;
 
-	std::map<std::wstring, std::shared_ptr<PE<false, CPUArchitecture::X86>>> mCached32;
-	std::map<std::wstring, std::shared_ptr<PE<false, CPUArchitecture::X64>>> mCached64;
+	std::map<std::wstring, PE<false, CPUArchitecture::X86>> mCached32;
+	std::map<std::wstring, PE<false, CPUArchitecture::X64>> mCached64;
 
 	template <CPUArchitecture arch>
 	void ScanMemoryImpl(uint32_t pid);
