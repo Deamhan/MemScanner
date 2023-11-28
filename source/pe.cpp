@@ -263,14 +263,32 @@ void PE<isMapped, arch>::Dump(const wchar_t* path)
         dump.Write(header);
     }
 
-    size_t left = PageAlignUp(mOptionalHeader.SizeOfImage) - (size_t)dump.GetOffset();
-    while (left != 0)
+    auto currentPos = mDataSource->GetOffset();
+    auto alignedPos = PageAlignUp(currentPos);
+    auto alignment = (size_t)(alignedPos - currentPos);
+    if (alignment != 0)
     {
-        auto blockSize = std::min<size_t>(left, buffer.size());
-        left -= blockSize;
+        mDataSource->Read(buffer.data(), alignment);
+        dump.Write(buffer.data(), alignment);
+    }
 
-        mDataSource->Read(buffer.data(), blockSize);
-        dump.Write(buffer.data(), blockSize);
+    // dump PE page by page, use zero filling on failure
+    std::vector<uint8_t> zeroPage(PAGE_SIZE, 0);
+    auto alignedImageSize = PageAlignUp(mOptionalHeader.SizeOfImage);
+    while (alignedImageSize > alignedPos)
+    {
+        auto bufferPtr = buffer.data();
+        try
+        {
+            mDataSource->Read(alignedPos, buffer.data(), PAGE_SIZE);
+        }
+        catch (const DataSourceException&)
+        {
+            bufferPtr = zeroPage.data();
+        }
+
+        alignedPos += PAGE_SIZE;
+        dump.Write(bufferPtr, PAGE_SIZE);
     }
 }
 
