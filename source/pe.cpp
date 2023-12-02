@@ -127,20 +127,19 @@ void PE<isMapped, arch>::BuildExportMap()
 
         for (size_t i = 0; i < functions.size(); ++i)
         {
-            std::pair<uint32_t, std::shared_ptr<ExportedFunctionDescription>> p;
-            p.second.reset(new ExportedFunctionDescription);
-            p.first = functions[i];
-            p.second->ordinal = (uint16_t)(i + Export.Base);
-            if (p.first >= exportRva && p.first < exportRva + exportSize)
-                continue; // forward export, ignore
-            else
-            {
-                p.second->offset = RvaToOffset(p.first);
-                p.second->rva = p.first;
-            }
+            auto functionRva = functions[i];
+            if (functionRva >= exportRva && functionRva < exportRva + exportSize)
+                continue;
 
-            if (IsExecutableSectionRva(p.first))
-                mExportByRva->insert(std::move(p));
+            if (!IsExecutableSectionRva(functionRva))
+                continue;
+
+            std::pair<uint32_t, std::shared_ptr<ExportedFunctionDescription>> p{ functions[i], std::make_unique<ExportedFunctionDescription>() };
+            p.second->ordinal = (uint16_t)(i + Export.Base);
+            p.second->offset = RvaToOffset(p.first);
+            p.second->rva = p.first;
+
+            mExportByRva->insert(std::move(p));
         }
 
         for (size_t i = 0; i < ordinals.size(); i++)

@@ -92,6 +92,8 @@ static bool LoadAndDumpPE(const void* address, uint32_t size)
 	auto dump = std::make_shared<File>(L".\\dump.dll");
 	PE<false, arch> peDump(dump);
 
+	VirtualFree(copyAddress, 0, MEM_RELEASE);
+
 	return !peDump.GetExportMap().empty();
 }
 
@@ -119,14 +121,14 @@ static bool MapAndCheckPeCopy()
 
 	SetDefaultLogger(&GetConsoleLoggerInstance());
 
-	return ScanCurrentProcessMemoryForPe() == (uintptr_t)moduleHandle + offset; // I assume that there is no other PEs in private memory
+	return ScanCurrentProcessMemoryForPe() == (uintptr_t)address + offset; // I assume that there is no other PEs in private memory
 }
 
 int main()
 {
 #if _M_AMD64
-	return MapAndCheckPeCopy<CPUArchitecture::X64>();
+	return MapAndCheckPeCopy<CPUArchitecture::X64>() ? 0 : 1;
 #else
-	return MapAndCheckPeCopy<CPUArchitecture::X86>();
+	return MapAndCheckPeCopy<CPUArchitecture::X86>() ? 0 : 1;
 #endif // !_M_AMD64
 }

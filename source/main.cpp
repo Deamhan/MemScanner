@@ -37,7 +37,7 @@ static std::wstring toString(T& value)
 
 void PrintHelp()
 {
-    wprintf(L"Help: memscan.exe [-sensitivity low|medium|high] [-pid ID] [-log path] [dumpDirectory]\n"
+    wprintf(L"Help: memscan.exe [-sensitivity low|medium|high|off] [-pid ID] [-log path] [dumpDirectory]\n"
         "\tdefault: low sensitivity all process scan without dumping\n");
 }
 
@@ -45,7 +45,7 @@ int wmain(int argc, const wchar_t ** argv)
 {
     std::wstring dumpsDir= L"";
     const wchar_t* logPath = nullptr;
-    MemoryScanner::Sensitivity sensitivity = MemoryScanner::Low;
+    MemoryScanner::Sensitivity sensitivity = MemoryScanner::Sensitivity::Low;
     std::wstring sensitivityString = L"low";
     uint32_t pid = 0;
 
@@ -77,11 +77,13 @@ int wmain(int argc, const wchar_t ** argv)
                 case CmdLineSwitch::Sensitivity:
                 {
                     if (wcscmp(argv[i], L"low") == 0)
-                        sensitivity = MemoryScanner::Low;
+                        sensitivity = MemoryScanner::Sensitivity::Low;
                     else if (wcscmp(argv[i], L"medium") == 0)
-                        sensitivity = MemoryScanner::Medium;
+                        sensitivity = MemoryScanner::Sensitivity::Medium;
                     else if (wcscmp(argv[i], L"high") == 0)
-                        sensitivity = MemoryScanner::High;
+                        sensitivity = MemoryScanner::Sensitivity::High;
+                    else if (wcscmp(argv[i], L"off") == 0)
+                        sensitivity = MemoryScanner::Sensitivity::Off;
                     else
                         throw std::domain_error("");
 
@@ -130,15 +132,16 @@ int wmain(int argc, const wchar_t ** argv)
         ILogger* logger = logPath == nullptr ? (ILogger*)&GetConsoleLoggerInstance() : (ILogger*)&GetFileLoggerInstance(logPath);
         SetDefaultLogger(logger);
 
-        MemoryScanner scanner { sensitivity };
-        auto callbacks = std::make_shared<MemoryScanner::DefaultCallbacks>();
+        auto callbacks = std::make_shared<MemoryScanner::DefaultCallbacks>(pid, sensitivity);
         callbacks->SetDumpsRoot(dumpsDir.c_str());
+
+        MemoryScanner scanner{ callbacks };
 
         GetDefaultLogger()->Log(ILogger::Info, L">>> OS Architecture: %s <<<\n", GetOSArch() == CPUArchitecture::X64 ? L"X64" : L"X86");
         GetDefaultLogger()->Log(ILogger::Info, L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
 
         Timer timer{ L"Memory" };
-        scanner.Scan(pid);
+        scanner.Scan();
     }
     catch (const std::exception& e)
     {

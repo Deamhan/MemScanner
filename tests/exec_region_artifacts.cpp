@@ -44,7 +44,7 @@ static std::vector<uint64_t> ScanCurrentProcessMemoryForSectionBorders()
 		auto endAddr = trailingRegion.BaseAddress + trailingRegion.RegionSize;
 
 		auto len = endAddr - beginAddr;
-		if (len < 32 * 1024)
+		if (len < 64 * 1024)
 			continue;
 
 		bool isExecRelated = false;
@@ -75,7 +75,7 @@ static std::vector<uint64_t> ScanCurrentProcessMemoryForSectionBorders()
 			catch (const DataSourceException&) {}
 		}
 
-		if (len / bordersCount > 12 * 1024)
+		if (bordersCount != 0 && len / bordersCount > 12 * 1024)
 			result.push_back(beginAddr);
 	}
 

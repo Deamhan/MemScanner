@@ -40,7 +40,23 @@ public:
 
 	virtual std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const = 0;
 	virtual MemoryMapT GetMemoryMap(HANDLE hProcess) const = 0;
+	virtual void UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result) const = 0;
 	virtual bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const = 0;
+
+	struct ImageDescription
+	{
+		uint64_t BaseAddress;
+		uint32_t ImageSize;
+		std::wstring ImagePath;
+		CPUArchitecture Architecture;
+
+		template <class StrT> 
+		ImageDescription(uint64_t baseAddress, uint32_t imageSize, CPUArchitecture arch, StrT&& imagePath) noexcept :
+			BaseAddress(baseAddress), ImageSize(imageSize), ImagePath(std::forward<StrT>(imagePath)), Architecture(arch)
+		{}
+	};
+
+	virtual std::vector<ImageDescription> GetImageDataFromPeb(HANDLE hProcess) const = 0;
 };
 
 template <CPUArchitecture arch>
@@ -51,9 +67,12 @@ public:
 
     std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const override;
     MemoryMapT GetMemoryMap(HANDLE hProcess) const override;
+	void UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result) const override;
     bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const override;
 
     uint64_t GetHighestUsermodeAddress() const override;
+
+    std::vector<ImageDescription> GetImageDataFromPeb(HANDLE hProcess) const override;
 
 	MemoryHelper() : mApi(GetWow64Helper<arch>()) {}
 

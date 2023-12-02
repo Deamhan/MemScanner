@@ -53,6 +53,8 @@ public:
 
     const std::map<uint64_t, std::wstring>& GetDumped() const noexcept { return mDumped; }
 
+    MyCallbacks() : MemoryScanner::DefaultCallbacks(GetCurrentProcessId()) {}
+
 private:
     typedef MemoryScanner::DefaultCallbacks Super;
     std::set<uint64_t> mFoundThreadEPs;
@@ -90,8 +92,8 @@ int main()
 
     auto myCallbacks = std::make_shared<MyCallbacks>();
     myCallbacks->SetDumpsRoot(L".");
-    MemoryScanner scanner{ MemoryScanner::Medium, myCallbacks };
-    scanner.Scan(GetCurrentProcessId());
+    MemoryScanner scanner{ myCallbacks };
+    scanner.Scan();
 
     const auto& found = myCallbacks->GetFoundEPs();
     if (found.find((uintptr_t)pExec) == found.end())

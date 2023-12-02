@@ -477,11 +477,11 @@ namespace SystemDefinitions
         static const int A = 30;
     };
 
-    template <class PEB_T_>
+    template <class PTR_TYPE>
     struct PEB_T
     {
-        typedef typename peb_traits<PEB_T_>::T   T;
-        typedef typename peb_traits<PEB_T_>::NGF NGF;
+        typedef typename peb_traits<PTR_TYPE>::T   T;
+        typedef typename peb_traits<PTR_TYPE>::NGF NGF;
         union
         {
             struct
@@ -543,7 +543,7 @@ namespace SystemDefinitions
         DWORD ImageSubsystemMajorVersion;
         T ImageSubsystemMinorVersion;
         T ActiveProcessAffinityMask;
-        T GdiHandleBuffer[peb_traits<PEB_T>::A];
+        T GdiHandleBuffer[peb_traits<PTR_TYPE>::A];
         T PostProcessInitRoutine;
         T TlsExpansionBitmap;
         DWORD TlsExpansionBitmapBits[32];

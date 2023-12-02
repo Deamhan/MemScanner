@@ -56,6 +56,11 @@ set(SINGLE_PAGE_SRC tests/single_page_test.cpp
                     ${COMMON_SRC}
 )
 
+set(SCANNER_ADDR_SRC tests/scanner_addr_test.cpp
+                     source/scanner.cpp
+                     ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -110,6 +115,7 @@ add_executable(pefile_test ${PEFILE_SRC})
 add_executable(private_pe_test ${PRIVATE_PE_SRC})
 add_executable(sections_artifacts_test ${SECTION_ARTIFACTS_SRC})
 add_executable(single_page_test ${SINGLE_PAGE_SRC})
+add_executable(scanner_addr_test ${SCANNER_ADDR_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -122,6 +128,8 @@ set_target_properties(peimage_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS
 set_target_properties(pefile_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 set_target_properties(sections_artifacts_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 set_target_properties(single_page_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
+set_target_properties(scanner_addr_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
+
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_link_libraries(susp_thread_test ${NTDLL64LL})
@@ -132,6 +140,7 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_link_libraries(private_pe_test ${NTDLL64LL})
     target_link_libraries(sections_artifacts_test ${NTDLL64LL})
     target_link_libraries(single_page_test ${NTDLL64LL})
+    target_link_libraries(scanner_addr_test ${NTDLL64LL})
 endif()
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT memscan)
@@ -144,3 +153,4 @@ add_test(NAME pediskfile_test COMMAND pefile_test)
 add_test(NAME private_inmem_pe_test COMMAND private_pe_test)
 add_test(NAME section_border_artifacts_test COMMAND sections_artifacts_test)
 add_test(NAME single_page_mem_test COMMAND single_page_test)
+add_test(NAME scanner_address_test COMMAND scanner_addr_test)

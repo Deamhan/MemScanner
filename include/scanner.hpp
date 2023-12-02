@@ -10,6 +10,15 @@
 class MemoryScanner
 {
 public:
+
+	enum class Sensitivity
+	{
+		Off,
+		Low,
+		Medium,
+		High
+	};
+
 	class ICallbacks
 	{
 	public:
@@ -22,6 +31,13 @@ public:
 		virtual void OnProcessScanEnd() = 0;
 
 		virtual ~ICallbacks() = default;
+
+		// config requests
+		virtual Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToCheck) = 0;
+		virtual Sensitivity GetThreadAnalysisSettings() = 0;
+		virtual Sensitivity GetHookAnalysisSettings() = 0;
+		virtual bool SkipProcess(uint32_t processId, LARGE_INTEGER creationTime, const std::wstring& processName) = 0;
+
 	};
 
 	class DefaultCallbacks : public ICallbacks
@@ -42,10 +58,18 @@ public:
 		DefaultCallbacks& operator = (const DefaultCallbacks&) = delete;
 		DefaultCallbacks& operator = (DefaultCallbacks&&) = delete;
 
-		DefaultCallbacks() : mCurrentPid(0), mProcess(nullptr)
+		DefaultCallbacks(uint32_t pidToScan = 0, Sensitivity memoryScanSensitivity = Sensitivity::Low,
+			Sensitivity hookScanSensitivity = Sensitivity::Low, uint64_t addressToScan = 0) : mCurrentPid(0), mProcess(nullptr),
+			mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity), mHookScanSensitivity(hookScanSensitivity),
+			mAddressToScan(addressToScan)
 		{
 			mProcessCreationTime.QuadPart = 0;
 		}
+
+		Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToScan) override;
+		Sensitivity GetThreadAnalysisSettings() override { return mMemoryScanSensitivity; }
+		Sensitivity GetHookAnalysisSettings() override { return mHookScanSensitivity; }
+		bool SkipProcess(uint32_t processId, LARGE_INTEGER, const std::wstring&) override { return !(mPidToScan == 0 || mPidToScan == processId); }
 
 	protected:
 		LARGE_INTEGER mProcessCreationTime;
@@ -55,24 +79,21 @@ public:
 		std::wstring mProcessName;
 		HANDLE mProcess;
 
+		uint32_t mPidToScan;
+		Sensitivity mMemoryScanSensitivity;
+		Sensitivity mHookScanSensitivity;
+
+		uint64_t mAddressToScan;
+
 		virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
 	};
 
-	void Scan(uint32_t pid = 0);
+	void Scan();
 
-	enum Sensitivity
-	{
-		Low,
-		Medium,
-		High
-	};
-
-	MemoryScanner(Sensitivity sensitivity, std::shared_ptr<ICallbacks> callbacks = std::make_shared<DefaultCallbacks>()) noexcept :
-		mSensitivity(sensitivity), mCallbacks(std::move(callbacks)){}
+	MemoryScanner(std::shared_ptr<ICallbacks> callbacks = std::make_shared<DefaultCallbacks>()) noexcept :
+		mCallbacks(std::move(callbacks)){}
 	
 	const std::shared_ptr<ICallbacks>& GetCallbacks() const noexcept { return mCallbacks; }
-
-	Sensitivity GetSensitivity() const noexcept { return mSensitivity; }
 
 	MemoryScanner(const MemoryScanner&) = delete;
 	MemoryScanner(MemoryScanner&&) = delete;
@@ -80,14 +101,13 @@ public:
 	MemoryScanner& operator = (MemoryScanner&&) = delete;
 
 private:
-	Sensitivity mSensitivity;
 	std::shared_ptr<ICallbacks> mCallbacks;
 
 	std::map<std::wstring, PE<false, CPUArchitecture::X86>> mCached32;
 	std::map<std::wstring, PE<false, CPUArchitecture::X64>> mCached64;
 
 	template <CPUArchitecture arch>
-	void ScanMemoryImpl(uint32_t pid);
+	void ScanMemoryImpl();
 
 	template <CPUArchitecture arch, typename SPI = SystemDefinitions::SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>>>
 	void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api);

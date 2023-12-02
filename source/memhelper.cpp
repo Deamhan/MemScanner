@@ -3,10 +3,15 @@
 #include <algorithm>
 #include <memory>
 
+#include "memdatasource.hpp"
+
 using namespace SystemDefinitions;
 
 void MemoryHelperBase::CloseHandleByPtr(HANDLE* handle)
 {
+    if (*handle == INVALID_HANDLE_VALUE || *handle == nullptr)
+        return;
+
     CloseHandle(*handle);
 }
 
@@ -61,6 +66,72 @@ uint64_t MemoryHelper<CPUArchitecture::X64>::GetHighestUsermodeAddress() const
 }
 
 template <CPUArchitecture arch>
+static void ParseLoadedModules(const MemoryHelperBase& helper, uint64_t pebAddress, ReadOnlyMemoryDataSource& mds,
+    std::vector<MemoryHelperBase::ImageDescription>& result, bool skipMainModule)
+{
+    try
+    {
+        PTR_T<arch> ldrPtr = 0;
+        mds.Read(pebAddress + offsetof(PEB_T<PTR_T<arch>>, Ldr), ldrPtr);
+
+        PEB_LDR_DATA_T<PTR_T<arch>> pebLdrData;
+        mds.Read(ldrPtr, pebLdrData);
+
+        auto rootEntry = ldrPtr + offsetof(PEB_LDR_DATA_T<PTR_T<arch>>, InLoadOrderModuleList);
+        LDR_DATA_TABLE_ENTRY_T<PTR_T<arch>> ldrEntry;
+
+        bool isMainImage = true;
+        for (auto nextEntry = pebLdrData.InLoadOrderModuleList.Flink;
+            nextEntry != rootEntry; nextEntry = ldrEntry.InLoadOrderLinks.Flink)
+        {
+            mds.Read(nextEntry, ldrEntry);
+            // if WOW64 PEB is present so main image has x86 arch, not x64 - skip it for now
+            if (arch == CPUArchitecture::X64 && skipMainModule && isMainImage)
+            {
+                isMainImage = false;
+                continue;
+            }
+
+            // unreliable + manual WOW64 redirection is required
+            /*std::wstring name(ldrEntry.FullDllName.Length / sizeof(WCHAR), L'\0');
+            mds.Read(ldrEntry.FullDllName.Buffer, (void*)name.data(), name.size() * sizeof(WCHAR));*/
+
+            result.emplace_back(ldrEntry.DllBase, PageAlignUp(ldrEntry.SizeOfImage), arch,
+                helper.GetImageNameByAddress(mds.GetProcessHandle(), ldrEntry.DllBase));
+        }
+    }
+    catch (const DataSourceException&)
+    {
+    }
+}
+
+template <CPUArchitecture arch>
+std::vector<MemoryHelperBase::ImageDescription> MemoryHelper<arch>::GetImageDataFromPeb(HANDLE hProcess) const
+{
+    std::vector<MemoryHelperBase::ImageDescription> result;
+
+    PROCESS_BASIC_INFORMATION<PTR_T<arch>> pbi = {};
+    uint32_t retLength = 0;
+    if (!NtSuccess(GetIWow64Helper().NtQueryInformationProcess64(hProcess, PROCESSINFOCLASS::ProcessBasicInformation,
+        &pbi, sizeof(pbi), &retLength)))
+        return result;
+
+    uint64_t wow64peb = 0;
+    GetIWow64Helper().NtQueryInformationProcess64(hProcess, PROCESSINFOCLASS::ProcessWow64Information,
+        &wow64peb, sizeof(wow64peb), &retLength);
+
+    ReadOnlyMemoryDataSource mds{ hProcess, 0, GetHighestUsermodeAddress(), 0 };
+
+    ParseLoadedModules<arch>(*this, pbi.PebBaseAddressT, mds, result, wow64peb != 0);
+    if (arch == CPUArchitecture::X86)
+        return result;
+
+    ParseLoadedModules<CPUArchitecture::X86>(*this, wow64peb, mds, result, false);
+
+    return result;
+}
+
+template <CPUArchitecture arch>
 MEMORY_BASIC_INFORMATION_T<uint64_t> MemoryHelper<arch>::ConvertToMemoryBasicInfo64(
     const MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>& mbi)
 {
@@ -100,7 +171,26 @@ bool MemoryHelper<arch>::GetBasicInfoByAddress(HANDLE hProcess, uint64_t address
 }
 
 template <CPUArchitecture arch>
-typename MemoryHelper<arch>::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE hProcess) const 
+void MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryHelperBase::MemoryMapT& result) const
+{
+    MEMORY_BASIC_INFORMATION_T<uint64_t> primaryMbi, mbi;
+    if (!GetBasicInfoByAddress(hProcess, addressToCheck, primaryMbi) || (primaryMbi.State & MEM_COMMIT) == 0)
+        return;
+
+    auto address = primaryMbi.AllocationBase;
+    while (GetBasicInfoByAddress(hProcess, address, mbi) && mbi.AllocationBase == primaryMbi.AllocationBase)
+    {
+        if ((mbi.State & MEM_COMMIT) != 0)
+            result.emplace_hint(result.end(), mbi.BaseAddress, mbi); // every next address is higher than previous so must be pushed in the end of map with less comparer
+
+        address += std::max<uint64_t>(mbi.RegionSize, PAGE_SIZE);
+    }
+
+    return;
+}
+
+template <CPUArchitecture arch>
+MemoryHelperBase::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE hProcess) const 
 {
     MemoryMapT result;
     uint64_t address = 0;
@@ -110,18 +200,17 @@ typename MemoryHelper<arch>::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE 
         if ((mbi.State & MEM_COMMIT) != 0)
             result.emplace_hint(result.end(), mbi.BaseAddress, mbi); // every next address is higher than previous so must be pushed in the end of map with less comparer
 
-        auto prevAddr = address;
         address += std::max<uint64_t>(mbi.RegionSize, PAGE_SIZE);
-        if (prevAddr > address)
+        if (address > GetHighestUsermodeAddress())
             break;
     }
 
     return result;
 }
 
-typename MemoryHelperBase::FlatMemoryMapT
-    MemoryHelperBase::GetFlatMemoryMap(const typename MemoryHelperBase::MemoryMapT& mm,
-    const std::function<bool(const typename MemoryHelperBase::MemInfoT64&)>& filter)
+MemoryHelperBase::FlatMemoryMapT
+    MemoryHelperBase::GetFlatMemoryMap(const MemoryHelperBase::MemoryMapT& mm,
+    const std::function<bool(const MemoryHelperBase::MemInfoT64&)>& filter)
 {
     FlatMemoryMapT result;
     for (const auto& infoKeyValue : mm)
@@ -135,9 +224,9 @@ typename MemoryHelperBase::FlatMemoryMapT
     return result;
 }
 
-typename MemoryHelperBase::GroupedMemoryMapT
-MemoryHelperBase::GetGroupedMemoryMap(const typename MemoryHelperBase::MemoryMapT& mm,
-    const std::function<bool(const typename MemoryHelperBase::MemInfoT64&)>& filter)
+MemoryHelperBase::GroupedMemoryMapT
+MemoryHelperBase::GetGroupedMemoryMap(const MemoryHelperBase::MemoryMapT& mm,
+    const std::function<bool(const MemoryHelperBase::MemInfoT64&)>& filter)
 {
     GroupedMemoryMapT result;
     for (const auto& infoKeyValue : mm)

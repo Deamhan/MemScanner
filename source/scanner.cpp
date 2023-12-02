@@ -22,7 +22,7 @@
 
 template <CPUArchitecture arch>
 void CheckForHooks(DataSource& mapped, std::map<std::wstring, 
-    PE<false, arch>>& parsed, std::wstring& path, std::vector<HookDescription>& result)
+    PE<false, arch>>& parsed, const std::wstring& path, std::vector<HookDescription>& result)
 {
     try
     {
@@ -54,6 +54,15 @@ void MemoryScanner::DefaultCallbacks::SetDumpsRoot(const wchar_t* dumpsRoot)
 
     if (*mDumpRoot.rbegin() != L'\\')
         mDumpRoot += L'\\';
+}
+
+MemoryScanner::Sensitivity MemoryScanner::DefaultCallbacks::GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToScan)  
+{ 
+    addressesToScan.clear();
+    if (mAddressToScan != 0)
+        addressesToScan.push_back(mAddressToScan);
+
+    return mMemoryScanSensitivity;
 }
 
 static size_t ScanBlobForMz(const std::vector<uint8_t>& buffer, size_t offset, size_t size)
@@ -216,21 +225,30 @@ template <CPUArchitecture arch, typename SPI>
 void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api)
 {
     DWORD pid = (DWORD)(uint64_t)procInfo->ProcessId;
-    std::wstring name((const wchar_t*)procInfo->ImageName.Buffer, procInfo->ImageName.Length / sizeof(wchar_t));
-
+    std::wstring processName((const wchar_t*)procInfo->ImageName.Buffer, procInfo->ImageName.Length / sizeof(wchar_t));
+    auto createTime = procInfo->CreateTime;
+    
+    if (mCallbacks->SkipProcess(pid, createTime, processName))
+        return;
+   
     HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
 
-    mCallbacks->OnProcessScanBegin(pid, procInfo->CreateTime, hProcess, name);
+    mCallbacks->OnProcessScanBegin(pid, createTime, hProcess, processName);
     ProcessScanGuard scanGuard{ mCallbacks.get() };
 
     if (hProcess == nullptr)
         return;
 
-    std::vector<PTR_T<arch>> threadsEntryPoints;
-    std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
-    for (uint32_t i = 0; i < procInfo->NumberOfThreads; ++i)
+    std::vector<uint64_t> memAddressesToCheck;
+    auto memoryAnalysisSettings = mCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck);
+
+    std::vector<uint64_t> threadsEntryPoints; 
+    threadsEntryPoints.reserve(32);
+    const bool threadAnanlysisEnabled = mCallbacks->GetThreadAnalysisSettings() != Sensitivity::Off;
+    for (uint32_t i = 0; threadAnanlysisEnabled && i < procInfo->NumberOfThreads; ++i)
     {
-        PTR_T<arch> startAddress = 0;
+        uint64_t startAddress = 0;
         HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, (DWORD)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread);
         if (hThread == nullptr)
             continue;
@@ -239,79 +257,114 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         if (NtSuccess(api.NtQueryInformationThread64(hThread, SystemDefinitions::THREADINFOCLASS::ThreadQuerySetWin32StartAddress, &startAddress, sizeof(startAddress), nullptr)))
             threadsEntryPoints.push_back(startAddress);
     }
-
-    auto mm = GetMemoryHelper().GetMemoryMap(hProcess);
-    auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(mm, [](const typename MemoryHelperBase::MemInfoT64& mbi) { return ((mbi.State & (PAGE_NOACCESS | PAGE_GUARD)) == 0); });
-
+  
     std::vector<HookDescription> hooksFound;
     hooksFound.reserve(30); // should be enough
 
-    for (const auto& group : groupedMm)
+    bool hookAnalysisEnabled = mCallbacks->GetHookAnalysisSettings() != Sensitivity::Off;
+    bool doHookAnalysisWithMemscan = true;
+    if (memoryAnalysisSettings != Sensitivity::Off)
     {
-        uint32_t allocProtMask = 0, protMask = 0;
-        switch (mSensitivity)
-        {
-        case Low:
-            protMask = (MemoryHelperBase::WFlag | MemoryHelperBase::XFlag);
-            break;
-        case Medium:
-            protMask = MemoryHelperBase::XFlag;
-            break;
-        default:
-        case High:
-            allocProtMask = protMask = MemoryHelperBase::XFlag;
-            break;
-        }
-
-        const auto lastInGroup = group.second.rbegin();
-        auto groupTopBorder = lastInGroup->BaseAddress + lastInGroup->RegionSize;
-        if (lastInGroup->Type != SystemDefinitions::MemType::Image)
-        {
-            bool isSuspGroup = false;
-            for (const auto& region : group.second)
-            {
-                bool allocProtRes = (allocProtMask != 0 ? (MemoryHelperBase::protToFlags(region.AllocationProtect) & allocProtMask) == allocProtMask : false);
-                bool protRes = (protMask != 0 ? (MemoryHelperBase::protToFlags(region.Protect) & protMask) == protMask : false);
-                isSuspGroup = protRes || allocProtRes;
-            }
-
-            std::vector<uint64_t> threadsRelated;
-            for (const auto threadEP : threadsEntryPoints)
-            {
-                if (group.first <= threadEP && threadEP < groupTopBorder)
-                    threadsRelated.push_back(threadEP);
-            }
-
-            if (isSuspGroup || !threadsRelated.empty())
-                mCallbacks->OnSuspiciousMemoryRegionFound(group.second, threadsRelated);
-        }
+        MemoryHelperBase::MemoryMapT memoryMap;
+        if (memAddressesToCheck.empty())
+            memoryMap = GetMemoryHelper().GetMemoryMap(hProcess);
         else
         {
-            ReadOnlyMemoryDataSource memDs(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
-            auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, memDs.GetOrigin());
+            doHookAnalysisWithMemscan = false;
+            for (auto addr : memAddressesToCheck)
+                GetMemoryHelper().UpdateMemoryMapForAddr(hProcess, addr, memoryMap);
+        }
 
-            if (imagePath.empty())
-                continue;
+        auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(memoryMap, [](const MemoryHelperBase::MemInfoT64& mbi) { return ((mbi.State & (PAGE_NOACCESS | PAGE_GUARD)) == 0); });
 
-            
-            switch (PE<>::GetPeArch(memDs))
+        for (const auto& group : groupedMm)
+        {
+            uint32_t allocProtMask = 0, protMask = 0;
+            switch (memoryAnalysisSettings)
+            {
+            case Sensitivity::Low:
+                protMask = (MemoryHelperBase::WFlag | MemoryHelperBase::XFlag);
+                break;
+            case Sensitivity::Medium:
+                protMask = MemoryHelperBase::XFlag;
+                break;
+            default:
+            case Sensitivity::High:
+                allocProtMask = protMask = MemoryHelperBase::XFlag;
+                break;
+            }
+
+            const auto lastInGroup = group.second.rbegin();
+            auto groupTopBorder = lastInGroup->BaseAddress + lastInGroup->RegionSize;
+            if (lastInGroup->Type != SystemDefinitions::MemType::Image)
+            {
+                bool isSuspGroup = false;
+                for (const auto& region : group.second)
+                {
+                    bool allocProtRes = (allocProtMask != 0 ? (MemoryHelperBase::protToFlags(region.AllocationProtect) & allocProtMask) == allocProtMask : false);
+                    bool protRes = (protMask != 0 ? (MemoryHelperBase::protToFlags(region.Protect) & protMask) == protMask : false);
+                    isSuspGroup = protRes || allocProtRes;
+                }
+
+                std::vector<uint64_t> threadsRelated;
+                for (const auto threadEP : threadsEntryPoints)
+                {
+                    if (group.first <= threadEP && threadEP < groupTopBorder)
+                        threadsRelated.push_back(threadEP);
+                }
+
+                if (isSuspGroup || !threadsRelated.empty())
+                    mCallbacks->OnSuspiciousMemoryRegionFound(group.second, threadsRelated);
+            }
+            else if (doHookAnalysisWithMemscan)
+            {
+                ReadOnlyMemoryDataSource memDs(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
+                auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, memDs.GetOrigin());
+                if (imagePath.empty())
+                    continue;
+
+                switch (PE<>::GetPeArch(memDs))
+                {
+                case CPUArchitecture::X86:
+                    CheckForHooks<CPUArchitecture::X86>(memDs, mCached32, imagePath, hooksFound);
+                    break;
+                case CPUArchitecture::X64:
+                    CheckForHooks<CPUArchitecture::X64>(memDs, mCached64, imagePath, hooksFound);
+                    break;
+                }
+
+                if (!hooksFound.empty())
+                    mCallbacks->OnHooksFound(hooksFound, imagePath.c_str());
+            }
+        }
+    }
+
+    if (hookAnalysisEnabled && doHookAnalysisWithMemscan)
+    {
+        auto loadedImages = GetMemoryHelper().GetImageDataFromPeb(hProcess);
+        for (const auto& image : loadedImages)
+        {
+            ReadOnlyMemoryDataSource memDs(hProcess, image.BaseAddress, image.ImageSize, PAGE_SIZE);
+
+            switch (image.Architecture)
             {
             case CPUArchitecture::X86:
-                CheckForHooks<CPUArchitecture::X86>(memDs, mCached32, imagePath, hooksFound);
+                CheckForHooks<CPUArchitecture::X86>(memDs, mCached32, image.ImagePath, hooksFound);
                 break;
             case CPUArchitecture::X64:
-                CheckForHooks<CPUArchitecture::X64>(memDs, mCached64, imagePath, hooksFound);
+                CheckForHooks<CPUArchitecture::X64>(memDs, mCached64, image.ImagePath, hooksFound);
                 break;
             }
 
             if (!hooksFound.empty())
-                mCallbacks->OnHooksFound(hooksFound, imagePath.c_str());
+                mCallbacks->OnHooksFound(hooksFound, image.ImagePath.c_str());
         }
     }
+    
 }
 
 template <CPUArchitecture arch>
-void MemoryScanner::ScanMemoryImpl(uint32_t pid)
+void MemoryScanner::ScanMemoryImpl()
 {
     if (!MemoryHelper<arch>::EnableDebugPrivilege())
         GetDefaultLogger()->Log(ILogger::Info, L"!>> Unable to enable SeDebugPrivilege, functionality is limited <<!\n");
@@ -327,21 +380,22 @@ void MemoryScanner::ScanMemoryImpl(uint32_t pid)
     for (bool stop = false; !stop;
         stop = (procInfo->NextEntryOffset == 0), procInfo = (PSPI)((uint8_t*)procInfo + procInfo->NextEntryOffset))
     {
-        if (pid != 0 && pid != (DWORD)(uint64_t)procInfo->ProcessId)
+        auto pid = (DWORD)(uint64_t)procInfo->ProcessId;
+        if (pid == 0 || pid == 4)
             continue;
 
         ScanProcessMemory<arch>(procInfo, api);
     }
 }
 
-void MemoryScanner::Scan(uint32_t pid)
+void MemoryScanner::Scan()
 {
 #if _M_AMD64
-    ScanMemoryImpl<CPUArchitecture::X64>(pid);
+    ScanMemoryImpl<CPUArchitecture::X64>();
 #else
     if (GetOSArch() == CPUArchitecture::X64)
-        ScanMemoryImpl<CPUArchitecture::X64>(pid);
+        ScanMemoryImpl<CPUArchitecture::X64>();
     else
-        ScanMemoryImpl<CPUArchitecture::X86>(pid);
+        ScanMemoryImpl<CPUArchitecture::X86>();
 #endif
 }
