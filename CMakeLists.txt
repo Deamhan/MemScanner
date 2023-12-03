@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 3.6)
 
 project(MemScanner)
 
+option(USE_YARA "Enable YARA scanning" ON)
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/include/yara-4.3.2)
 
 set(COMMON_SRC source/datasource.cpp
                source/file.cpp
@@ -107,6 +110,10 @@ if (MSVC)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} ${RELEASE_LINKER_FLAGS}")
 endif()
 
+if (USE_YARA)
+    add_compile_definitions(USE_YARA=1)
+endif()
+
 add_executable(memscan ${SCANNER_SRC})
 add_executable(susp_thread_test ${SUSP_THREAD_SRC})
 add_executable(datasource_test ${DATASRC_SRC})
@@ -120,27 +127,38 @@ add_executable(scanner_addr_test ${SCANNER_ADDR_SRC})
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
 set(MEMSCAN_LINKER_FLAGS "/level='highestAvailable' /uiAccess='false'")
-set_target_properties(memscan PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
 
-set_target_properties(susp_thread_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
-set_target_properties(datasource_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
-set_target_properties(peimage_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
-set_target_properties(pefile_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
-set_target_properties(sections_artifacts_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
-set_target_properties(single_page_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
-set_target_properties(scanner_addr_test PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
+set (EXECUTABLES memscan
+                 susp_thread_test
+                 datasource_test
+                 peimage_test
+                 pefile_test
+                 sections_artifacts_test
+                 single_page_test
+                 scanner_addr_test
+                 private_pe_test
+)
+
+foreach (exec ${EXECUTABLES})
+    set_target_properties(${exec} PROPERTIES LINK_FLAGS "${MEMSCAN_LINKER_FLAGS}")
+endforeach()
 
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-    target_link_libraries(susp_thread_test ${NTDLL64LL})
-    target_link_libraries(datasource_test ${NTDLL64LL})
-    target_link_libraries(memscan ${NTDLL64LL})
-    target_link_libraries(peimage_test ${NTDLL64LL})
-    target_link_libraries(pefile_test ${NTDLL64LL})
-    target_link_libraries(private_pe_test ${NTDLL64LL})
-    target_link_libraries(sections_artifacts_test ${NTDLL64LL})
-    target_link_libraries(single_page_test ${NTDLL64LL})
-    target_link_libraries(scanner_addr_test ${NTDLL64LL})
+    foreach (exec ${EXECUTABLES})
+        target_link_libraries(${exec}
+            debug ${PROJECT_SOURCE_DIR}/lib/yara-4.3.2/libyara32d.lib
+            optimized ${PROJECT_SOURCE_DIR}/lib/yara-4.3.2/libyara32.lib
+            general ${NTDLL64LL}
+        )
+    endforeach()
+else()
+    foreach (exec ${EXECUTABLES})
+        target_link_libraries(${exec}
+            debug ${PROJECT_SOURCE_DIR}/lib/yara-4.3.2/libyara64d.lib
+            optimized ${PROJECT_SOURCE_DIR}/lib/yara-4.3.2/libyara64.lib
+        )
+    endforeach()
 endif()
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT memscan)
