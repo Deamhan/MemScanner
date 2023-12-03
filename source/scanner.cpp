@@ -20,6 +20,184 @@
 #undef min
 #undef max
 
+#ifdef USE_YARA
+#include "yara.h"
+
+static const uint8_t* FetchDataFunc(YR_MEMORY_BLOCK* self) noexcept
+{
+    return (const uint8_t*)self->context;
+}
+
+struct IteratorContext
+{
+    DataSource& Ds;
+    std::vector<uint8_t> Buffer;
+    YR_MEMORY_BLOCK Result;
+    uint64_t FileSize;
+
+    IteratorContext(DataSource& ds, size_t bufferSize) : Ds(ds), Buffer(bufferSize), FileSize(ds.GetSize()) 
+    {
+        Result.fetch_data = FetchDataFunc;
+    }
+};
+
+static YR_MEMORY_BLOCK* DataIteratorFunc(YR_MEMORY_BLOCK_ITERATOR* self) noexcept
+{
+    try
+    {
+        auto context = (IteratorContext*)self->context;
+        auto& ds = context->Ds;
+        auto& buffer = context->Buffer;
+        auto& result = context->Result;
+        auto fileSize = context->FileSize;
+
+        result.base = ds.GetOffset();
+        result.size = (size_t)std::min<uint64_t>(buffer.size(), fileSize - result.base);
+
+        if (result.size == 0)
+            return nullptr;
+
+        result.context = buffer.data();
+
+        ds.Read(result.context, result.size);
+
+        return &result;
+    }
+    catch (...)
+    {
+        return nullptr;
+    }
+}
+
+static uint64_t GetSizeFunc(YR_MEMORY_BLOCK_ITERATOR* self) noexcept
+{
+    auto context = (IteratorContext*)self->context;
+    return context->FileSize;
+}
+
+static int YaraCallback(
+    YR_SCAN_CONTEXT* /*context*/,
+    int message,
+    void* message_data,
+    void* user_data)
+{
+    if (message != CALLBACK_MSG_RULE_MATCHING)
+        return CALLBACK_CONTINUE;
+
+    auto rule = (YR_RULE*)message_data;
+    auto name = rule->identifier;
+
+    auto& detections = *(std::vector<std::string>*)user_data;
+    detections.emplace_back(name);
+
+    return CALLBACK_CONTINUE;
+}
+
+static void CompilerCallback(
+    int error_level,
+    const char* file_name,
+    int line_number,
+    const YR_RULE* rule,
+    const char* message,
+    void* /*user_data*/)
+{
+    const wchar_t* msg_type = L"error";
+    ILogger::Level level = ILogger::Error;
+    if (error_level == YARA_ERROR_LEVEL_WARNING)
+    {
+        msg_type = L"warning";
+        level = ILogger::Info;
+    }
+
+    if (rule != nullptr)
+    {
+        GetDefaultLogger()->Log(level,
+            L"%s: rule \"%S\" in %S(%d): %S\n",
+            msg_type,
+            rule->identifier,
+            file_name == nullptr ? "unknown" : file_name,
+            line_number,
+            message);
+    }
+    else
+    {
+        GetDefaultLogger()->Log(level,
+            L"%S(%d): %s: %S\n",
+            file_name,
+            line_number,
+            msg_type,
+            message);
+    }
+}
+
+class YaraScanner
+{
+public:
+    static YaraScanner& GetInstance()
+    {
+        static YaraScanner scanner;
+        return scanner;
+    }
+
+    ~YaraScanner()
+    {
+        yr_scanner_destroy(mScanner);
+        yr_rules_destroy(mCompiledRules);
+    }
+
+    void Scan(DataSource& ds)
+    {
+        ds.Seek(0);
+        IteratorContext iteratorContext(ds, 1024 * 1024);
+
+        YR_MEMORY_BLOCK_ITERATOR iterator;
+        iterator.context = &iteratorContext;
+        iterator.file_size = GetSizeFunc;
+        iterator.first = DataIteratorFunc;
+        iterator.next = DataIteratorFunc;
+        iterator.last_error = ERROR_SUCCESS;
+
+        auto res = yr_scanner_scan_mem_blocks(mScanner, &iterator);
+    }
+
+    std::vector<std::string> GetTriggeredRules() const noexcept { return mDetections; }
+
+protected:
+    YaraScanner() : mCompiledRules(nullptr), mScanner(nullptr)
+    {
+        yr_initialize();
+        YR_COMPILER* compiler = nullptr;
+        auto res = yr_compiler_create(&compiler);
+        yr_compiler_set_callback(compiler, CompilerCallback, nullptr);
+
+        const char* PeRule = "\
+            rule PeSig { \
+              strings: \
+                $dosText = \"This program cannot be run in DOS mode\" \
+                $PeNum = { 45 50 00 00 } \
+                $TextSec = \".text\" \
+                $CodeSec = \".code\" \
+              condition: \
+                any of them\
+             }";
+
+        res = yr_compiler_add_string(compiler, PeRule, nullptr);
+        res = yr_compiler_get_rules(compiler, &mCompiledRules);
+        yr_compiler_destroy(compiler);
+
+        res = yr_scanner_create(mCompiledRules, &mScanner);
+        yr_scanner_set_callback(mScanner, YaraCallback, &mDetections);
+        yr_scanner_set_flags(mScanner, SCAN_FLAGS_REPORT_RULES_MATCHING);
+    }
+    
+    YR_RULES* mCompiledRules;
+    YR_SCANNER* mScanner;
+
+    std::vector<std::string> mDetections;
+};
+
+#endif // USE_YARA
+
 template <CPUArchitecture arch>
 void CheckForHooks(DataSource& mapped, std::map<std::wstring, 
     PE<false, arch>>& parsed, const std::wstring& path, std::vector<HookDescription>& result)
@@ -135,6 +313,18 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
     bool isPeFound = false;
     for (const auto& region : continiousRegions)
     {
+#ifdef USE_YARA
+        auto& yaraScanner = YaraScanner::GetInstance();
+        ReadOnlyMemoryDataSource dsForYara(mProcess, region.BaseAddress, region.RegionSize, 0);
+        yaraScanner.Scan(dsForYara);
+
+        const auto& yaraTriggered = yaraScanner.GetTriggeredRules();
+        for (const auto& rules : yaraTriggered)
+        {
+            GetDefaultLogger()->Log(ILogger::Info, L"\t\tYARA rule triggered: %S\n", rules.c_str());
+        }
+#endif // USE_YARA
+
         auto peFound = ScanRegionForPE(mProcess, region);
         if (peFound.first != 0)
         {
