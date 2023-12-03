@@ -339,7 +339,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         }
     }
 
-    if (hookAnalysisEnabled && doHookAnalysisWithMemscan)
+    if (hookAnalysisEnabled && !doHookAnalysisWithMemscan)
     {
         auto loadedImages = GetMemoryHelper().GetImageDataFromPeb(hProcess);
         for (const auto& image : loadedImages)
