@@ -189,11 +189,11 @@ protected:
             rule PeSig { \
               strings: \
                 $dosText = \"This program cannot be run in DOS mode\" \
-                $PeNum = { 45 50 00 00 } \
+                $PeMagic = { 45 50 00 00 } \
                 $TextSec = \".text\" \
                 $CodeSec = \".code\" \
               condition: \
-                any of them\
+                ($dosText and ($TextSec or $CodeSec)) or ($PeMagic and ($TextSec or $CodeSec))\
              }";
 
         res = yr_compiler_add_string(compiler, PeRule, nullptr);
@@ -212,6 +212,7 @@ protected:
         if (res != ERROR_SUCCESS)
             throw YaraScannerException{ res, "unable to create scanner" };
 
+        mScanner.reset(scanner);
         yr_scanner_set_callback(mScanner.get(), YaraCallback, &mDetections);
         yr_scanner_set_flags(mScanner.get(), SCAN_FLAGS_REPORT_RULES_MATCHING);
     }
@@ -320,6 +321,58 @@ static std::pair<uint64_t, CPUArchitecture> ScanRegionForPE(HANDLE hProcess, con
     return { 0, CPUArchitecture::Unknown };
 }
 
+static bool IsSectionBorder(const uint8_t* buffer, size_t size)
+{
+    for (size_t i = 0; i < size / 2; ++i)
+    {
+        if (buffer[i] != 0)
+            return false;
+    }
+
+    size_t counter = 0;
+    for (size_t i = size / 2; i < size; ++i)
+    {
+        if (buffer[i] != 0)
+            ++counter;
+    }
+
+    return counter * 4 >= size;
+}
+
+static bool ScanRegionForPeSections(HANDLE hProcess, const MemoryHelperBase::FlatMemoryMapT relatedRegions)
+{
+    if (relatedRegions.empty())
+        return false;
+
+    auto last = relatedRegions.rbegin();
+    auto begin = relatedRegions.begin()->BaseAddress, end = last->BaseAddress + last->RegionSize;
+    auto size = end - begin;
+
+    if (size < 16 * PAGE_SIZE)
+        return false;
+
+    ReadOnlyMemoryDataSource ds(hProcess, begin, size, 0);
+    uint8_t buffer[64];
+    size_t borders = 0;
+
+    for (int offset = PAGE_SIZE - sizeof(buffer) / 2; offset + sizeof(buffer) / 2 <= size; offset += PAGE_SIZE)
+    {
+        try
+        {
+            ds.Read(offset, buffer, sizeof(buffer));
+            if (IsSectionBorder(buffer, sizeof(buffer)))
+                ++borders;
+        }
+        catch (const DataSourceException&)
+        {}
+    }
+
+    if (borders == 0)
+        return false;
+
+    return size / borders > 4 * PAGE_SIZE;
+}
+
 static void ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region)
 {
 #ifdef USE_YARA
@@ -342,11 +395,11 @@ static void ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& r
 #endif // USE_YARA
 }
 
-void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
+void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& relatedRegions,
     const std::vector<uint64_t>& threadEntryPoints)
 {
     GetDefaultLogger()->Log(ILogger::Info, L"\tSuspicious memory region:\n");
-    for (const auto& region : continiousRegions)
+    for (const auto& region : relatedRegions)
         printMBI<uint64_t>(region, L"\t\t");
 
     if (!threadEntryPoints.empty())
@@ -359,7 +412,7 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
     }
 
     bool isPeFound = false;
-    for (const auto& region : continiousRegions)
+    for (const auto& region : relatedRegions)
     {
         auto peFound = ScanRegionForPE(mProcess, region);
         if (peFound.first != 0)
@@ -367,13 +420,21 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
             GetDefaultLogger()->Log(ILogger::Info, L"\t\tPE (%s) found: 0x%llx\n", CpuArchToString(peFound.second),
                 (unsigned long long)peFound.first);
             isPeFound = true;
-        }
 
-        ScanUsingYara(mProcess, region);
+            ScanUsingYara(mProcess, region);
+        }
     }
 
     if (isPeFound)
         GetDefaultLogger()->Log(ILogger::Info, L"\n");
+    else if(ScanRegionForPeSections(mProcess, relatedRegions))
+    {
+        GetDefaultLogger()->Log(ILogger::Info, L"\t\tPossible PE found: 0x%llx\n", 
+            (unsigned long long)relatedRegions.begin()->AllocationBase);
+
+        for (const auto& region : relatedRegions)
+            ScanUsingYara(mProcess, region);
+    }
 
     if (mDumpRoot.empty())
         return;
@@ -386,7 +447,7 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
     if (!CreateDirectoryW(processDumpDir.c_str(), nullptr))
         GetDefaultLogger()->Log(ILogger::Error, L"\tUnable to create directory %s:\n", processDumpDir.c_str());
 
-    for (const auto& region : continiousRegions)
+    for (const auto& region : relatedRegions)
     {
         ReadOnlyMemoryDataSource dsToDump(mProcess, region.BaseAddress, region.RegionSize);
         std::wstring dumpPath = processDumpDir;
