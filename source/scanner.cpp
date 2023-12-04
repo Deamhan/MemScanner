@@ -133,16 +133,23 @@ static void CompilerCallback(
 class YaraScanner
 {
 public:
+    class YaraScannerException : public std::exception
+    {
+    public:
+        YaraScannerException(int code, const char* message = "") : 
+            std::exception(message), mErrorCode(code)
+        {}
+
+        int GetErrorCode() const noexcept { return mErrorCode; }
+
+    protected:
+        int mErrorCode;
+    };
+
     static YaraScanner& GetInstance()
     {
         static YaraScanner scanner;
         return scanner;
-    }
-
-    ~YaraScanner()
-    {
-        yr_scanner_destroy(mScanner);
-        yr_rules_destroy(mCompiledRules);
     }
 
     void Scan(DataSource& ds)
@@ -157,17 +164,25 @@ public:
         iterator.next = DataIteratorFunc;
         iterator.last_error = ERROR_SUCCESS;
 
-        auto res = yr_scanner_scan_mem_blocks(mScanner, &iterator);
+        auto res = yr_scanner_scan_mem_blocks(mScanner.get(), &iterator);
+        if (res != ERROR_SUCCESS)
+            throw YaraScannerException{ res, "unable to scan memory" };
     }
 
     std::vector<std::string> GetTriggeredRules() const noexcept { return mDetections; }
 
 protected:
-    YaraScanner() : mCompiledRules(nullptr), mScanner(nullptr)
+    YaraScanner() :
+        mCompiledRules(nullptr, yr_rules_destroy), mScanner(nullptr, yr_scanner_destroy)
     {
         yr_initialize();
         YR_COMPILER* compiler = nullptr;
         auto res = yr_compiler_create(&compiler);
+        if (res != ERROR_SUCCESS)
+            throw YaraScannerException{ res, "unable to create compiler"};
+
+        std::unique_ptr<YR_COMPILER, void(*)(YR_COMPILER* scanner)> compilerGuard(compiler,
+            yr_compiler_destroy);
         yr_compiler_set_callback(compiler, CompilerCallback, nullptr);
 
         const char* PeRule = "\
@@ -182,16 +197,27 @@ protected:
              }";
 
         res = yr_compiler_add_string(compiler, PeRule, nullptr);
-        res = yr_compiler_get_rules(compiler, &mCompiledRules);
-        yr_compiler_destroy(compiler);
+        if (res != ERROR_SUCCESS)
+            throw YaraScannerException{ res, "unable to add rule" };
 
-        res = yr_scanner_create(mCompiledRules, &mScanner);
-        yr_scanner_set_callback(mScanner, YaraCallback, &mDetections);
-        yr_scanner_set_flags(mScanner, SCAN_FLAGS_REPORT_RULES_MATCHING);
+        YR_RULES* compiledRules = nullptr;
+        res = yr_compiler_get_rules(compiler, &compiledRules);
+        if (res != ERROR_SUCCESS)
+            throw YaraScannerException{ res, "unable to compile rules" };
+
+        mCompiledRules.reset(compiledRules);
+
+        YR_SCANNER* scanner = nullptr;
+        res = yr_scanner_create(mCompiledRules.get(), &scanner);
+        if (res != ERROR_SUCCESS)
+            throw YaraScannerException{ res, "unable to create scanner" };
+
+        yr_scanner_set_callback(mScanner.get(), YaraCallback, &mDetections);
+        yr_scanner_set_flags(mScanner.get(), SCAN_FLAGS_REPORT_RULES_MATCHING);
     }
     
-    YR_RULES* mCompiledRules;
-    YR_SCANNER* mScanner;
+    std::unique_ptr<YR_RULES, int(*)(YR_RULES* scanner)> mCompiledRules;
+    std::unique_ptr<YR_SCANNER, void(*)(YR_SCANNER* scanner)> mScanner;
 
     std::vector<std::string> mDetections;
 };
@@ -294,6 +320,28 @@ static std::pair<uint64_t, CPUArchitecture> ScanRegionForPE(HANDLE hProcess, con
     return { 0, CPUArchitecture::Unknown };
 }
 
+static void ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region)
+{
+#ifdef USE_YARA
+    try
+    {
+        auto& yaraScanner = YaraScanner::GetInstance();
+        ReadOnlyMemoryDataSource dsForYara(hProcess, region.BaseAddress, region.RegionSize, 0);
+        yaraScanner.Scan(dsForYara);
+
+        const auto& yaraTriggered = yaraScanner.GetTriggeredRules();
+        for (const auto& rules : yaraTriggered)
+        {
+            GetDefaultLogger()->Log(ILogger::Info, L"\t\tYARA rule triggered: %S\n", rules.c_str());
+        }
+    }
+    catch (const YaraScanner::YaraScannerException& e)
+    {
+        GetDefaultLogger()->Log(ILogger::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
+    }
+#endif // USE_YARA
+}
+
 void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
     const std::vector<uint64_t>& threadEntryPoints)
 {
@@ -313,18 +361,6 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
     bool isPeFound = false;
     for (const auto& region : continiousRegions)
     {
-#ifdef USE_YARA
-        auto& yaraScanner = YaraScanner::GetInstance();
-        ReadOnlyMemoryDataSource dsForYara(mProcess, region.BaseAddress, region.RegionSize, 0);
-        yaraScanner.Scan(dsForYara);
-
-        const auto& yaraTriggered = yaraScanner.GetTriggeredRules();
-        for (const auto& rules : yaraTriggered)
-        {
-            GetDefaultLogger()->Log(ILogger::Info, L"\t\tYARA rule triggered: %S\n", rules.c_str());
-        }
-#endif // USE_YARA
-
         auto peFound = ScanRegionForPE(mProcess, region);
         if (peFound.first != 0)
         {
@@ -332,6 +368,8 @@ void MemoryScanner::DefaultCallbacks::OnSuspiciousMemoryRegionFound(const Memory
                 (unsigned long long)peFound.first);
             isPeFound = true;
         }
+
+        ScanUsingYara(mProcess, region);
     }
 
     if (isPeFound)
