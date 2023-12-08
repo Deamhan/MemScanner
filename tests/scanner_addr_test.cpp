@@ -14,11 +14,11 @@ class TestCallbacks : public MemoryScanner::DefaultCallbacks
 public:
 	TestCallbacks(uint64_t address) : 
 		MemoryScanner::DefaultCallbacks(GetCurrentProcessId(), MemoryScanner::Sensitivity::Low,
-			MemoryScanner::Sensitivity::Off, address)
+			MemoryScanner::Sensitivity::Off, MemoryScanner::Sensitivity::Off, address)
 	{}
 
 	void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-		const std::vector<uint64_t>& threadEntryPoints) override
+		const std::vector<uint64_t>& /*threadEntryPoints*/) override
 	{
 		detectedMap = continiousRegions;
 	}
@@ -43,7 +43,6 @@ static bool MapAndCheckPeCopy()
 
 	memcpy((char*)address + offset, moduleHandle, size);
 
-	auto sensitivity = MemoryScanner::Sensitivity::Low;
 	auto callbacks = std::make_shared<TestCallbacks>((uintptr_t)address + 0x3000);
 	MemoryScanner scanner{ callbacks };
 

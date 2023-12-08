@@ -261,11 +261,17 @@ void MemoryScanner::DefaultCallbacks::SetDumpsRoot(const wchar_t* dumpsRoot)
         mDumpRoot += L'\\';
 }
 
-MemoryScanner::Sensitivity MemoryScanner::DefaultCallbacks::GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToScan)  
+MemoryScanner::Sensitivity MemoryScanner::DefaultCallbacks::GetMemoryAnalysisSettings(
+    std::vector<uint64_t>& addressesToScan, bool& scanImageForHooks)
 { 
     addressesToScan.clear();
+    scanImageForHooks = false;
+
     if (mAddressToScan != 0)
+    {
         addressesToScan.push_back(mAddressToScan);
+        scanImageForHooks = true;
+    }
 
     return mMemoryScanSensitivity;
 }
@@ -530,7 +536,8 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         return;
 
     std::vector<uint64_t> memAddressesToCheck;
-    auto memoryAnalysisSettings = mCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck);
+    bool scanHookForUserAddress = false;
+    auto memoryAnalysisSettings = mCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck, scanHookForUserAddress);
 
     std::vector<uint64_t> threadsEntryPoints; 
     threadsEntryPoints.reserve(32);
@@ -559,7 +566,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
             memoryMap = GetMemoryHelper().GetMemoryMap(hProcess);
         else
         {
-            doHookAnalysisWithMemscan = false;
+            doHookAnalysisWithMemscan = scanHookForUserAddress;
             for (auto addr : memAddressesToCheck)
                 GetMemoryHelper().UpdateMemoryMapForAddr(hProcess, addr, memoryMap);
         }
@@ -605,7 +612,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                 if (isSuspGroup || !threadsRelated.empty())
                     mCallbacks->OnSuspiciousMemoryRegionFound(group.second, threadsRelated);
             }
-            else if (doHookAnalysisWithMemscan)
+            else if (hookAnalysisEnabled && doHookAnalysisWithMemscan)
             {
                 ReadOnlyMemoryDataSource memDs(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
                 auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, memDs.GetOrigin());

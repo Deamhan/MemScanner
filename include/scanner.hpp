@@ -33,7 +33,7 @@ public:
 		virtual ~ICallbacks() = default;
 
 		// config requests
-		virtual Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToCheck) = 0;
+		virtual Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToCheck, bool& scanImageForHooks) = 0;
 		virtual Sensitivity GetThreadAnalysisSettings() = 0;
 		virtual Sensitivity GetHookAnalysisSettings() = 0;
 		virtual bool SkipProcess(uint32_t processId, LARGE_INTEGER creationTime, const std::wstring& processName) = 0;
@@ -59,15 +59,16 @@ public:
 		DefaultCallbacks& operator = (DefaultCallbacks&&) = delete;
 
 		DefaultCallbacks(uint32_t pidToScan = 0, Sensitivity memoryScanSensitivity = Sensitivity::Low,
-			Sensitivity hookScanSensitivity = Sensitivity::Low, uint64_t addressToScan = 0) : mCurrentPid(0), mProcess(nullptr),
-			mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity), mHookScanSensitivity(hookScanSensitivity),
-			mAddressToScan(addressToScan)
+			Sensitivity hookScanSensitivity = Sensitivity::Low, Sensitivity threadsScanSensitivity = Sensitivity::Low,
+			uint64_t addressToScan = 0) 
+			: mCurrentPid(0), mProcess(nullptr), mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity),
+			mHookScanSensitivity(hookScanSensitivity), mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan)
 		{
 			mProcessCreationTime.QuadPart = 0;
 		}
 
-		Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToScan) override;
-		Sensitivity GetThreadAnalysisSettings() override { return mMemoryScanSensitivity; }
+		Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToScan, bool& scanImageForHooks) override;
+		Sensitivity GetThreadAnalysisSettings() override { return mThreadScanSensitivity; }
 		Sensitivity GetHookAnalysisSettings() override { return mHookScanSensitivity; }
 		bool SkipProcess(uint32_t processId, LARGE_INTEGER, const std::wstring&) override { return !(mPidToScan == 0 || mPidToScan == processId); }
 
@@ -82,6 +83,7 @@ public:
 		uint32_t mPidToScan;
 		Sensitivity mMemoryScanSensitivity;
 		Sensitivity mHookScanSensitivity;
+		Sensitivity mThreadScanSensitivity;
 
 		uint64_t mAddressToScan;
 
