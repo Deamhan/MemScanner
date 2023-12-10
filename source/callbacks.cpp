@@ -233,6 +233,17 @@ void DefaultCallbacks::OnProcessScanEnd()
         GetDefaultLoggerForThread()->Log(ILogger::Info, L"Process [PID = %u]: done\n", currentScanData.pid);
 }
 
+static const std::list<std::string> predefinedRiles{ "\
+            rule PeSig { \
+              strings: \
+                $dosText = \"This program cannot be run in DOS mode\" \
+                $PeMagic = { 45 50 00 00 } \
+                $TextSec = \".text\" \
+                $CodeSec = \".code\" \
+              condition: \
+                ($dosText and ($TextSec or $CodeSec)) or ($PeMagic and ($TextSec or $CodeSec))\
+             }" };
+
 DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, MemoryScanner::Sensitivity memoryScanSensitivity,
     MemoryScanner::Sensitivity hookScanSensitivity, MemoryScanner::Sensitivity threadsScanSensitivity, uint64_t addressToScan, const wchar_t* dumpsRoot)
     : mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity), mHookScanSensitivity(hookScanSensitivity),
@@ -247,5 +258,7 @@ DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, MemoryScanner::Sensitivit
 
     if (*mDumpRoot.rbegin() != L'\\')
         mDumpRoot += L'\\';
+
+    SetYaraRules(predefinedRiles);
 }
 

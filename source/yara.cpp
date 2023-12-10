@@ -1,5 +1,7 @@
 #include "yara.hpp"
 
+#include <shared_mutex>
+
 #include "log.hpp"
 #include "memdatasource.hpp"
 
@@ -70,7 +72,7 @@ static int YaraCallback(
     auto rule = (YR_RULE*)message_data;
     auto name = rule->identifier;
 
-    auto& detections = *(std::vector<std::string>*)user_data;
+    auto& detections = *(std::list<std::string>*)user_data;
     detections.emplace_back(name);
 
     return CALLBACK_CONTINUE;
@@ -106,7 +108,7 @@ static void CompilerCallback(
     {
         GetDefaultLogger()->Log(level,
             L"%S(%d): %s: %S\n",
-            file_name,
+            file_name == nullptr ? "unknown" : file_name,
             line_number,
             msg_type,
             message);
@@ -137,6 +139,8 @@ public:
 
     void Scan(DataSource& ds, std::list<std::string>& detections)
     {
+        std::shared_lock<std::shared_mutex> lg(mRulesLock);
+
         yr_scanner_set_callback(mScanner.get(), YaraCallback, &detections);
 
         detections.clear();
@@ -156,11 +160,10 @@ public:
             throw YaraScannerException{ res, "unable to scan memory" };
     }
 
-protected:
-    YaraScanner() :
-        mCompiledRules(nullptr, yr_rules_destroy), mScanner(nullptr, yr_scanner_destroy)
+    void SetRules(const std::list<std::string>& rules)
     {
-        yr_initialize();
+        std::unique_lock<std::shared_mutex> lg(mRulesLock);
+
         YR_COMPILER* compiler = nullptr;
         auto res = yr_compiler_create(&compiler);
         if (res != ERROR_SUCCESS)
@@ -170,20 +173,12 @@ protected:
             yr_compiler_destroy);
         yr_compiler_set_callback(compiler, CompilerCallback, nullptr);
 
-        const char* PeRule = "\
-            rule PeSig { \
-              strings: \
-                $dosText = \"This program cannot be run in DOS mode\" \
-                $PeMagic = { 45 50 00 00 } \
-                $TextSec = \".text\" \
-                $CodeSec = \".code\" \
-              condition: \
-                ($dosText and ($TextSec or $CodeSec)) or ($PeMagic and ($TextSec or $CodeSec))\
-             }";
-
-        res = yr_compiler_add_string(compiler, PeRule, nullptr);
-        if (res != ERROR_SUCCESS)
-            throw YaraScannerException{ res, "unable to add rule" };
+        for (const auto& rule : rules)
+        {
+            res = yr_compiler_add_string(compiler, rule.c_str(), nullptr);
+            if (res != ERROR_SUCCESS)
+                throw YaraScannerException{ res, std::string("unable to add rule ").append(rule).c_str() };
+        }
 
         YR_RULES* compiledRules = nullptr;
         res = yr_compiler_get_rules(compiler, &compiledRules);
@@ -201,9 +196,35 @@ protected:
         yr_scanner_set_flags(mScanner.get(), SCAN_FLAGS_REPORT_RULES_MATCHING);
     }
 
-    std::unique_ptr<YR_RULES, int(*)(YR_RULES* scanner)> mCompiledRules;
+protected:
+    YaraScanner() :
+        mCompiledRules(nullptr, yr_rules_destroy), mScanner(nullptr, yr_scanner_destroy)
+    {
+        yr_initialize(); 
+    }
+
+    ~YaraScanner()
+    {
+        yr_finalize();
+    }
+
     std::unique_ptr<YR_SCANNER, void(*)(YR_SCANNER* scanner)> mScanner;
+
+    std::unique_ptr<YR_RULES, int(*)(YR_RULES* scanner)> mCompiledRules;
+    std::shared_mutex mRulesLock;
 };
+
+void SetYaraRules(const std::list<std::string>& rules)
+{
+    try
+    {
+        YaraScanner::GetInstance().SetRules(rules);
+    }
+    catch (const YaraScanner::YaraScannerException& e)
+    {
+        GetDefaultLoggerForThread()->Log(ILogger::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
+    }
+}
 
 void ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result)
 {
