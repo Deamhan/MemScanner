@@ -2,6 +2,8 @@
 
 #include "scanner.hpp"
 
+#include "yara.hpp"
+
 class DefaultCallbacks : public MemoryScanner::ICallbacks
 {
 public:
@@ -46,6 +48,8 @@ protected:
 	std::wstring mDumpRoot;
 
 	uint64_t mAddressToScan;
+
+	YaraScanner mYaraScanner;
 
 	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
 };

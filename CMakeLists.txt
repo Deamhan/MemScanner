@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.6)
 
 project(MemScanner)
 
-option(USE_YARA "Enable YARA scanning" ON)
-
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/include/yara-4.3.2)
 
@@ -110,10 +108,6 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${RELEASE_COMPILER_FLAGS}")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${RELEASE_COMPILER_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} ${RELEASE_LINKER_FLAGS}")
-endif()
-
-if (USE_YARA)
-    add_compile_definitions(USE_YARA=1)
 endif()
 
 add_executable(memscan ${SCANNER_SRC})

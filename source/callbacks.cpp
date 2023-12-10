@@ -153,7 +153,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
                 (unsigned long long)peFound.first);
             isPeFound = true;
 
-            ScanUsingYara(currentScanData.process, region, yaraDetections);
+            ScanUsingYara(mYaraScanner, currentScanData.process, region, yaraDetections);
             for (const auto& detection : yaraDetections)
                 GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\tYARA: %S\n", detection.c_str());
         }
@@ -168,7 +168,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
 
         for (const auto& region : relatedRegions)
         {
-            ScanUsingYara(currentScanData.process, region, yaraDetections);
+            ScanUsingYara(mYaraScanner, currentScanData.process, region, yaraDetections);
             for (const auto& detection : yaraDetections)
                 GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\tYARA: %S\n", detection.c_str());
         }
@@ -259,6 +259,6 @@ DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, MemoryScanner::Sensitivit
     if (*mDumpRoot.rbegin() != L'\\')
         mDumpRoot += L'\\';
 
-    SetYaraRules(predefinedRiles);
+    SetYaraRules(mYaraScanner, predefinedRiles);
 }
 

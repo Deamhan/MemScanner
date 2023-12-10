@@ -5,7 +5,6 @@
 #include "log.hpp"
 #include "memdatasource.hpp"
 
-#ifdef USE_YARA
 #include "yara.h"
 
 static const uint8_t* FetchDataFunc(YR_MEMORY_BLOCK* self) noexcept
@@ -115,110 +114,85 @@ static void CompilerCallback(
     }
 }
 
-class YaraScanner
+void YaraScanner::Scan(DataSource& ds, std::list<std::string>& detections)
+{
+    std::shared_lock<std::shared_mutex> lg(mRulesLock);
+
+    yr_scanner_set_callback(mScanner.get(), YaraCallback, &detections);
+
+    detections.clear();
+
+    ds.Seek(0);
+    IteratorContext iteratorContext(ds, 1024 * 1024);
+
+    YR_MEMORY_BLOCK_ITERATOR iterator;
+    iterator.context = &iteratorContext;
+    iterator.file_size = GetSizeFunc;
+    iterator.first = DataIteratorFunc;
+    iterator.next = DataIteratorFunc;
+    iterator.last_error = ERROR_SUCCESS;
+
+    auto res = yr_scanner_scan_mem_blocks(mScanner.get(), &iterator);
+    if (res != ERROR_SUCCESS)
+        throw YaraScannerException{ res, "unable to scan memory" };
+}
+
+void YaraScanner::SetRules(const std::list<std::string>& rules)
+{
+    std::unique_lock<std::shared_mutex> lg(mRulesLock);
+
+    YR_COMPILER* compiler = nullptr;
+    auto res = yr_compiler_create(&compiler);
+    if (res != ERROR_SUCCESS)
+        throw YaraScannerException{ res, "unable to create compiler" };
+
+    std::unique_ptr<YR_COMPILER, void(*)(YR_COMPILER* scanner)> compilerGuard(compiler,
+        yr_compiler_destroy);
+    yr_compiler_set_callback(compiler, CompilerCallback, nullptr);
+
+    for (const auto& rule : rules)
+    {
+        res = yr_compiler_add_string(compiler, rule.c_str(), nullptr);
+        if (res != ERROR_SUCCESS)
+            throw YaraScannerException{ res, std::string("unable to add rule ").append(rule).c_str() };
+    }
+
+    YR_RULES* compiledRules = nullptr;
+    res = yr_compiler_get_rules(compiler, &compiledRules);
+    if (res != ERROR_SUCCESS)
+        throw YaraScannerException{ res, "unable to compile rules" };
+
+    mCompiledRules.reset(compiledRules);
+
+    YR_SCANNER* scanner = nullptr;
+    res = yr_scanner_create(mCompiledRules.get(), &scanner);
+    if (res != ERROR_SUCCESS)
+        throw YaraScannerException{ res, "unable to create scanner" };
+
+    mScanner.reset(scanner);
+    yr_scanner_set_flags(mScanner.get(), SCAN_FLAGS_REPORT_RULES_MATCHING);
+}
+
+
+class YaraInitializer
 {
 public:
-    class YaraScannerException : public std::exception
+    YaraInitializer()
     {
-    public:
-        YaraScannerException(int code, const char* message = "") :
-            std::exception(message), mErrorCode(code)
-        {}
-
-        int GetErrorCode() const noexcept { return mErrorCode; }
-
-    protected:
-        int mErrorCode;
-    };
-
-    static YaraScanner& GetInstance()
-    {
-        static YaraScanner scanner;
-        return scanner;
+        yr_initialize();
     }
 
-    void Scan(DataSource& ds, std::list<std::string>& detections)
-    {
-        std::shared_lock<std::shared_mutex> lg(mRulesLock);
-
-        yr_scanner_set_callback(mScanner.get(), YaraCallback, &detections);
-
-        detections.clear();
-
-        ds.Seek(0);
-        IteratorContext iteratorContext(ds, 1024 * 1024);
-
-        YR_MEMORY_BLOCK_ITERATOR iterator;
-        iterator.context = &iteratorContext;
-        iterator.file_size = GetSizeFunc;
-        iterator.first = DataIteratorFunc;
-        iterator.next = DataIteratorFunc;
-        iterator.last_error = ERROR_SUCCESS;
-
-        auto res = yr_scanner_scan_mem_blocks(mScanner.get(), &iterator);
-        if (res != ERROR_SUCCESS)
-            throw YaraScannerException{ res, "unable to scan memory" };
-    }
-
-    void SetRules(const std::list<std::string>& rules)
-    {
-        std::unique_lock<std::shared_mutex> lg(mRulesLock);
-
-        YR_COMPILER* compiler = nullptr;
-        auto res = yr_compiler_create(&compiler);
-        if (res != ERROR_SUCCESS)
-            throw YaraScannerException{ res, "unable to create compiler" };
-
-        std::unique_ptr<YR_COMPILER, void(*)(YR_COMPILER* scanner)> compilerGuard(compiler,
-            yr_compiler_destroy);
-        yr_compiler_set_callback(compiler, CompilerCallback, nullptr);
-
-        for (const auto& rule : rules)
-        {
-            res = yr_compiler_add_string(compiler, rule.c_str(), nullptr);
-            if (res != ERROR_SUCCESS)
-                throw YaraScannerException{ res, std::string("unable to add rule ").append(rule).c_str() };
-        }
-
-        YR_RULES* compiledRules = nullptr;
-        res = yr_compiler_get_rules(compiler, &compiledRules);
-        if (res != ERROR_SUCCESS)
-            throw YaraScannerException{ res, "unable to compile rules" };
-
-        mCompiledRules.reset(compiledRules);
-
-        YR_SCANNER* scanner = nullptr;
-        res = yr_scanner_create(mCompiledRules.get(), &scanner);
-        if (res != ERROR_SUCCESS)
-            throw YaraScannerException{ res, "unable to create scanner" };
-
-        mScanner.reset(scanner);
-        yr_scanner_set_flags(mScanner.get(), SCAN_FLAGS_REPORT_RULES_MATCHING);
-    }
-
-protected:
-    YaraScanner() :
-        mCompiledRules(nullptr, yr_rules_destroy), mScanner(nullptr, yr_scanner_destroy)
-    {
-        yr_initialize(); 
-    }
-
-    ~YaraScanner()
+    ~YaraInitializer()
     {
         yr_finalize();
     }
+} yaraSharedInit;
 
-    std::unique_ptr<YR_SCANNER, void(*)(YR_SCANNER* scanner)> mScanner;
-
-    std::unique_ptr<YR_RULES, int(*)(YR_RULES* scanner)> mCompiledRules;
-    std::shared_mutex mRulesLock;
-};
-
-void SetYaraRules(const std::list<std::string>& rules)
+void SetYaraRules(YaraScanner& scanner, const std::list<std::string>& rules)
 {
     try
     {
-        YaraScanner::GetInstance().SetRules(rules);
+        scanner.SetRules(rules);
     }
     catch (const YaraScanner::YaraScannerException& e)
     {
@@ -226,27 +200,17 @@ void SetYaraRules(const std::list<std::string>& rules)
     }
 }
 
-void ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result)
+void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result)
 {
     result.clear();
 
     try
     {
-        auto& yaraScanner = YaraScanner::GetInstance();
         ReadOnlyMemoryDataSource dsForYara(hProcess, region.BaseAddress, region.RegionSize, 0);
-        yaraScanner.Scan(dsForYara, result);
+        scanner.Scan(dsForYara, result);
     }
     catch (const YaraScanner::YaraScannerException& e)
     {
         GetDefaultLoggerForThread()->Log(ILogger::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
     }
 }
-
-#else
-
-const std::list<std::string>& ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result)
-{
-    result.clear();
-}
-
-#endif // USE_YARA
