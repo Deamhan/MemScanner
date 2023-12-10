@@ -10,11 +10,6 @@
 #include "callbacks.hpp"
 #include "scanner.hpp"
 
-static void CloseHandleByPtr(HANDLE* handle)
-{
-    CloseHandle(*handle);
-}
-
 static void FreeVirtualMemory(void* p)
 {
     VirtualFree(p, 0, MEM_RELEASE);
@@ -95,9 +90,9 @@ int main()
     VirtualProtect(pExec, sizeof(code), PAGE_EXECUTE_READ, &oldProt);
 
     HANDLE hEvent = CreateEventA(nullptr, FALSE, FALSE, nullptr);
-    std::unique_ptr<HANDLE, void(*)(HANDLE*)> eventGuard(&hEvent, CloseHandleByPtr);
+    std::unique_ptr<HANDLE, void(*)(HANDLE*)> eventGuard(&hEvent, MemoryHelperBase::CloseHandleByPtr);
     HANDLE hThread = CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)pExec, hEvent, 0, nullptr);
-    std::unique_ptr<HANDLE, void(*)(HANDLE*)> threadGuard(&hThread, CloseHandleByPtr);
+    std::unique_ptr<HANDLE, void(*)(HANDLE*)> threadGuard(&hThread, MemoryHelperBase::CloseHandleByPtr);
     WaitForSingleObject(hEvent, INFINITE);
 
     auto myCallbacks = std::make_shared<MyCallbacks>();
