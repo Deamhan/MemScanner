@@ -53,3 +53,5 @@ protected:
 
 	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
 };
+
+extern const std::list<std::string> predefinedRiles;

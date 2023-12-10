@@ -233,7 +233,7 @@ void DefaultCallbacks::OnProcessScanEnd()
         GetDefaultLoggerForThread()->Log(ILogger::Info, L"Process [PID = %u]: done\n", currentScanData.pid);
 }
 
-static const std::list<std::string> predefinedRiles{ "\
+const std::list<std::string> predefinedRiles{ "\
             rule PeSig { \
               strings: \
                 $dosText = \"This program cannot be run in DOS mode\" \

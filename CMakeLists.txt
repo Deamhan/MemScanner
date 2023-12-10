@@ -64,6 +64,10 @@ set(SCANNER_ADDR_SRC tests/scanner_addr_test.cpp
                      ${COMMON_SRC}
 )
 
+set(YARA_PE_SRC tests/yara_pe_test.cpp
+                ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -119,6 +123,7 @@ add_executable(private_pe_test ${PRIVATE_PE_SRC})
 add_executable(sections_artifacts_test ${SECTION_ARTIFACTS_SRC})
 add_executable(single_page_test ${SINGLE_PAGE_SRC})
 add_executable(scanner_addr_test ${SCANNER_ADDR_SRC})
+add_executable(yara_pe_test ${YARA_PE_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -133,6 +138,7 @@ set (EXECUTABLES memscan
                  single_page_test
                  scanner_addr_test
                  private_pe_test
+                 yara_pe_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -168,3 +174,4 @@ add_test(NAME private_inmem_pe_test COMMAND private_pe_test)
 add_test(NAME section_border_artifacts_test COMMAND sections_artifacts_test)
 add_test(NAME single_page_mem_test COMMAND single_page_test)
 add_test(NAME scanner_address_test COMMAND scanner_addr_test)
+add_test(NAME yara_basic_test COMMAND yara_pe_test)
