@@ -7,13 +7,17 @@ option(USE_YARA "Enable YARA scanning" ON)
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/include/yara-4.3.2)
 
-set(COMMON_SRC source/datasource.cpp
+set(COMMON_SRC source/callbacks.cpp
+               source/datasource.cpp
                source/file.cpp
                source/log.cpp
                source/memhelper.cpp
                source/memdatasource.cpp
                source/ntdll64.cpp
                source/pe.cpp
+               source/scanner.cpp
+               source/yara.cpp
+               include/callbacks.hpp
                include/datasource.hpp
                include/file.hpp
                include/log.hpp
@@ -22,16 +26,15 @@ set(COMMON_SRC source/datasource.cpp
                include/ntdll64.hpp
                include/pe.hpp
                include/system_defs.hpp
-               include/scanner.hpp    
+               include/scanner.hpp   
+               include/yara.hpp               
 )
 
 set(SCANNER_SRC source/main.cpp
-                source/scanner.cpp
                 ${COMMON_SRC}
 )
 
-set(SUSP_THREAD_SRC source/scanner.cpp
-                    tests/susp_thread_test.cpp            
+set(SUSP_THREAD_SRC tests/susp_thread_test.cpp            
                     ${COMMON_SRC}
 )
 
@@ -60,7 +63,6 @@ set(SINGLE_PAGE_SRC tests/single_page_test.cpp
 )
 
 set(SCANNER_ADDR_SRC tests/scanner_addr_test.cpp
-                     source/scanner.cpp
                      ${COMMON_SRC}
 )
 

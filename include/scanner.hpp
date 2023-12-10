@@ -2,6 +2,7 @@
 
 #include <cinttypes>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "memhelper.hpp"
@@ -40,77 +41,26 @@ public:
 
 	};
 
-	class DefaultCallbacks : public ICallbacks
-	{
-	public:
-		void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-			const std::vector<uint64_t>& threadEntryPoints) override;
-
-		void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override;
-
-		void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) override;
-		void OnProcessScanEnd() override;
-
-		void SetDumpsRoot(const wchar_t* dumpsRoot);
-
-		DefaultCallbacks(const DefaultCallbacks&) = delete;
-		DefaultCallbacks(DefaultCallbacks&&) = delete;
-		DefaultCallbacks& operator = (const DefaultCallbacks&) = delete;
-		DefaultCallbacks& operator = (DefaultCallbacks&&) = delete;
-
-		DefaultCallbacks(uint32_t pidToScan = 0, Sensitivity memoryScanSensitivity = Sensitivity::Low,
-			Sensitivity hookScanSensitivity = Sensitivity::Low, Sensitivity threadsScanSensitivity = Sensitivity::Low,
-			uint64_t addressToScan = 0) 
-			: mCurrentPid(0), mProcess(nullptr), mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity),
-			mHookScanSensitivity(hookScanSensitivity), mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan)
-		{
-			mProcessCreationTime.QuadPart = 0;
-		}
-
-		Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToScan, bool& scanImageForHooks) override;
-		Sensitivity GetThreadAnalysisSettings() override { return mThreadScanSensitivity; }
-		Sensitivity GetHookAnalysisSettings() override { return mHookScanSensitivity; }
-		bool SkipProcess(uint32_t processId, LARGE_INTEGER, const std::wstring&) override { return !(mPidToScan == 0 || mPidToScan == processId); }
-
-	protected:
-		LARGE_INTEGER mProcessCreationTime;
-		unsigned mCurrentPid;
-
-		std::wstring mDumpRoot;
-		std::wstring mProcessName;
-		HANDLE mProcess;
-
-		uint32_t mPidToScan;
-		Sensitivity mMemoryScanSensitivity;
-		Sensitivity mHookScanSensitivity;
-		Sensitivity mThreadScanSensitivity;
-
-		uint64_t mAddressToScan;
-
-		virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
-	};
-
-	void Scan();
-
-	MemoryScanner(std::shared_ptr<ICallbacks> callbacks = std::make_shared<DefaultCallbacks>()) noexcept :
-		mCallbacks(std::move(callbacks)){}
-	
-	const std::shared_ptr<ICallbacks>& GetCallbacks() const noexcept { return mCallbacks; }
+	void Scan(std::shared_ptr<ICallbacks> scanCallbacks, uint32_t workersCount = 1);
 
 	MemoryScanner(const MemoryScanner&) = delete;
 	MemoryScanner(MemoryScanner&&) = delete;
 	MemoryScanner& operator = (const MemoryScanner&) = delete;
 	MemoryScanner& operator = (MemoryScanner&&) = delete;
 
-private:
-	std::shared_ptr<ICallbacks> mCallbacks;
+	static MemoryScanner& GetInstance();
 
-	std::map<std::wstring, PE<false, CPUArchitecture::X86>> mCached32;
-	std::map<std::wstring, PE<false, CPUArchitecture::X64>> mCached64;
+private:
+	std::pair<std::map<std::wstring, PE<false, CPUArchitecture::X86>>, std::mutex> mCached32;
+	std::pair<std::map<std::wstring, PE<false, CPUArchitecture::X64>>, std::mutex> mCached64;
+
+	MemoryScanner() = default;
 
 	template <CPUArchitecture arch>
-	void ScanMemoryImpl();
+	void ScanMemoryImpl(uint32_t workersCount, ICallbacks* scanCallbacks);
 
 	template <CPUArchitecture arch, typename SPI = SystemDefinitions::SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>>>
 	void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api);
+
+	static thread_local ICallbacks* callbacks;
 };

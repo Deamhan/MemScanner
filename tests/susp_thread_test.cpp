@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "callbacks.hpp"
 #include "scanner.hpp"
 
 static void CloseHandleByPtr(HANDLE* handle)
@@ -26,13 +27,15 @@ static void TestThreadFunc(HANDLE hEvent)
         Sleep(1000);
 }
 
-class MyCallbacks : public MemoryScanner::DefaultCallbacks
+class MyCallbacks : public DefaultCallbacks
 {
 public:
     void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
         const std::vector<uint64_t>& threadEntryPoints) override
     {
         Super::OnSuspiciousMemoryRegionFound(continiousRegions, threadEntryPoints);
+
+        std::lock_guard<std::mutex> guard(lock);
         mFoundThreadEPs.insert(threadEntryPoints.begin(), threadEntryPoints.end());
     }
 
@@ -48,17 +51,24 @@ public:
 
     void RegisterNewDump(const MemoryHelperBase::MemInfoT64& info, const std::wstring& dumpPath) override
     {
+        std::lock_guard<std::mutex> guard(lock);
         mDumped.emplace(info.BaseAddress, dumpPath);
     }
 
     const std::map<uint64_t, std::wstring>& GetDumped() const noexcept { return mDumped; }
 
-    MyCallbacks() : MemoryScanner::DefaultCallbacks(GetCurrentProcessId()) {}
+    MyCallbacks() : DefaultCallbacks(GetCurrentProcessId(), MemoryScanner::Sensitivity::Low,
+        MemoryScanner::Sensitivity::Low, MemoryScanner::Sensitivity::Low, 0, L".") {}
 
 private:
-    typedef MemoryScanner::DefaultCallbacks Super;
+    typedef DefaultCallbacks Super;
     std::set<uint64_t> mFoundThreadEPs;
     std::map<uint64_t, std::wstring> mDumped;
+
+    std::mutex lock;
+
+    MyCallbacks(const MyCallbacks&) = default;
+    MyCallbacks& operator = (const MyCallbacks&) = default;
 };
 
 int main()
@@ -91,9 +101,7 @@ int main()
     WaitForSingleObject(hEvent, INFINITE);
 
     auto myCallbacks = std::make_shared<MyCallbacks>();
-    myCallbacks->SetDumpsRoot(L".");
-    MemoryScanner scanner{ myCallbacks };
-    scanner.Scan();
+    MemoryScanner::GetInstance().Scan(myCallbacks, 1);
 
     const auto& found = myCallbacks->GetFoundEPs();
     if (found.find((uintptr_t)pExec) == found.end())

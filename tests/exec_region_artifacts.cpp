@@ -100,7 +100,7 @@ static int MapAndCheckPeCopy()
 
 	memcpy((char*)address + offset, moduleHandle, size);
 
-	SetDefaultLogger(&GetConsoleLoggerInstance());
+	SetDefaultLogger(&ConsoleLogger::GetInstance());
 
 	auto bordersFound = ScanCurrentProcessMemoryForSectionBorders();
 

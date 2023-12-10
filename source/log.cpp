@@ -43,29 +43,67 @@ void FileLogger::Log(ILogger::Level /*level*/, const wchar_t* message, ...)
 	_fwrite_nolock(mBuffer.data(), sizeof(wchar_t), wcslen(mBuffer.data()), mFile.get());
 }
 
-FileLogger& GetFileLoggerInstance(const wchar_t* path)
+FileLogger& FileLogger::GetInstance(const wchar_t* path)
 {
 	static FileLogger logger(path);
 	return logger;
 }
 
-ConsoleLogger& GetConsoleLoggerInstance()
+ConsoleLogger& ConsoleLogger::GetInstance()
 {
 	static ConsoleLogger logger{};
 	return logger;
 }
 
-NullLogger& GetNullLoggerInstance()
+NullLogger& NullLogger::GetInstance()
 {
 	static NullLogger logger{};
 	return logger;
 }
 
-static std::atomic<ILogger*> defaultLogger;
+MemoryLogger& MemoryLogger::GetInstance()
+{
+    static MemoryLogger logger{};
+    return logger;
+}
+
+thread_local std::vector<wchar_t> MemoryLogger::lineBuffer(4096);
+thread_local std::list<std::pair<std::wstring, ILogger::Level>> MemoryLogger::log;
+std::mutex MemoryLogger::flushGuard;
+
+void MemoryLogger::Flush(ILogger* target)
+{
+    std::lock_guard<std::mutex> lg(flushGuard);
+
+    for (const auto& item : log)
+        target->Log(item.second, L"%s", item.first.c_str());
+    
+    log.clear();
+}
+
+void MemoryLogger::Log(MemoryLogger::Level level, const wchar_t* message, ...)
+{
+    va_list args;
+    va_start(args, message);
+    int size = vswprintf(lineBuffer.data(), lineBuffer.size(), message, args);
+
+    if (size != 0)
+        log.emplace_back(std::wstring(lineBuffer.data(), size), level);
+
+    va_end(args);
+}
+
+static std::atomic<ILogger*> defaultLogger = nullptr;
+static thread_local ILogger* threadLocalDefaultLogger = nullptr;
 
 void SetDefaultLogger(ILogger* newLogger)
 {
 	defaultLogger = newLogger;
+}
+
+void SetThreadLocalDefaultLogger(ILogger* newLogger)
+{
+    threadLocalDefaultLogger = newLogger;
 }
 
 ILogger* GetDefaultLogger()
@@ -73,11 +111,25 @@ ILogger* GetDefaultLogger()
 	return defaultLogger;
 }
 
+ILogger* GetThreadLocalDefaultLogger()
+{
+    return threadLocalDefaultLogger;
+}
+
+ILogger* GetDefaultLoggerForThread()
+{
+    auto logger = GetThreadLocalDefaultLogger();
+    if (logger != nullptr)
+        return logger;
+
+    return GetDefaultLogger();
+}
+
 struct DefaultLoggerInitializer
 {
 	DefaultLoggerInitializer()
 	{
-		SetDefaultLogger(&GetNullLoggerInstance());
+		SetDefaultLogger(&NullLogger::GetInstance());
 	}
 } loggerInitializer;
 
@@ -162,14 +214,14 @@ static const wchar_t* stateToStr(uint32_t state)
 template <class T>
 void printMBI(const MEMORY_BASIC_INFORMATION_T<T>& mbi, const wchar_t* offset)
 {
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   BaseAddress:       0x%llx\n", offset, (unsigned long long)mbi.BaseAddress);
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   AllocationBase:    0x%llx\n", offset, (unsigned long long)mbi.AllocationBase);
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   AllocationProtect: %s\n", offset, ProtToStr(mbi.AllocationProtect).c_str());
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   RegionSize:        0x%llx\n", offset, mbi.RegionSize);
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   State:             %s\n", offset, stateToStr(mbi.State));
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   Protect:           %s\n", offset, ProtToStr(mbi.Protect).c_str());
-    GetDefaultLogger()->Log(ILogger::Info, L"%s   Type:              %s\n", offset, typeToStr(mbi.Type));
-    GetDefaultLogger()->Log(ILogger::Info, L"\n");
+    GetDefaultLoggerForThread()->Log(ILogger::Info, L"%s   BaseAddress:       0x%llx\n", offset, (unsigned long long)mbi.BaseAddress);
+    GetDefaultLoggerForThread()->Log(ILogger::Info, L"%s   AllocationBase:    0x%llx\n", offset, (unsigned long long)mbi.AllocationBase);
+    GetDefaultLoggerForThread()->Log(ILogger::Info, L"%s   AllocationProtect: %s\n", offset, ProtToStr(mbi.AllocationProtect).c_str());
+    GetDefaultLoggerForThread()->Log(ILogger::Info, L"%s   RegionSize:        0x%llx\n", offset, mbi.RegionSize);
+    GetDefaultLoggerForThread()->Log(ILogger::Info, L"%s   State:             %s\n", offset, stateToStr(mbi.State));
+    GetDefaultLoggerForThread()->Log(ILogger::Info, L"%s   Protect:           %s\n", offset, ProtToStr(mbi.Protect).c_str());
+    GetDefaultLoggerForThread()->Log(ILogger::Info, L"%s   Type:              %s\n", offset, typeToStr(mbi.Type));
+    GetDefaultLoggerForThread()->Log(ILogger::Info, L"\n");
 }
 
 template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint32_t>& mbi, const wchar_t* offset);

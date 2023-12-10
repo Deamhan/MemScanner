@@ -1,5 +1,6 @@
 #include <vector>
 
+#include "callbacks.hpp"
 #include "file.hpp"
 #include "log.hpp"
 #include "memdatasource.hpp"
@@ -9,11 +10,11 @@
 
 MemoryHelperBase::FlatMemoryMapT detectedMap;
 
-class TestCallbacks : public MemoryScanner::DefaultCallbacks
+class TestCallbacks : public DefaultCallbacks
 {
 public:
 	TestCallbacks(uint64_t address) : 
-		MemoryScanner::DefaultCallbacks(GetCurrentProcessId(), MemoryScanner::Sensitivity::Low,
+		DefaultCallbacks(GetCurrentProcessId(), MemoryScanner::Sensitivity::Low,
 			MemoryScanner::Sensitivity::Off, MemoryScanner::Sensitivity::Off, address)
 	{}
 
@@ -44,9 +45,7 @@ static bool MapAndCheckPeCopy()
 	memcpy((char*)address + offset, moduleHandle, size);
 
 	auto callbacks = std::make_shared<TestCallbacks>((uintptr_t)address + 0x3000);
-	MemoryScanner scanner{ callbacks };
-
-	scanner.Scan();
+	MemoryScanner::GetInstance().Scan(callbacks);
 
 	if (detectedMap.size() != 1)
 		return false;

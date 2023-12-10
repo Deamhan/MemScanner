@@ -4,6 +4,7 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "callbacks.hpp"
 #include "log.hpp"
 #include "scanner.hpp"
 
@@ -12,6 +13,7 @@ enum class CmdLineSwitch
     Sensitivity,
     Pid,
     Log,
+    Threads,
     None
 };
 
@@ -37,8 +39,8 @@ static std::wstring toString(T& value)
 
 void PrintHelp()
 {
-    wprintf(L"Help: memscan.exe [-sensitivity low|medium|high|off] [-pid ID] [-log path] [dumpDirectory]\n"
-        "\tdefault: low sensitivity all process scan without dumping\n");
+    wprintf(L"Help: memscan.exe [-sensitivity low|medium|high|off] [-pid ID] [-log path] [-threads N] [dumpDirectory]\n"
+        "\tdefault: low sensitivity all process scan without dumping, single thread\n");
 }
 
 int wmain(int argc, const wchar_t ** argv)
@@ -47,7 +49,7 @@ int wmain(int argc, const wchar_t ** argv)
     const wchar_t* logPath = nullptr;
     MemoryScanner::Sensitivity sensitivity = MemoryScanner::Sensitivity::Low;
     std::wstring sensitivityString = L"low";
-    uint32_t pid = 0;
+    uint32_t pid = 0, threadsCount = 1;
 
     CmdLineSwitch state = CmdLineSwitch::None;
     for (int i = 1; i < argc; ++i)
@@ -62,6 +64,8 @@ int wmain(int argc, const wchar_t ** argv)
                     state = CmdLineSwitch::Pid;
                 else if (wcscmp(argv[i] + 1, L"log") == 0)
                     state = CmdLineSwitch::Log;
+                else if (wcscmp(argv[i] + 1, L"threads") == 0)
+                    state = CmdLineSwitch::Threads;
                 else if (wcscmp(argv[i] + 1, L"help") == 0)
                 {
                     PrintHelp();
@@ -93,6 +97,9 @@ int wmain(int argc, const wchar_t ** argv)
                 case CmdLineSwitch::Pid:
                     parse(argv[i], pid);
                     break;
+                case CmdLineSwitch::Threads:
+                    parse(argv[i], threadsCount);
+                    break;
                 case CmdLineSwitch::Log:
                     logPath = argv[i];
                     break;
@@ -122,26 +129,23 @@ int wmain(int argc, const wchar_t ** argv)
         }
     }
 
-    wprintf(L"Settings:\n\tsensitivity = %s\n\tpid = %s\n\tlog = %s\n\tdump directory = %s\n\n", 
+    wprintf(L"Settings:\n\tsensitivity = %s\n\tpid = %s\n\tlog = %s\n\tthreads = %u\n\tdump directory = %s\n\n", 
             sensitivityString.c_str(), pid == 0 ? L"all" : toString(pid).c_str(),
             logPath == nullptr ? L"console" : logPath,
+            threadsCount,
             dumpsDir.empty() ? L"none" : dumpsDir.c_str());
 
     try
     {
-        ILogger* logger = logPath == nullptr ? (ILogger*)&GetConsoleLoggerInstance() : (ILogger*)&GetFileLoggerInstance(logPath);
+        ILogger* logger = logPath == nullptr ? (ILogger*)&ConsoleLogger::GetInstance() : (ILogger*)&FileLogger::GetInstance(logPath);
         SetDefaultLogger(logger);
-
-        auto callbacks = std::make_shared<MemoryScanner::DefaultCallbacks>(pid, sensitivity);
-        callbacks->SetDumpsRoot(dumpsDir.c_str());
-
-        MemoryScanner scanner{ callbacks };
 
         GetDefaultLogger()->Log(ILogger::Info, L">>> OS Architecture: %s <<<\n", GetOSArch() == CPUArchitecture::X64 ? L"X64" : L"X86");
         GetDefaultLogger()->Log(ILogger::Info, L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
 
         Timer timer{ L"Memory" };
-        scanner.Scan();
+        MemoryScanner::GetInstance().Scan(
+            std::make_shared<DefaultCallbacks>(pid, sensitivity, sensitivity, sensitivity, 0, dumpsDir.c_str()), threadsCount);
     }
     catch (const std::exception& e)
     {

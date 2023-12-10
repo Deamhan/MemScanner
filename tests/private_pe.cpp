@@ -119,7 +119,7 @@ static bool MapAndCheckPeCopy()
 
 	memcpy((char*)address + offset, moduleHandle, size);
 
-	SetDefaultLogger(&GetConsoleLoggerInstance());
+	SetDefaultLogger(&ConsoleLogger::GetInstance());
 
 	return ScanCurrentProcessMemoryForPe() == (uintptr_t)address + offset; // I assume that there is no other PEs in private memory
 }
