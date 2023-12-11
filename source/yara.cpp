@@ -2,6 +2,7 @@
 
 #include <shared_mutex>
 
+#include "file.hpp"
 #include "log.hpp"
 #include "memdatasource.hpp"
 
@@ -118,6 +119,9 @@ void YaraScanner::Scan(DataSource& ds, std::list<std::string>& detections)
 {
     std::shared_lock<std::shared_mutex> lg(mRulesLock);
 
+    if (!mScanner)
+        throw YaraScannerException{ 0, "scanner is empty" };
+
     yr_scanner_set_callback(mScanner.get(), YaraCallback, &detections);
 
     detections.clear();
@@ -176,6 +180,48 @@ void YaraScanner::SetRules(const std::list<std::string>& rules)
     yr_scanner_set_timeout(mScanner.get(), TimeoutInSeconds);
 }
 
+void YaraScanner::LoadRules(const wchar_t* directory)
+{
+    std::wstring root(directory);
+    if (root.empty())
+        throw YaraScannerException{ 0, "directory is empty" };
+
+    if (*root.rbegin() != L'\\')
+        root += L'/';
+
+    std::wstring pattern(root);
+    pattern += L"*.yara";
+
+    WIN32_FIND_DATAW data;
+    auto searchHandle = FindFirstFileW(pattern.c_str(), &data);
+
+    if (searchHandle == INVALID_HANDLE_VALUE)
+        throw YaraScannerException{ (int)GetLastError(), "unable to enumerate rules directory"};
+    
+    std::unique_ptr<HANDLE, void(*)(HANDLE*)> searchGuard(&searchHandle, MemoryHelperBase::CloseSearchHandleByPtr);
+    std::list<std::string> rules;
+
+    do
+    {
+        if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+            continue;
+
+        File file((root + data.cFileName).c_str(), File::OpenForRead, 0);
+        std::string text(data.nFileSizeLow, '\0');
+        auto read = file.Read(&text[0], text.size());
+        text.resize(read);
+
+        // remove UTF8 BOM if present
+        if (text.size() > 3 && text.compare(0, 3, "\xEF\xBB\xBF") == 0)
+            text.erase(0, 3);
+
+        rules.push_back(std::move(text));
+
+    } while (FindNextFileW(searchHandle, &data) != FALSE);
+
+    SetRules(rules);
+}
+
 
 class YaraInitializer
 {
@@ -200,6 +246,22 @@ void SetYaraRules(YaraScanner& scanner, const std::list<std::string>& rules)
     catch (const YaraScanner::YaraScannerException& e)
     {
         GetDefaultLoggerForThread()->Log(ILogger::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
+    }
+}
+
+void LoadYaraRules(YaraScanner& scanner, const wchar_t* rootDir)
+{
+    try
+    {
+        scanner.LoadRules(rootDir);
+    }
+    catch (const YaraScanner::YaraScannerException& e)
+    {
+        GetDefaultLoggerForThread()->Log(ILogger::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
+    }
+    catch (const DataSourceException& e)
+    {
+        GetDefaultLoggerForThread()->Log(ILogger::Error, L"\t\tYARA exception (data access): %d\n", e.GetErrorCode());
     }
 }
 

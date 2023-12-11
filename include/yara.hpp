@@ -27,6 +27,7 @@ public:
 
     void Scan(DataSource& ds, std::list<std::string>& detections);
     void SetRules(const std::list<std::string>& rules);
+    void LoadRules(const wchar_t* pattern);
 
     YaraScanner() :
         mCompiledRules(nullptr, yr_rules_destroy), mScanner(nullptr, yr_scanner_destroy)
@@ -42,3 +43,4 @@ protected:
 
 void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result);
 void SetYaraRules(YaraScanner& scanner, const std::list<std::string>& rules);
+void LoadYaraRules(YaraScanner& scanner, const wchar_t* rootDir);

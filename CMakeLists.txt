@@ -68,6 +68,10 @@ set(YARA_PE_SRC tests/yara_pe_test.cpp
                 ${COMMON_SRC}
 )
 
+set(YARA_LOADRULES_SRC tests/yara_loadrules_test.cpp
+                       ${COMMON_SRC}
+)
+
 set(SIMPLE_MT_SRC tests/simple_mt_test.cpp
                   ${COMMON_SRC}
 )
@@ -118,6 +122,8 @@ if (MSVC)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} ${RELEASE_LINKER_FLAGS}")
 endif()
 
+add_compile_definitions(YARA_RULES_DIR=L"${PROJECT_SOURCE_DIR}/rules")
+
 add_executable(memscan ${SCANNER_SRC})
 add_executable(susp_thread_test ${SUSP_THREAD_SRC})
 add_executable(datasource_test ${DATASRC_SRC})
@@ -129,6 +135,7 @@ add_executable(single_page_test ${SINGLE_PAGE_SRC})
 add_executable(scanner_addr_test ${SCANNER_ADDR_SRC})
 add_executable(yara_pe_test ${YARA_PE_SRC})
 add_executable(simple_mt_test ${SIMPLE_MT_SRC})
+add_executable(yara_loadrules_test ${YARA_LOADRULES_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -145,6 +152,7 @@ set (EXECUTABLES memscan
                  private_pe_test
                  yara_pe_test
                  simple_mt_test
+                 yara_loadrules_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -182,3 +190,4 @@ add_test(NAME single_page_mem_test COMMAND single_page_test)
 add_test(NAME scanner_address_test COMMAND scanner_addr_test)
 add_test(NAME yara_basic_test COMMAND yara_pe_test)
 add_test(NAME simple_multithreaded_test COMMAND simple_mt_test)
+add_test(NAME yara_load_rules_test COMMAND yara_loadrules_test)

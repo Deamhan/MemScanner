@@ -12,6 +12,7 @@ class MemoryHelperBase
 {
 public:
 	static void CloseHandleByPtr(HANDLE* handle);
+	static void CloseSearchHandleByPtr(HANDLE* handle);
 	static bool EnableDebugPrivilege();
 
 	static const uint32_t PAGE_SIZE = 4096;

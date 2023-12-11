@@ -15,6 +15,14 @@ void MemoryHelperBase::CloseHandleByPtr(HANDLE* handle)
     CloseHandle(*handle);
 }
 
+void MemoryHelperBase::CloseSearchHandleByPtr(HANDLE* handle)
+{
+    if (*handle == INVALID_HANDLE_VALUE)
+        return;
+
+    FindClose(*handle);
+}
+
 bool MemoryHelperBase::EnableDebugPrivilege()
 {
     HANDLE hToken = nullptr;
