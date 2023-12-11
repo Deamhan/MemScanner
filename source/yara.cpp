@@ -171,6 +171,9 @@ void YaraScanner::SetRules(const std::list<std::string>& rules)
 
     mScanner.reset(scanner);
     yr_scanner_set_flags(mScanner.get(), SCAN_FLAGS_REPORT_RULES_MATCHING);
+
+    const int TimeoutInSeconds = 1;
+    yr_scanner_set_timeout(mScanner.get(), TimeoutInSeconds);
 }
 
 
