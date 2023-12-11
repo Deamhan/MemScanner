@@ -15,10 +15,10 @@ public:
 	void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) override;
 	void OnProcessScanEnd() override;
 
-	DefaultCallbacks(uint32_t pidToScan = 0, MemoryScanner::Sensitivity memoryScanSensitivity = MemoryScanner::Sensitivity::Low,
+	DefaultCallbacks(uint32_t pidToScan = 0, uint64_t addressToScan = 0, MemoryScanner::Sensitivity memoryScanSensitivity = MemoryScanner::Sensitivity::Low,
 		MemoryScanner::Sensitivity hookScanSensitivity = MemoryScanner::Sensitivity::Low, 
 		MemoryScanner::Sensitivity threadsScanSensitivity = MemoryScanner::Sensitivity::Low,
-		uint64_t addressToScan = 0, const wchar_t* dumpsRoot = nullptr);
+		const wchar_t* dumpsRoot = nullptr, std::shared_ptr<YaraScanner> yaraScanner = std::shared_ptr<YaraScanner>());
 
 	MemoryScanner::Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToScan, bool& scanImageForHooks) override;
 	MemoryScanner::Sensitivity GetThreadAnalysisSettings() override { return mThreadScanSensitivity; }
@@ -49,9 +49,11 @@ protected:
 
 	uint64_t mAddressToScan;
 
-	YaraScanner mYaraScanner;
+	std::shared_ptr<YaraScanner> mYaraScanner;
 
 	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
+
+	void ScanUsingYara(const MemoryHelperBase::MemInfoT64& region);
 };
 
 extern const std::list<std::string> predefinedRiles;

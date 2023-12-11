@@ -145,7 +145,7 @@ int wmain(int argc, const wchar_t ** argv)
 
         Timer timer{ L"Memory" };
         MemoryScanner::GetInstance().Scan(
-            std::make_shared<DefaultCallbacks>(pid, sensitivity, sensitivity, sensitivity, 0, dumpsDir.c_str()), threadsCount);
+            std::make_shared<DefaultCallbacks>(pid, 0, sensitivity, sensitivity, sensitivity, dumpsDir.c_str()), threadsCount);
     }
     catch (const std::exception& e)
     {

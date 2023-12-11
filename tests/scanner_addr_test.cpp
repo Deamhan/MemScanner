@@ -14,8 +14,8 @@ class TestCallbacks : public DefaultCallbacks
 {
 public:
 	TestCallbacks(uint64_t address) : 
-		DefaultCallbacks(GetCurrentProcessId(), MemoryScanner::Sensitivity::Low,
-			MemoryScanner::Sensitivity::Off, MemoryScanner::Sensitivity::Off, address)
+		DefaultCallbacks(GetCurrentProcessId(), address, MemoryScanner::Sensitivity::Low,
+			MemoryScanner::Sensitivity::Off, MemoryScanner::Sensitivity::Off)
 	{}
 
 	void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,

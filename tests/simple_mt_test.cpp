@@ -11,6 +11,8 @@
 #include "callbacks.hpp"
 #include "scanner.hpp"
 
+static thread_local uint32_t pid = 0;
+
 class MyCallbacks : public DefaultCallbacks
 {
 public:
@@ -21,18 +23,29 @@ public:
     void OnHooksFound(const std::vector<HookDescription>&, const wchar_t*) override
     {}
 
-    void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER, HANDLE, const std::wstring&) override
+    void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER ct, HANDLE hProcess, const std::wstring& processName) override
     {
+        pid = hProcess != nullptr ? processId : 0;
+        Super::OnProcessScanBegin(processId, ct, hProcess, processName);
+
+
         std::lock_guard<std::mutex> lg(mLock);
         mScannedPids.emplace(GetCurrentThreadId(), processId);
     }
 
-    MyCallbacks() : DefaultCallbacks(0, MemoryScanner::Sensitivity::Low,
-        MemoryScanner::Sensitivity::Low, MemoryScanner::Sensitivity::Low, 0) {}
+    MyCallbacks() : DefaultCallbacks() {}
 
     const std::multimap<uint32_t, uint32_t>& GetScannedPids()
     {
         return mScannedPids;
+    }
+
+    void OnProcessScanEnd() override
+    {
+        Super::OnProcessScanEnd();
+
+        if (pid != 0 && pid != currentScanData.pid)
+            throw std::logic_error("Invalid callbacks data");
     }
 
 private:
