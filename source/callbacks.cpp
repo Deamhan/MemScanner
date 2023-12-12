@@ -226,6 +226,7 @@ void DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LARGE_INTEGER crea
     currentScanData.pid = processId;
     currentScanData.processName = processName;
     currentScanData.process = hProcess;
+    currentScanData.processCreationTime = creationTime;
 }
 
 void DefaultCallbacks::OnProcessScanEnd()
@@ -251,6 +252,12 @@ DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, M
     : mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity), mHookScanSensitivity(hookScanSensitivity),
     mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan), mYaraScanner(std::move(yaraScanner))
 {
+    if (!mYaraScanner)
+    {
+        mYaraScanner.reset(new YaraScanner);
+        SetYaraRules(*mYaraScanner, predefinedRiles);
+    }
+
     if (dumpsRoot == nullptr)
         return;
 
@@ -260,11 +267,5 @@ DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, M
 
     if (*mDumpRoot.rbegin() != L'\\')
         mDumpRoot += L'\\';
-
-    if (!mYaraScanner)
-    {
-        mYaraScanner.reset(new YaraScanner);
-        SetYaraRules(*mYaraScanner, predefinedRiles);
-    } 
 }
 
