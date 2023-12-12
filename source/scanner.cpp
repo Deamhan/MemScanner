@@ -88,7 +88,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
     if (callbacks->SkipProcess(pid, createTime, processName))
         return;
    
-    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
     std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
 
     callbacks->OnProcessScanBegin(pid, createTime, hProcess, processName);
@@ -217,8 +217,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
             if (!hooksFound.empty())
                 callbacks->OnHooksFound(hooksFound, image.ImagePath.c_str());
         }
-    }
-    
+    }  
 }
 
 class SimpleThreadPool
@@ -260,7 +259,7 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
     auto procInfo = (const PSPI)buffer.data();
 
     std::queue<PSPI> processInfoParsed;
-    std::mutex lock;
+    bool isSingleThreaded = workersCount == 1;
 
     for (bool stop = false; !stop;
         stop = (procInfo->NextEntryOffset == 0), procInfo = (PSPI)((uint8_t*)procInfo + procInfo->NextEntryOffset))
@@ -269,9 +268,16 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
         if (pid == 0 || pid == 4)
             continue;
 
-        processInfoParsed.push(procInfo);
+        if (isSingleThreaded)
+            ScanProcessMemory<arch>(procInfo, api);
+        else
+            processInfoParsed.push(procInfo);
     }
 
+    if (isSingleThreaded)
+        return;
+
+    std::mutex lock;
     auto workerProc = [&processInfoParsed, &lock, &api, this, scanCallbacks]()
         {
             callbacks = scanCallbacks;
