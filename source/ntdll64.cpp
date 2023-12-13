@@ -73,16 +73,47 @@ FARPROC_T<CURRENT_MODULE_ARCH> Wow64Helper<CURRENT_MODULE_ARCH>::getLdrGetProced
 }
 
 #if !_M_AMD64
+typedef NT_STATUS(__stdcall* NtWow64QueryInformationProcess64_t) (
+    HANDLE ProcessHandle,
+    PROCESSINFOCLASS ProcessInformationClass,
+    PVOID ProcessInformation,
+    ULONG ProcessInformationLength,
+    PULONG ReturnLength
+    );
+
 template <>
 HMODULE_T<CPUArchitecture::X64> Wow64Helper<CPUArchitecture::X64>::GetModuleHandle64(const wchar_t* lpModuleName) const noexcept
 {
-    TEB64 teb64;
+    uint64_t pPeb64 = 0;
+
+#ifndef __USE_PEB64_SYSCALL__
     uint64_t pTeb64 = 0;
     GetTEB64(&pTeb64);
-    MemCpy(&teb64, pTeb64, sizeof(TEB64));
+    MemCpy(&pPeb64, pTeb64 + offsetof(TEB64, ProcessEnvironmentBlock), sizeof(pPeb64));
+#else
+    auto NtWow64QueryInformationProcess64 = (NtWow64QueryInformationProcess64_t)GetProcAddress(GetModuleHandleW(L"ntdll"),
+        "NtWow64QueryInformationProcess64");
+    if (NtWow64QueryInformationProcess64 == nullptr)
+        return 0;
 
+    PROCESS_BASIC_INFORMATION<uint64_t> pbiWow64 = {};
+    ULONG retLength = 0;
+    NT_STATUS status = NtWow64QueryInformationProcess64(
+        GetCurrentProcess(),
+        PROCESSINFOCLASS::ProcessBasicInformation,
+        &pbiWow64,
+        sizeof(pbiWow64),
+        &retLength
+    );
+
+    if (!NtSuccess(status))
+        return 0;
+
+    pPeb64 = pbiWow64.PebBaseAddressT;
+#endif // __USE_PEPB64_SYSCALL__
+    
     PEB64 peb64;
-    MemCpy(&peb64, teb64.ProcessEnvironmentBlock, sizeof(PEB64));
+    MemCpy(&peb64, pPeb64, sizeof(PEB64));
     PEB_LDR_DATA64 ldr;
     MemCpy(&ldr, peb64.Ldr, sizeof(PEB_LDR_DATA64));
 
@@ -165,20 +196,20 @@ typedef NT_STATUS (__stdcall * NtQueryVirtualMemory_t)(
     PSIZE_T                  ReturnLength
 );
 
-typedef NT_STATUS (__stdcall* NtQueryInformationProcess_t)(
-    HANDLE           ProcessHandle,
-    PROCESSINFOCLASS ProcessInformationClass,
-    PVOID            ProcessInformation,
-    ULONG            ProcessInformationLength,
-    PULONG           ReturnLength
-);
-
 typedef NT_STATUS (__stdcall* NtQuerySystemInformation_t)(
     SYSTEM_INFORMATION_CLASS SystemInformationClass,
     PVOID                    SystemInformation,
     ULONG                    SystemInformationLength,
     PULONG                   ReturnLength
 );
+
+typedef NT_STATUS(__stdcall* NtQueryInformationProcess_t)(
+    HANDLE           ProcessHandle,
+    PROCESSINFOCLASS ProcessInformationClass,
+    PVOID            ProcessInformation,
+    ULONG            ProcessInformationLength,
+    PULONG           ReturnLength
+    );
 
 typedef NT_STATUS (__stdcall* NtAllocateVirtualMemory_t)(
     HANDLE    ProcessHandle,
