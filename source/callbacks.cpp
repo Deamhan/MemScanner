@@ -183,8 +183,11 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
     _snwprintf_s(buffer, _countof(buffer), L"_%u_%llu", (unsigned)currentScanData.pid, (unsigned long long)currentScanData.processCreationTime.QuadPart);
     processDumpDir.append(currentScanData.processName).append(buffer);
 
-    if (!CreateDirectoryW(processDumpDir.c_str(), nullptr))
+    if (!CreateDirectoryW(processDumpDir.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
+    {
         GetDefaultLoggerForThread()->Log(ILogger::Error, L"\tUnable to create directory %s:\n", processDumpDir.c_str());
+        return;
+    }
 
     for (const auto& region : relatedRegions)
     {
