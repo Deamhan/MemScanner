@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 
 #include "callbacks.hpp"
 #include "log.hpp"
@@ -136,7 +137,7 @@ int wmain(int argc, const wchar_t ** argv)
     wprintf(L"Settings:\n\tsensitivity = %s\n\tpid = %s\n\tlog = %s\n\tthreads = %u\n\trules directory = %s\n\tdump directory = %s\n\n", 
             sensitivityString.c_str(), pid == 0 ? L"all" : toString(pid).c_str(),
             logPath.empty() ? L"console" : logPath.c_str(),
-            threadsCount,
+            threadsCount == 0 ? std::thread::hardware_concurrency() : threadsCount,
             rulesDir.empty() ? L"none (prefedined set)" : rulesDir.c_str(),
             dumpsDir.empty() ? L"none" : dumpsDir.c_str());
 
