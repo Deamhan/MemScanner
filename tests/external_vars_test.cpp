@@ -11,7 +11,7 @@ const std::list<std::string> rules{ "\
                 $TextSec = \".text\" \
                 $CodeSec = \".code\" \
               condition: \
-                (MemoryType == PrivateType) and ($dosText and ($TextSec or $CodeSec)) or ($PeMagic and ($TextSec or $CodeSec))\
+                (MemoryType == PrivateType) and (($dosText and ($TextSec or $CodeSec)) or ($PeMagic and ($TextSec or $CodeSec)))\
              }" };
 
 
@@ -37,7 +37,7 @@ static PVOID MapPeCopy()
 
 static bool ScanImage()
 {
-	auto ntdllHandle = GetModuleHandleW(L"ntdll");
+	auto ntdllHandle = GetModuleHandleW(L"kernelbase");
 	if (ntdllHandle == nullptr)
 		return false;
 
@@ -45,6 +45,9 @@ static bool ScanImage()
 	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)ntdllHandle, result);
 
 	auto scanner = BuildYaraScanner(rules);
+	if (!scanner)
+		return false;
+
 	std::list<std::string> yaraResult;
 	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult);
 
@@ -66,6 +69,9 @@ static bool ScanCopy()
 	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)copyAddr, result);
 
 	auto scanner = BuildYaraScanner(rules);
+	if (!scanner)
+		return false;
+
 	std::list<std::string> yaraResult;
 	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult);
 
