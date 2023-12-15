@@ -22,7 +22,18 @@
 #undef min
 #undef max
 
-thread_local MemoryScanner::ICallbacks* MemoryScanner::callbacks;
+thread_local MemoryScanner::ICallbacks* MemoryScanner::tlsCallbacks;
+thread_local std::unique_ptr<YaraScanner> MemoryScanner::tlsYaraScanner;
+
+class TlsScannerCleaner
+{
+public:
+    TlsScannerCleaner() = default;
+    ~TlsScannerCleaner()
+    {
+        MemoryScanner::ResetYaraScannerForThread();
+    }
+};
 
 template <CPUArchitecture arch>
 PE<false, arch>* GetOrAddImageToCache(std::pair<std::map<std::wstring, PE<false, arch>>, std::mutex>& cache,
@@ -66,16 +77,16 @@ void CheckForHooks(DataSource& mapped, std::pair<std::map<std::wstring, PE<false
 class ProcessScanGuard
 {
 public:
-    ProcessScanGuard(MemoryScanner::ICallbacks* scanCallbacks) : callbacks(scanCallbacks)
+    ProcessScanGuard(MemoryScanner::ICallbacks* scanCallbacks) : tlsCallbacks(scanCallbacks)
     {}
 
     ~ProcessScanGuard()
     {
-        callbacks->OnProcessScanEnd();
+        tlsCallbacks->OnProcessScanEnd();
     }
 
 private:
-    MemoryScanner::ICallbacks* callbacks;
+    MemoryScanner::ICallbacks* tlsCallbacks;
 };
 
 template <CPUArchitecture arch, typename SPI>
@@ -85,25 +96,25 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
     std::wstring processName((const wchar_t*)procInfo->ImageName.Buffer, procInfo->ImageName.Length / sizeof(wchar_t));
     auto createTime = procInfo->CreateTime;
     
-    if (callbacks->SkipProcess(pid, createTime, processName))
+    if (tlsCallbacks->SkipProcess(pid, createTime, processName))
         return;
    
     HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
     std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
 
-    callbacks->OnProcessScanBegin(pid, createTime, hProcess, processName);
-    ProcessScanGuard scanGuard{ callbacks };
+    tlsCallbacks->OnProcessScanBegin(pid, createTime, hProcess, processName);
+    ProcessScanGuard scanGuard{ tlsCallbacks };
 
     if (hProcess == nullptr)
         return;
 
     std::vector<uint64_t> memAddressesToCheck;
     bool scanHookForUserAddress = false;
-    auto memoryAnalysisSettings = callbacks->GetMemoryAnalysisSettings(memAddressesToCheck, scanHookForUserAddress);
+    auto memoryAnalysisSettings = tlsCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck, scanHookForUserAddress);
 
     std::vector<uint64_t> threadsEntryPoints; 
     threadsEntryPoints.reserve(32);
-    const bool threadAnanlysisEnabled = callbacks->GetThreadAnalysisSettings() != Sensitivity::Off;
+    const bool threadAnanlysisEnabled = tlsCallbacks->GetThreadAnalysisSettings() != Sensitivity::Off;
     for (uint32_t i = 0; threadAnanlysisEnabled && i < procInfo->NumberOfThreads; ++i)
     {
         uint64_t startAddress = 0;
@@ -119,7 +130,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
     std::vector<HookDescription> hooksFound;
     hooksFound.reserve(30); // should be enough
 
-    bool hookAnalysisEnabled = callbacks->GetHookAnalysisSettings() != Sensitivity::Off;
+    bool hookAnalysisEnabled = tlsCallbacks->GetHookAnalysisSettings() != Sensitivity::Off;
     bool doHookAnalysisWithMemscan = true;
     if (memoryAnalysisSettings != Sensitivity::Off)
     {
@@ -172,7 +183,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                 }
 
                 if (isSuspGroup || !threadsRelated.empty())
-                    callbacks->OnSuspiciousMemoryRegionFound(group.second, threadsRelated);
+                    tlsCallbacks->OnSuspiciousMemoryRegionFound(group.second, threadsRelated, this);
             }
             else if (hookAnalysisEnabled && doHookAnalysisWithMemscan)
             {
@@ -192,7 +203,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                 }
 
                 if (!hooksFound.empty())
-                    callbacks->OnHooksFound(hooksFound, imagePath.c_str());
+                    tlsCallbacks->OnHooksFound(hooksFound, imagePath.c_str());
             }
         }
     }
@@ -215,7 +226,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
             }
 
             if (!hooksFound.empty())
-                callbacks->OnHooksFound(hooksFound, image.ImagePath.c_str());
+                tlsCallbacks->OnHooksFound(hooksFound, image.ImagePath.c_str());
         }
     }  
 }
@@ -244,7 +255,8 @@ protected:
 template <CPUArchitecture arch>
 void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallbacks* scanCallbacks)
 {
-    callbacks = scanCallbacks;
+    TlsScannerCleaner scannerCleaner;
+    tlsCallbacks = scanCallbacks;
 
     if (!MemoryHelper<arch>::EnableDebugPrivilege())
         GetDefaultLogger()->Log(ILogger::Info, L"Unable to enable SeDebugPrivilege, functionality is limited\n");
@@ -280,7 +292,8 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
     std::mutex lock;
     auto workerProc = [&processInfoParsed, &lock, &api, this, scanCallbacks]()
         {
-            callbacks = scanCallbacks;
+            TlsScannerCleaner scannerCleaner;
+            tlsCallbacks = scanCallbacks;
 
             auto& memLogger = MemoryLogger::GetInstance();
             MemoryLogger::AutoFlush flusher(memLogger);
@@ -324,6 +337,25 @@ void MemoryScanner::Scan(std::shared_ptr<MemoryScanner::ICallbacks> scanCallback
     else
         ScanMemoryImpl<CPUArchitecture::X86>(workersCount, scanCallbacks.get());
 #endif
+}
+
+YaraScanner* MemoryScanner::GetYaraScanner()
+{
+    if (tlsYaraScanner || !mYaraRules)
+        return tlsYaraScanner.get();
+
+    tlsYaraScanner = std::make_unique<YaraScanner>(mYaraRules);
+    return tlsYaraScanner.get();
+}
+
+bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result)
+{
+    auto scanner = GetYaraScanner();
+    if (scanner == nullptr)
+        return false;
+
+    ::ScanUsingYara(*scanner, hProcess, region, result);
+    return true;
 }
 
 MemoryScanner& MemoryScanner::GetInstance()

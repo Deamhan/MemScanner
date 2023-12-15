@@ -76,6 +76,10 @@ set(SIMPLE_MT_SRC tests/simple_mt_test.cpp
                   ${COMMON_SRC}
 )
 
+set(EXTERNAL_VARS_SRC tests/external_vars_test.cpp
+                      ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -136,6 +140,7 @@ add_executable(scanner_addr_test ${SCANNER_ADDR_SRC})
 add_executable(yara_pe_test ${YARA_PE_SRC})
 add_executable(simple_mt_test ${SIMPLE_MT_SRC})
 add_executable(yara_loadrules_test ${YARA_LOADRULES_SRC})
+add_executable(external_vars_test ${EXTERNAL_VARS_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -153,6 +158,7 @@ set (EXECUTABLES memscan
                  yara_pe_test
                  simple_mt_test
                  yara_loadrules_test
+                 external_vars_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -191,3 +197,4 @@ add_test(NAME scanner_address_test COMMAND scanner_addr_test)
 add_test(NAME yara_basic_test COMMAND yara_pe_test)
 add_test(NAME simple_multithreaded_test COMMAND simple_mt_test)
 add_test(NAME yara_load_rules_test COMMAND yara_loadrules_test)
+add_test(NAME external_variables_test COMMAND external_vars_test)

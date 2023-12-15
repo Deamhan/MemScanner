@@ -19,7 +19,7 @@ public:
 	{}
 
 	void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-		const std::vector<uint64_t>& /*threadEntryPoints*/) override
+		const std::vector<uint64_t>& /*threadEntryPoints*/, MemoryScanner* /*scanner*/) override
 	{
 		detectedMap = continiousRegions;
 	}
@@ -44,8 +44,8 @@ static bool MapAndCheckPeCopy()
 
 	memcpy((char*)address + offset, moduleHandle, size);
 
-	auto callbacks = std::make_shared<TestCallbacks>((uintptr_t)address + 0x3000);
-	MemoryScanner::GetInstance().Scan(callbacks);
+	auto tlsCallbacks = std::make_shared<TestCallbacks>((uintptr_t)address + 0x3000);
+	MemoryScanner::GetInstance().Scan(tlsCallbacks);
 
 	if (detectedMap.size() != 1)
 		return false;

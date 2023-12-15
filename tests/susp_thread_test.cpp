@@ -26,9 +26,9 @@ class MyCallbacks : public DefaultCallbacks
 {
 public:
     void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-        const std::vector<uint64_t>& threadEntryPoints) override
+        const std::vector<uint64_t>& threadEntryPoints, MemoryScanner* scanner) override
     {
-        Super::OnSuspiciousMemoryRegionFound(continiousRegions, threadEntryPoints);
+        Super::OnSuspiciousMemoryRegionFound(continiousRegions, threadEntryPoints, scanner);
 
         std::lock_guard<std::mutex> guard(lock);
         mFoundThreadEPs.insert(threadEntryPoints.begin(), threadEntryPoints.end());

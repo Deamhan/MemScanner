@@ -126,16 +126,18 @@ static bool ScanRegionForPeSections(HANDLE hProcess, const MemoryHelperBase::Fla
     return size / borders > 4 * PAGE_SIZE;
 }
 
-void DefaultCallbacks::ScanUsingYara(const MemoryHelperBase::MemInfoT64& region)
+void DefaultCallbacks::ScanUsingYara(const MemoryHelperBase::MemInfoT64& region, MemoryScanner* scanner)
 {
     std::list<std::string> yaraDetections;
-    ::ScanUsingYara(*mYaraScanner, currentScanData.process, region, yaraDetections);
+    if (!scanner->ScanUsingYara(currentScanData.process, region, yaraDetections))
+        GetDefaultLoggerForThread()->Log(ILogger::Error, L"\t\tYARA isn't initialized properly\n");
+
     for (const auto& detection : yaraDetections)
         GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\tYARA: %S\n", detection.c_str());
 }
 
 void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& relatedRegions,
-    const std::vector<uint64_t>& threadEntryPoints)
+    const std::vector<uint64_t>& threadEntryPoints, MemoryScanner* scanner)
 {
     GetDefaultLoggerForThread()->Log(ILogger::Info, L"\tSuspicious memory region:\n");
     for (const auto& region : relatedRegions)
@@ -160,7 +162,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
                 (unsigned long long)peFound.first);
             isPeFound = true;
 
-            ScanUsingYara(region);
+            ScanUsingYara(region, scanner);
         }
     }
 
@@ -172,7 +174,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
             (unsigned long long)relatedRegions.begin()->AllocationBase);
 
         for (const auto& region : relatedRegions)
-            ScanUsingYara(region);
+            ScanUsingYara(region, scanner);
     }
 
     if (mDumpRoot.empty())
@@ -251,16 +253,10 @@ const std::list<std::string> predefinedRiles{ "\
 
 DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, MemoryScanner::Sensitivity memoryScanSensitivity,
     MemoryScanner::Sensitivity hookScanSensitivity, MemoryScanner::Sensitivity threadsScanSensitivity, 
-    const wchar_t* dumpsRoot, std::shared_ptr<YaraScanner> yaraScanner)
+    const wchar_t* dumpsRoot, std::shared_ptr<YaraScanner> tlsYaraScanner)
     : mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity), mHookScanSensitivity(hookScanSensitivity),
-    mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan), mYaraScanner(std::move(yaraScanner))
+    mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan)
 {
-    if (!mYaraScanner)
-    {
-        mYaraScanner.reset(new YaraScanner);
-        SetYaraRules(*mYaraScanner, predefinedRiles);
-    }
-
     if (dumpsRoot == nullptr)
         return;
 

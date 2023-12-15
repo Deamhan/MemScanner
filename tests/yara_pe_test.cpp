@@ -14,10 +14,9 @@ int main()
 	MemoryHelperBase::MemoryMapT result;
 	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)ntdllHandle, result);
 
+	auto scanner = BuildYaraScanner(predefinedRiles);
 	std::list<std::string> yaraResult;
-	YaraScanner scanner;
-	SetYaraRules(scanner, predefinedRiles);
-	ScanUsingYara(scanner, GetCurrentProcess(), result.begin()->second, yaraResult);
+	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult);
 
 	return std::find(yaraResult.begin(), yaraResult.end(), "PeSig") != yaraResult.end() ? 0 : 1;
 }

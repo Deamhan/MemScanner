@@ -7,6 +7,7 @@
 
 #include "memhelper.hpp"
 #include "pe.hpp"
+#include "yara.hpp"
 
 class MemoryScanner
 {
@@ -24,7 +25,7 @@ public:
 	{
 	public:
 		virtual void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-			const std::vector<uint64_t>& threadEntryPoints) = 0;
+			const std::vector<uint64_t>& threadEntryPoints, MemoryScanner* scanner) = 0;
 
 		virtual void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) = 0;
 
@@ -50,6 +51,10 @@ public:
 
 	static MemoryScanner& GetInstance();
 
+	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result);
+	void SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules) { mYaraRules = std::move(rules); }
+	static void ResetYaraScannerForThread() noexcept { tlsYaraScanner.reset(); }
+
 private:
 	std::pair<std::map<std::wstring, PE<false, CPUArchitecture::X86>>, std::mutex> mCached32;
 	std::pair<std::map<std::wstring, PE<false, CPUArchitecture::X64>>, std::mutex> mCached64;
@@ -62,5 +67,9 @@ private:
 	template <CPUArchitecture arch, typename SPI = SystemDefinitions::SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>>>
 	void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api);
 
-	static thread_local ICallbacks* callbacks;
+	static thread_local ICallbacks* tlsCallbacks;
+	static thread_local std::unique_ptr<YaraScanner> tlsYaraScanner;
+
+	std::shared_ptr<YaraScanner::YaraRules> mYaraRules;
+	YaraScanner* GetYaraScanner();
 };

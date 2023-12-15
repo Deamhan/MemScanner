@@ -8,7 +8,7 @@ class DefaultCallbacks : public MemoryScanner::ICallbacks
 {
 public:
 	void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-		const std::vector<uint64_t>& threadEntryPoints) override;
+		const std::vector<uint64_t>& threadEntryPoints, MemoryScanner* scanner) override;
 
 	void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override;
 
@@ -18,7 +18,7 @@ public:
 	DefaultCallbacks(uint32_t pidToScan = 0, uint64_t addressToScan = 0, MemoryScanner::Sensitivity memoryScanSensitivity = MemoryScanner::Sensitivity::Low,
 		MemoryScanner::Sensitivity hookScanSensitivity = MemoryScanner::Sensitivity::Low, 
 		MemoryScanner::Sensitivity threadsScanSensitivity = MemoryScanner::Sensitivity::Low,
-		const wchar_t* dumpsRoot = nullptr, std::shared_ptr<YaraScanner> yaraScanner = std::shared_ptr<YaraScanner>());
+		const wchar_t* dumpsRoot = nullptr, std::shared_ptr<YaraScanner> tlsYaraScanner = std::shared_ptr<YaraScanner>());
 
 	MemoryScanner::Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToScan, bool& scanImageForHooks) override;
 	MemoryScanner::Sensitivity GetThreadAnalysisSettings() override { return mThreadScanSensitivity; }
@@ -49,11 +49,9 @@ protected:
 
 	uint64_t mAddressToScan;
 
-	std::shared_ptr<YaraScanner> mYaraScanner;
-
 	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
 
-	void ScanUsingYara(const MemoryHelperBase::MemInfoT64& region);
+	void ScanUsingYara(const MemoryHelperBase::MemInfoT64& region, MemoryScanner* scanner);
 };
 
 extern const std::list<std::string> predefinedRiles;
