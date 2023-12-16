@@ -151,7 +151,7 @@ int wmain(int argc, const wchar_t ** argv)
 
         auto& scanner = MemoryScanner::GetInstance();
         if (rulesDir.empty())
-            scanner.SetYaraRules(std::make_shared<YaraScanner::YaraRules>(predefinedRiles));
+            scanner.SetYaraRules(std::make_shared<YaraScanner::YaraRules>(predefinedRules));
         else
             scanner.SetYaraRules(std::make_shared<YaraScanner::YaraRules>(rulesDir.c_str()));
 

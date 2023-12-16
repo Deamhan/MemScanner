@@ -54,4 +54,4 @@ protected:
 	void ScanUsingYara(const MemoryHelperBase::MemInfoT64& region, MemoryScanner* scanner);
 };
 
-extern const std::list<std::string> predefinedRiles;
+extern const std::list<std::string> predefinedRules;

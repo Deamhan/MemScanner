@@ -14,7 +14,7 @@ int main()
 	MemoryHelperBase::MemoryMapT result;
 	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)ntdllHandle, result);
 
-	auto scanner = BuildYaraScanner(predefinedRiles);
+	auto scanner = BuildYaraScanner(predefinedRules);
 	std::list<std::string> yaraResult;
 	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult);
 

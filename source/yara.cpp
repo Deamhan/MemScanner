@@ -201,7 +201,6 @@ void YaraScanner::YaraRules::SetRules(const std::list<std::string>& rules)
     if (res != ERROR_SUCCESS)
         throw YaraScannerException{ res, "unable to compile rules" };
 
-    std::unique_lock<std::shared_mutex> guard(mLock);
     mCompiledRules.reset(compiledRules);
 }
 
@@ -259,23 +258,14 @@ YaraScanner::YaraRules::YaraRules(const wchar_t* directory)
     SetRules(directory);
 }
 
-static void UnlockShared(std::shared_mutex* m) { m->unlock_shared(); }
-YaraScanner::YaraRules::LockedRules YaraScanner::YaraRules::LockCompiledRules()
-{ 
-    mLock.lock_shared();
-    return std::make_pair(mCompiledRules.get(), AutoUnlock{ &mLock, UnlockShared });
-}
-
 YaraScanner::YaraScanner(std::shared_ptr<YaraRules> rules) :
     mScanner(nullptr, yr_scanner_destroy), mRules(std::move(rules))
 {
     if (!mRules)
         throw YaraScannerException(0, "rules cannot be empty");
 
-    mLockedRules = std::make_unique<YaraRules::LockedRules>(mRules->LockCompiledRules());
-
     YR_SCANNER* scanner = nullptr;
-    auto error = yr_scanner_create(mLockedRules->first, &scanner);
+    auto error = yr_scanner_create(mRules->GetCompiledRules(), &scanner);
     if (error != ERROR_SUCCESS)
         throw YaraScannerException(error, "unable to create a scanner");
 

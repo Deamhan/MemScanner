@@ -20,19 +20,16 @@ public:
         YaraRules(const std::list<std::string>& rules);
         YaraRules(const wchar_t* directory);
 
-        void SetRules(const std::list<std::string>& rules);
-        void SetRules(const wchar_t* directory);
-
-        using AutoUnlock = std::unique_ptr<std::shared_mutex, void(*)(std::shared_mutex*)>;
-        using LockedRules = std::pair<YR_RULES*, AutoUnlock>;
-        LockedRules LockCompiledRules();
+        YR_RULES* GetCompiledRules() const noexcept { return mCompiledRules.get(); }
 
     private:
         std::unique_ptr<YR_RULES, int(*)(YR_RULES*)> mCompiledRules;
-        std::shared_mutex mLock;
 
         void SetIntVariable(YR_COMPILER* compiler, const char* name, int value);
         void SetStringVariable(YR_COMPILER* compiler, const char* name, const char* value);
+
+        void SetRules(const std::list<std::string>& rules);
+        void SetRules(const wchar_t* directory);
     };
 
     class YaraScannerException : public std::exception
@@ -57,7 +54,6 @@ public:
 protected:
     std::unique_ptr<YR_SCANNER, void(*)(YR_SCANNER* scanner)> mScanner;
     std::shared_ptr<YaraRules> mRules;
-    std::unique_ptr<YaraRules::LockedRules> mLockedRules;
 };
 
 void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result);
