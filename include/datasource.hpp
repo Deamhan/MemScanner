@@ -2,7 +2,9 @@
 
 #include <cinttypes>
 #include <exception>
+#include <map>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 enum class DataSourceError
@@ -14,6 +16,7 @@ enum class DataSourceError
     InvalidOffset,
     InvalidHandle,
     UnableToGetSize,
+    OverlappingRanges,
     UnknownError,
 };
 
@@ -120,6 +123,25 @@ protected:
     DataSource& mDataSource;
     uint64_t mOrigin;
     uint64_t mSize;
+};
+
+class CompositeReadOnlyDataSource : public DataSource
+{
+public:
+    CompositeReadOnlyDataSource(uint64_t origin);
+    size_t ReadImpl(void* buffer, size_t bufferLength) override;
+    void SeekImpl(uint64_t newOffset) override;
+
+    uint64_t GetSizeImpl() const override { return mSize; }
+    uint64_t GetOriginImpl() const override { return mOrigin; }
+
+    void AddDataSource(uint64_t offset, DataSource* ds);
+
+protected:
+    std::map<uint64_t, std::pair<DataSource*, uint64_t>> mFragmentsUpper;
+    uint64_t mOrigin;
+    uint64_t mSize;
+    uint64_t mOffset;
 };
 
 

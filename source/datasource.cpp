@@ -148,13 +148,14 @@ void DataSource::Dump(DataSource& dst, uint64_t begin, uint64_t size, size_t blo
 	std::vector<uint64_t> buffer(blockSize);
 
 	uint64_t left = size;
+	uint64_t offset = 0;
 	while (left != 0)
 	{
 		auto chunkSize = (size_t)std::min<uint64_t>(buffer.size(), left);
 
 		try
 		{
-			Read(buffer.data(), chunkSize);
+			Read(offset, buffer.data(), chunkSize);
 		}
 		catch (DataSourceException&)
 		{
@@ -166,6 +167,7 @@ void DataSource::Dump(DataSource& dst, uint64_t begin, uint64_t size, size_t blo
 
 		dst.Write(buffer.data(), chunkSize);
 		left -= chunkSize;
+		offset += chunkSize;
 	}
 }
 
@@ -193,4 +195,68 @@ void DataSourceFragment::SeekImpl(uint64_t newOffset)
 uint64_t DataSourceFragment::GetSizeImpl() const
 {
 	return mDataSource.GetSize() - mOrigin;
+}
+
+CompositeReadOnlyDataSource::CompositeReadOnlyDataSource(uint64_t origin) : DataSource(0), mOrigin(origin)
+{}
+
+void CompositeReadOnlyDataSource::AddDataSource(uint64_t offset, DataSource* ds)
+{
+	auto it = mFragmentsUpper.upper_bound(offset);
+	auto dsSize = ds->GetSize();
+
+	// do not allow overlapping
+	if (it != mFragmentsUpper.end() && offset + dsSize > it->first - it->second.second)
+		throw DataSourceException{ DataSourceError::OverlappingRanges };
+
+	mFragmentsUpper.emplace(offset + dsSize, std::make_pair(ds, dsSize));
+
+	auto last = mFragmentsUpper.rbegin();
+	mSize = last->first;
+}
+
+size_t CompositeReadOnlyDataSource::ReadImpl(void* buffer, size_t bufferLength)
+{
+	auto it = mFragmentsUpper.upper_bound(mOffset);
+	if (it == mFragmentsUpper.end())
+		throw DataSourceException{ DataSourceError::UnableToRead };
+
+	size_t bufferOffset = 0;
+	auto readLength = std::min<uint64_t>(bufferLength, mSize - mOffset);
+	auto currentOffset = mOffset;
+	while (bufferOffset < readLength)
+	{
+		auto begin = it->first - it->second.second;
+		auto ds = it->second.first;
+		auto dsEnd = it->first;
+		auto target = (char*)buffer + bufferOffset;
+
+		auto blockSize = 0;
+		if (currentOffset < begin)
+		{
+			blockSize = std::min<uint64_t>(begin - currentOffset, readLength - bufferOffset);
+			memset(target, 0, blockSize);
+		}
+		else
+		{
+			blockSize = std::min<uint64_t>(dsEnd - currentOffset, readLength - bufferOffset);
+			auto dsFragmentOffset = currentOffset - begin;
+			ds->Read(dsFragmentOffset, target, blockSize);
+			++it; // buffer either filled or we need to go to the next fragment
+		}
+
+		bufferOffset += blockSize;
+		currentOffset += blockSize;
+	}
+
+	mOffset = currentOffset;
+	return readLength;
+}
+
+void CompositeReadOnlyDataSource::SeekImpl(uint64_t newOffset)
+{
+	if (newOffset > mSize)
+		throw DataSourceException{ DataSourceError::InvalidOffset };
+
+	mOffset = newOffset;
 }
