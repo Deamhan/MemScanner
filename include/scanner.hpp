@@ -52,7 +52,10 @@ public:
 	static MemoryScanner& GetInstance();
 
 	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result);
-	void SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules) { mYaraRules = std::move(rules); }
+	void SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules);
+	void SetYaraRules(const std::list<std::string>& rules);
+	void SetYaraRules(const wchar_t* rulesDirectory);
+
 	static void ResetYaraScannerForThread() noexcept { tlsYaraScanner.reset(); }
 
 private:
@@ -71,5 +74,7 @@ private:
 	static thread_local std::unique_ptr<YaraScanner> tlsYaraScanner;
 
 	std::shared_ptr<YaraScanner::YaraRules> mYaraRules;
+	std::mutex mYaraRulesLock;
+
 	YaraScanner* GetYaraScanner();
 };

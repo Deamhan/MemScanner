@@ -344,8 +344,25 @@ YaraScanner* MemoryScanner::GetYaraScanner()
     if (tlsYaraScanner || !mYaraRules)
         return tlsYaraScanner.get();
 
+    std::lock_guard<std::mutex> lg(mYaraRulesLock);
     tlsYaraScanner = std::make_unique<YaraScanner>(mYaraRules);
     return tlsYaraScanner.get();
+}
+
+void MemoryScanner::SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules)
+{ 
+    std::lock_guard<std::mutex> lg(mYaraRulesLock);
+    mYaraRules = std::move(rules);
+}
+
+void MemoryScanner::SetYaraRules(const std::list<std::string>& rules)
+{
+    SetYaraRules(std::make_shared<YaraScanner::YaraRules>(rules));
+}
+
+void MemoryScanner::SetYaraRules(const wchar_t* rulesDirectory)
+{
+    SetYaraRules(std::make_shared<YaraScanner::YaraRules>(rulesDirectory));
 }
 
 bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result)
