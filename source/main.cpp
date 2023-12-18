@@ -12,6 +12,7 @@
 enum class CmdLineSwitch
 {
     Sensitivity,
+    HookSensitivity,
     Pid,
     Log,
     Threads,
@@ -41,15 +42,30 @@ static std::wstring toString(T& value)
 
 static void PrintHelp()
 {
-    wprintf(L"Help: memscan.exe [-sensitivity low|medium|high|off] [-pid ID] [-log path] [-threads N] [-rules rulesDir][dumpDirectory]\n"
+    wprintf(L"Help: memscan.exe [-sensitivity low|medium|high|off] [-hooks low|medium|high|off] [-pid ID] [-log path] [-threads N] [-rules rulesDir][dumpDirectory]\n"
         "\tdefault: low sensitivity all process scan without dumping, single thread\n");
+}
+
+static MemoryScanner::Sensitivity ParseSensitivity(const wchar_t* s)
+{
+    if (wcscmp(s, L"low") == 0)
+        return MemoryScanner::Sensitivity::Low;
+    else if (wcscmp(s, L"medium") == 0)
+        return MemoryScanner::Sensitivity::Medium;
+    else if (wcscmp(s, L"high") == 0)
+        return MemoryScanner::Sensitivity::High;
+    else if (wcscmp(s, L"off") == 0)
+        return MemoryScanner::Sensitivity::Off;
+    
+    throw std::domain_error("");
 }
 
 int wmain(int argc, const wchar_t ** argv)
 {
     std::wstring dumpsDir, rulesDir, logPath;
-    MemoryScanner::Sensitivity sensitivity = MemoryScanner::Sensitivity::Low;
-    std::wstring sensitivityString = L"low";
+    MemoryScanner::Sensitivity sensitivity = MemoryScanner::Sensitivity::Low,
+        hookSensitivity = MemoryScanner::Sensitivity::Low;
+    std::wstring sensitivityString = L"low", hookSensitivityString = L"low";
     uint32_t pid = 0, threadsCount = 1;
 
     CmdLineSwitch state = CmdLineSwitch::None;
@@ -61,6 +77,8 @@ int wmain(int argc, const wchar_t ** argv)
             {
                 if (wcscmp(argv[i] + 1, L"sensitivity") == 0)
                     state = CmdLineSwitch::Sensitivity;
+                if (wcscmp(argv[i] + 1, L"hooks") == 0)
+                    state = CmdLineSwitch::HookSensitivity;
                 else if (wcscmp(argv[i] + 1, L"pid") == 0)
                     state = CmdLineSwitch::Pid;
                 else if (wcscmp(argv[i] + 1, L"log") == 0)
@@ -83,18 +101,14 @@ int wmain(int argc, const wchar_t ** argv)
                 {
                 case CmdLineSwitch::Sensitivity:
                 {
-                    if (wcscmp(argv[i], L"low") == 0)
-                        sensitivity = MemoryScanner::Sensitivity::Low;
-                    else if (wcscmp(argv[i], L"medium") == 0)
-                        sensitivity = MemoryScanner::Sensitivity::Medium;
-                    else if (wcscmp(argv[i], L"high") == 0)
-                        sensitivity = MemoryScanner::Sensitivity::High;
-                    else if (wcscmp(argv[i], L"off") == 0)
-                        sensitivity = MemoryScanner::Sensitivity::Off;
-                    else
-                        throw std::domain_error("");
-
+                    sensitivity = ParseSensitivity(argv[i]);
                     sensitivityString = argv[i];
+                    break;
+                }
+                case CmdLineSwitch::HookSensitivity:
+                {
+                    hookSensitivity = ParseSensitivity(argv[i]);
+                    hookSensitivityString = argv[i];
                     break;
                 }
                 case CmdLineSwitch::Pid:
@@ -134,8 +148,8 @@ int wmain(int argc, const wchar_t ** argv)
         }
     }
 
-    wprintf(L"Settings:\n\tsensitivity = %s\n\tpid = %s\n\tlog = %s\n\tthreads = %u\n\trules directory = %s\n\tdump directory = %s\n\n", 
-            sensitivityString.c_str(), pid == 0 ? L"all" : toString(pid).c_str(),
+    wprintf(L"Settings:\n\tsensitivity = %s\n\thook sensitivity = %s\n\tpid = %s\n\tlog = %s\n\tthreads = %u\n\trules directory = %s\n\tdump directory = %s\n\n", 
+            sensitivityString.c_str(), hookSensitivityString.c_str(), pid == 0 ? L"all" : toString(pid).c_str(),
             logPath.empty() ? L"console" : logPath.c_str(),
             threadsCount == 0 ? std::thread::hardware_concurrency() : threadsCount,
             rulesDir.empty() ? L"none (prefedined set)" : rulesDir.c_str(),
@@ -156,7 +170,7 @@ int wmain(int argc, const wchar_t ** argv)
             scanner.SetYaraRules(std::make_shared<YaraScanner::YaraRules>(rulesDir.c_str()));
 
         Timer timer{ L"Memory" };
-        scanner.Scan(std::make_shared<DefaultCallbacks>(pid, 0, sensitivity, sensitivity, sensitivity, dumpsDir.c_str()), threadsCount);
+        scanner.Scan(std::make_shared<DefaultCallbacks>(pid, 0, sensitivity, hookSensitivity, sensitivity, dumpsDir.c_str()), threadsCount);
     }
     catch (const std::exception& e)
     {
