@@ -18,7 +18,7 @@ public:
 	DefaultCallbacks(uint32_t pidToScan = 0, uint64_t addressToScan = 0, MemoryScanner::Sensitivity memoryScanSensitivity = MemoryScanner::Sensitivity::Low,
 		MemoryScanner::Sensitivity hookScanSensitivity = MemoryScanner::Sensitivity::Low, 
 		MemoryScanner::Sensitivity threadsScanSensitivity = MemoryScanner::Sensitivity::Low,
-		const wchar_t* dumpsRoot = nullptr, std::shared_ptr<YaraScanner> tlsYaraScanner = std::shared_ptr<YaraScanner>());
+		const wchar_t* dumpsRoot = nullptr);
 
 	MemoryScanner::Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToScan, bool& scanImageForHooks) override;
 	MemoryScanner::Sensitivity GetThreadAnalysisSettings() override { return mThreadScanSensitivity; }

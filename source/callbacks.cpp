@@ -253,7 +253,7 @@ const std::list<std::string> predefinedRules{ "\
 
 DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, MemoryScanner::Sensitivity memoryScanSensitivity,
     MemoryScanner::Sensitivity hookScanSensitivity, MemoryScanner::Sensitivity threadsScanSensitivity, 
-    const wchar_t* dumpsRoot, std::shared_ptr<YaraScanner> tlsYaraScanner)
+    const wchar_t* dumpsRoot)
     : mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity), mHookScanSensitivity(hookScanSensitivity),
     mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan)
 {
