@@ -52,6 +52,7 @@ public:
 	static MemoryScanner& GetInstance();
 
 	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result);
+	bool ScanProcessUsingYara(uint32_t pid, std::list<std::string>& result);
 	void SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules);
 	void SetYaraRules(const std::list<std::string>& rules);
 	void SetYaraRules(const wchar_t* rulesDirectory);

@@ -88,6 +88,10 @@ set(COMPOSITE_DS_SRC tests/composite_ds_test.cpp
                      ${COMMON_SRC}
 )
 
+set(YARA_SCAN_MEM_SRC tests/yara_scan_pids.cpp
+                      ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -151,6 +155,7 @@ add_executable(yara_loadrules_test ${YARA_LOADRULES_SRC})
 add_executable(external_vars_test ${EXTERNAL_VARS_SRC})
 add_executable(reload_rules_test ${RELOAD_RULES_SRC})
 add_executable(composite_ds_test ${COMPOSITE_DS_SRC})
+add_executable(yara_scan_mem ${YARA_SCAN_MEM_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -171,6 +176,7 @@ set (EXECUTABLES memscan
                  external_vars_test
                  reload_rules_test
                  composite_ds_test
+                 yara_scan_mem
 )
 
 foreach (exec ${EXECUTABLES})

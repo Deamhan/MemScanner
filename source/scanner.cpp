@@ -375,6 +375,16 @@ bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemIn
     return true;
 }
 
+bool MemoryScanner::ScanProcessUsingYara(uint32_t pid, std::list<std::string>& result)
+{
+    auto scanner = GetYaraScanner();
+    if (scanner == nullptr)
+        return false;
+
+    ::ScanProcessUsingYara(*scanner, pid, result);
+    return true;
+}
+
 MemoryScanner& MemoryScanner::GetInstance()
 {
     static MemoryScanner scanner;

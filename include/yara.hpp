@@ -48,6 +48,7 @@ public:
     void SetIntVariable(const char* name, int value);
     void SetStringVariable(const char* name, const char* value);
     void Scan(DataSource& ds, std::list<std::string>& detections);
+    void ScanProcess(uint32_t pid, std::list<std::string>& detections);
 
     YaraScanner(std::shared_ptr<YaraRules> rules);
 
@@ -57,5 +58,7 @@ protected:
 };
 
 void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result);
+void ScanProcessUsingYara(YaraScanner& scanner, uint32_t pid, std::list<std::string>& result);
+
 std::unique_ptr<YaraScanner> BuildYaraScanner(const std::list<std::string>& rules);
 std::unique_ptr<YaraScanner> BuildYaraScanner(const wchar_t* rootDir);

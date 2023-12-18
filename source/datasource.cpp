@@ -231,7 +231,7 @@ size_t CompositeReadOnlyDataSource::ReadImpl(void* buffer, size_t bufferLength)
 		auto dsEnd = it->first;
 		auto target = (char*)buffer + bufferOffset;
 
-		auto blockSize = 0;
+		uint64_t blockSize = 0;
 		if (currentOffset < begin)
 		{
 			blockSize = std::min<uint64_t>(begin - currentOffset, readLength - bufferOffset);

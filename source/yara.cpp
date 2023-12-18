@@ -153,6 +153,19 @@ void YaraScanner::Scan(DataSource& ds, std::list<std::string>& detections)
         throw YaraScannerException{ res, "unable to scan memory" };
 }
 
+void YaraScanner::ScanProcess(uint32_t pid, std::list<std::string>& detections)
+{
+    if (!mScanner)
+        throw YaraScannerException{ 0, "scanner is empty" };
+
+    yr_scanner_set_callback(mScanner.get(), YaraCallback, &detections);
+
+    detections.clear();
+    auto res = yr_scanner_scan_proc(mScanner.get(), pid);
+    if (res != ERROR_SUCCESS)
+        throw YaraScannerException{ res, "unable to scan memory" };
+}
+
 void YaraScanner::YaraRules::SetIntVariable(YR_COMPILER* compiler, const char* name, int value)
 {
     auto result = yr_compiler_define_integer_variable(compiler, name, value);
@@ -332,6 +345,20 @@ void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase
         scanner.SetIntVariable("MemoryAttributes", MemoryHelperBase::protToFlags(region.Protect));
         scanner.SetIntVariable("MemoryType", (int)region.Type);
         scanner.Scan(dsForYara, result);
+    }
+    catch (const YaraScanner::YaraScannerException& e)
+    {
+        GetDefaultLoggerForThread()->Log(ILogger::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
+    }
+}
+
+void ScanProcessUsingYara(YaraScanner& scanner, uint32_t pid, std::list<std::string>& result)
+{
+    result.clear();
+
+    try
+    {
+        scanner.ScanProcess(pid, result);
     }
     catch (const YaraScanner::YaraScannerException& e)
     {
