@@ -130,26 +130,26 @@ void DefaultCallbacks::ScanUsingYara(const MemoryHelperBase::MemInfoT64& region,
 {
     std::list<std::string> yaraDetections;
     if (!scanner->ScanUsingYara(currentScanData.process, region, yaraDetections))
-        GetDefaultLoggerForThread()->Log(ILogger::Error, L"\t\tYARA isn't initialized properly\n");
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA isn't initialized properly\n");
 
     for (const auto& detection : yaraDetections)
-        GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\tYARA: %S\n", detection.c_str());
+        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tYARA: %S\n", detection.c_str());
 }
 
 void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& relatedRegions,
     const std::vector<uint64_t>& threadEntryPoints, MemoryScanner* scanner)
 {
-    GetDefaultLoggerForThread()->Log(ILogger::Info, L"\tSuspicious memory region:\n");
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tSuspicious memory region:\n");
     for (const auto& region : relatedRegions)
         printMBI<uint64_t>(region, L"\t\t");
 
     if (!threadEntryPoints.empty())
     {
-        GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\tRelated threads:\n");
+        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tRelated threads:\n");
         for (const auto threadEP : threadEntryPoints)
-            GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\t\t0x%llx\n", (unsigned long long)threadEP);
+            GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\t\t0x%llx\n", (unsigned long long)threadEP);
 
-        GetDefaultLoggerForThread()->Log(ILogger::Info, L"\n");
+        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\n");
     }
 
     bool isPeFound = false;
@@ -158,7 +158,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
         auto peFound = ScanRegionForPE(currentScanData.process, region);
         if (peFound.first != 0)
         {
-            GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\tPE (%s) found: 0x%llx\n", CpuArchToString(peFound.second),
+            GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tPE (%s) found: 0x%llx\n", CpuArchToString(peFound.second),
                 (unsigned long long)peFound.first);
             isPeFound = true;
 
@@ -167,10 +167,10 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
     }
 
     if (isPeFound)
-        GetDefaultLoggerForThread()->Log(ILogger::Info, L"\n");
+        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\n");
     else if (ScanRegionForPeSections(currentScanData.process, relatedRegions))
     {
-        GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\tPossible PE found: 0x%llx\n",
+        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tPossible PE found: 0x%llx\n",
             (unsigned long long)relatedRegions.begin()->AllocationBase);
 
         for (const auto& region : relatedRegions)
@@ -187,7 +187,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
 
     if (!CreateDirectoryW(processDumpDir.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
     {
-        GetDefaultLoggerForThread()->Log(ILogger::Error, L"\tUnable to create directory %s:\n", processDumpDir.c_str());
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\tUnable to create directory %s:\n", processDumpDir.c_str());
         return;
     }
 
@@ -206,13 +206,13 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
 
 void DefaultCallbacks::OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName)
 {
-    GetDefaultLoggerForThread()->Log(ILogger::Info, L"\tHooks for %s:\n", imageName);
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tHooks for %s:\n", imageName);
     for (const auto& hook : hooks)
     {
         for (const auto& name : hook.functionDescription->names)
-            GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\t%S\n", name.c_str());
+            GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\t%S\n", name.c_str());
 
-        GetDefaultLoggerForThread()->Log(ILogger::Info, L"\t\tOrdinal: %d\n\n", hook.functionDescription->ordinal);
+        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tOrdinal: %d\n\n", hook.functionDescription->ordinal);
     }
 }
 
@@ -220,12 +220,12 @@ void DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LARGE_INTEGER crea
 {
     if (hProcess == nullptr)
     {
-        GetDefaultLoggerForThread()->Log(ILogger::Error, L"Process %s [PID = %u, CreateTime = %llu]: unable to open\n", processName.c_str(),
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"Process %s [PID = %u, CreateTime = %llu]: unable to open\n", processName.c_str(),
             (unsigned)processId, (unsigned long long)creationTime.QuadPart);
         return;
     }
 
-    GetDefaultLoggerForThread()->Log(ILogger::Info, L"Process %s [PID = %u, CreateTime = %llu]\n", processName.c_str(),
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"Process %s [PID = %u, CreateTime = %llu]\n", processName.c_str(),
         (unsigned)processId, (unsigned long long)creationTime.QuadPart);
 
     currentScanData.pid = processId;
@@ -237,7 +237,7 @@ void DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LARGE_INTEGER crea
 void DefaultCallbacks::OnProcessScanEnd()
 {
     if (currentScanData.process != 0)
-        GetDefaultLoggerForThread()->Log(ILogger::Info, L"Process [PID = %u]: done\n", currentScanData.pid);
+        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"Process [PID = %u]: done\n", currentScanData.pid);
 }
 
 const std::list<std::string> predefinedRules{ "\

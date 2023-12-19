@@ -259,7 +259,7 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
     tlsCallbacks = scanCallbacks;
 
     if (!MemoryHelper<arch>::EnableDebugPrivilege())
-        GetDefaultLogger()->Log(ILogger::Info, L"Unable to enable SeDebugPrivilege, functionality is limited\n");
+        GetDefaultLogger()->Log(LoggerBase::Info, L"Unable to enable SeDebugPrivilege, functionality is limited\n");
 
     std::vector<uint8_t> buffer(64 * 1024);
     uint32_t resLen = 0;
@@ -318,7 +318,7 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
                 }
                 catch (const std::exception& e)
                 {
-                    GetDefaultLoggerForThread()->Log(ILogger::Error, L"Unhandled exception: %S\n", e.what());
+                    GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"Unhandled exception: %S\n", e.what());
                 }
             }
         };

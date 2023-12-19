@@ -10,7 +10,7 @@
 
 #include "system_defs.hpp"
 
-class ILogger
+class LoggerBase
 {
 public:
 	enum Level
@@ -20,34 +20,38 @@ public:
 		Error
 	};
 
-	virtual void Log(Level level, const wchar_t* message, ...) = 0;
-	virtual ~ILogger() = default;
+	void Log(Level level, const wchar_t* message, ...);
+	void SetMinimalLevel(Level minLevel) noexcept { mMinimumLevel = minLevel; }
+	Level GetMinimalLevel() const noexcept { return mMinimumLevel; }
+
+	virtual ~LoggerBase() = default;
 
 protected:
-	ILogger(const ILogger&) = delete;
-	ILogger(ILogger&&) = delete;
-	ILogger& operator = (const ILogger&) = delete;
-	ILogger& operator = (ILogger&&) = delete;
+	LoggerBase(const LoggerBase&) = delete;
+	LoggerBase(LoggerBase&&) = delete;
+	LoggerBase& operator = (const LoggerBase&) = delete;
+	LoggerBase& operator = (LoggerBase&&) = delete;
 
-	ILogger() = default;
+	LoggerBase(Level minLevel) noexcept : mMinimumLevel(minLevel) {}
+
+	virtual void LogImpl(Level level, const wchar_t* message, va_list args) = 0;
+
+	Level mMinimumLevel;
 };
 
-class ConsoleLogger : public ILogger
+class ConsoleLogger : public LoggerBase
 {
 public:
-	void Log(Level level, const wchar_t* message, ...) override;
-
 	static ConsoleLogger& GetInstance();
 
-private:
-	ConsoleLogger() = default;
+protected:
+    void LogImpl(Level level, const wchar_t* message, va_list args) override;
+	ConsoleLogger(Level minLevel = Debug) : LoggerBase(minLevel) {}
 };
 
-class FileLogger : public ILogger
+class FileLogger : public LoggerBase
 {
 public:
-	void Log(Level level, const wchar_t* message, ...) override;
-
 	static FileLogger& GetInstance(const wchar_t* path);
 
 protected:
@@ -57,27 +61,28 @@ protected:
 	std::mutex mBufferGuard;
 	std::unique_ptr<FILE, int(*)(FILE*)> mFile;
 
-	FileLogger(const wchar_t* path);
+    void LogImpl(Level level, const wchar_t* message, va_list args) override;
+
+	FileLogger(const wchar_t* path, Level minLevel = Debug);
 };
 
-class NullLogger : public ILogger
+class NullLogger : public LoggerBase
 {
 public:
-	void Log(Level, const wchar_t*, ...) override {}
-
 	static NullLogger& GetInstance();
 
 private:
-	NullLogger() = default;
+	NullLogger(Level minLevel = Debug) : LoggerBase(minLevel) {}
+
+	void LogImpl(Level /*level*/, const wchar_t* /*message*/ , va_list /*args*/ ) override {}
 };
 
-ILogger* GetDefaultLogger();
+LoggerBase* GetDefaultLogger();
 
-class MemoryLogger : public ILogger
+class MemoryLogger : public LoggerBase
 {
 public:
-	void Log(Level, const wchar_t*, ...) override;
-	void Flush(ILogger* target);
+	void Flush(LoggerBase* target);
 
 	static MemoryLogger& GetInstance();
 
@@ -101,15 +106,17 @@ private:
 	static thread_local std::vector<wchar_t> lineBuffer;
 	static std::mutex flushGuard;
 
-	MemoryLogger() = default;
+	void LogImpl(Level level, const wchar_t* message, va_list args) override;
+
+	MemoryLogger(Level minLevel = Debug) : LoggerBase(minLevel) {}
 };
 
-void SetDefaultLogger(ILogger* newLogger);
+void SetDefaultLogger(LoggerBase* newLogger);
 
-ILogger* GetThreadLocalDefaultLogger();
-void SetThreadLocalDefaultLogger(ILogger* newLogger);
+LoggerBase* GetThreadLocalDefaultLogger();
+void SetThreadLocalDefaultLogger(LoggerBase* newLogger);
 
-ILogger* GetDefaultLoggerForThread();
+LoggerBase* GetDefaultLoggerForThread();
 
 class Timer
 {
@@ -122,7 +129,7 @@ public:
 		auto end = std::chrono::high_resolution_clock::now();
 		auto ticks = (end - mBegin).count();
 
-		GetDefaultLoggerForThread()->Log(ILogger::Debug,  L"\nTime spent (%s): %lld us\n", mName.c_str(), ticks / 1000);
+		GetDefaultLoggerForThread()->Log(LoggerBase::Debug,  L"\nTime spent (%s): %lld us\n", mName.c_str(), ticks / 1000);
 	}
 
 private:
