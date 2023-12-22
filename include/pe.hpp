@@ -2,6 +2,7 @@
 
 #include "datasource.hpp"
 #include "ntdll64.hpp"
+#include "memhelper.hpp"
 
 #include <list>
 #include <map>
@@ -12,8 +13,8 @@
 template <CPUArchitecture arch>
 struct PeTraitsT
 {
-	typedef IMAGE_OPTIONAL_HEADER ImageOptionalHeaderT;
-	typedef IMAGE_NT_HEADERS ImageNtHeadersT;
+	typedef IMAGE_OPTIONAL_HEADER32 ImageOptionalHeaderT;
+	typedef IMAGE_NT_HEADERS32 ImageNtHeadersT;
 	typedef uint32_t PointerT;
 };
 
@@ -87,12 +88,15 @@ public:
 	bool IsExecutableSectionRva(uint32_t rva);
 
 	const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& GetExportMap();
+	std::shared_ptr<ExportedFunctionDescription> GetExportedFunction(uint32_t rva);
 
 	void CheckExportForHooks(DataSource& oppositeDs, std::vector<HookDescription>& result);
 
 	void Dump(const wchar_t* path);
 
 	void ReleaseDataSource() noexcept { mDataSource.reset(); }
+
+	
 
 protected:
 	std::shared_ptr<DataSource> mDataSource;
@@ -113,3 +117,6 @@ protected:
 
 	const unsigned MaxExportedFunctionsCount = 0x10000;
 };
+
+std::pair<uint64_t, CPUArchitecture> ScanRegionForPeHeaders(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region);
+bool ScanRegionForPeSections(HANDLE hProcess, const MemoryHelperBase::FlatMemoryMapT relatedRegions);

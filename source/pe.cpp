@@ -6,6 +6,9 @@
 
 #include <algorithm>
 
+const uint16_t MzMagic = 0x5a4d;
+const uint32_t PeMagic = 0x4550;
+
 template <bool isMapped, CPUArchitecture arch>
 CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(DataSource& ds, uint64_t offset,
 	IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader)
@@ -13,12 +16,12 @@ CPUArchitecture PE<isMapped, arch>::TryParseGeneralPeHeaders(DataSource& ds, uin
     try
     {
         ds.Read(offset, dosHeader);
-        if (dosHeader.e_magic != 0x5a4d)
+        if (dosHeader.e_magic != MzMagic)
             return CPUArchitecture::Unknown;
 
         DWORD signature = 0;
         ds.Read(dosHeader.e_lfanew + offset, signature);
-        if (signature != 0x4550)
+        if (signature != PeMagic)
             return CPUArchitecture::Unknown;
 
         ds.Read(fileHeader);
@@ -174,12 +177,28 @@ const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& PE<isMap
 }
 
 template <bool isMapped, CPUArchitecture arch>
+std::shared_ptr<ExportedFunctionDescription> PE<isMapped, arch>::GetExportedFunction(uint32_t rva)
+{
+    if (!mExportByRva)
+        BuildExportMap();
+
+    auto it = mExportByRva->find(rva);
+    if (it == mExportByRva->end())
+        return std::shared_ptr<ExportedFunctionDescription>{};
+
+    return it->second;
+}
+
+template <bool isMapped, CPUArchitecture arch>
 uint32_t PE<isMapped, arch>::RvaToOffset(uint32_t rva, bool useTranslation) const
 {
     if (!useTranslation)
         return rva;
 
     auto iter = mSections.upper_bound(rva);
+    if (iter == mSections.end())
+        throw PeException{ PeError::InvalidRva };
+
     if (rva >= iter->second.VirtualAddress)
         return iter->second.PointerToRawData + (rva - iter->second.VirtualAddress);
 
@@ -296,3 +315,95 @@ template class PE<true, CPUArchitecture::X86>;
 
 template class PE<false, CPUArchitecture::X64>;
 template class PE<true, CPUArchitecture::X64>;
+
+
+static size_t ScanBlobForMz(const std::vector<uint8_t>& buffer, size_t offset, size_t size)
+{
+    for (size_t i = offset; i < size - 1; ++i)
+    {
+        if (*(uint16_t*)(buffer.data() + i) == MzMagic)
+            return i;
+    }
+
+    return size;
+}
+
+std::pair<uint64_t, CPUArchitecture> ScanRegionForPeHeaders(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region)
+{
+    ReadOnlyMemoryDataSource memory(hProcess, region.BaseAddress, region.RegionSize);
+    std::vector<uint8_t> buffer(64 * 1024);
+    for (uint64_t offs = 0; offs < region.RegionSize; offs += buffer.size())
+    {
+        try
+        {
+            auto read = (size_t)std::min<uint64_t>(buffer.size(), region.RegionSize - offs);
+            memory.Read(offs, buffer.data(), read);
+            size_t mzPos = ScanBlobForMz(buffer, 0, read);
+            if (mzPos == read)
+                break;
+
+            DataSourceFragment fragment(memory, mzPos);
+            auto arch = PE<>::GetPeArch(fragment);
+            if (arch != CPUArchitecture::Unknown)
+                return  { fragment.GetOrigin(), arch };
+        }
+        catch (const DataSourceException&)
+        {
+        }
+    }
+
+    return { 0, CPUArchitecture::Unknown };
+}
+
+static bool IsSectionBorder(const uint8_t* buffer, size_t size)
+{
+    for (size_t i = 0; i < size / 2; ++i)
+    {
+        if (buffer[i] != 0)
+            return false;
+    }
+
+    size_t counter = 0;
+    for (size_t i = size / 2; i < size; ++i)
+    {
+        if (buffer[i] != 0)
+            ++counter;
+    }
+
+    return counter * 4 >= size;
+}
+
+bool ScanRegionForPeSections(HANDLE hProcess, const MemoryHelperBase::FlatMemoryMapT relatedRegions)
+{
+    if (relatedRegions.empty())
+        return false;
+
+    auto last = relatedRegions.rbegin();
+    auto begin = relatedRegions.begin()->BaseAddress, end = last->BaseAddress + last->RegionSize;
+    auto size = end - begin;
+
+    if (size < 16 * PAGE_SIZE)
+        return false;
+
+    ReadOnlyMemoryDataSource ds(hProcess, begin, size, 0);
+    uint8_t buffer[64];
+    size_t borders = 0;
+
+    for (int offset = PAGE_SIZE - sizeof(buffer) / 2; offset + sizeof(buffer) / 2 <= size; offset += PAGE_SIZE)
+    {
+        try
+        {
+            ds.Read(offset, buffer, sizeof(buffer));
+            if (IsSectionBorder(buffer, sizeof(buffer)))
+                ++borders;
+        }
+        catch (const DataSourceException&)
+        {
+        }
+    }
+
+    if (borders == 0)
+        return false;
+
+    return size / borders > 4 * PAGE_SIZE;
+}

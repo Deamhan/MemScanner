@@ -45,13 +45,6 @@ static std::wstring toString(T& value)
 class MyCallbacks : public DefaultCallbacks
 {
 public:
-    void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT&,
-        const std::vector<uint64_t>&, MemoryScanner*) override
-    {}
-
-    void OnHooksFound(const std::vector<HookDescription>&, const wchar_t*) override
-    {}
-
     void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER, HANDLE, const std::wstring& processName) override
     {
         GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"scanning %u (%s)\n", processId, processName.c_str());
@@ -62,7 +55,7 @@ public:
             GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tYARA: %S\n", detection.c_str());
     }
 
-    MyCallbacks(uint32_t pid = 0) : DefaultCallbacks(pid, 0, MemoryScanner::Sensitivity::Off, MemoryScanner::Sensitivity::Off,
+    MyCallbacks(uint32_t pid = 0) : DefaultCallbacks(pid, 0, 0, MemoryScanner::Sensitivity::Off, MemoryScanner::Sensitivity::Off,
         MemoryScanner::Sensitivity::Off) {}
 
 private:

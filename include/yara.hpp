@@ -57,7 +57,9 @@ protected:
     std::shared_ptr<YaraRules> mRules;
 };
 
-void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result);
+void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, 
+    std::list<std::string>& result, uint64_t startAddress = 0, uint64_t size = 0);
+
 void ScanProcessUsingYara(YaraScanner& scanner, uint32_t pid, std::list<std::string>& result);
 
 std::unique_ptr<YaraScanner> BuildYaraScanner(const std::list<std::string>& rules);

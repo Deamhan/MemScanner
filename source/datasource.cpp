@@ -222,7 +222,7 @@ size_t CompositeReadOnlyDataSource::ReadImpl(void* buffer, size_t bufferLength)
 		throw DataSourceException{ DataSourceError::UnableToRead };
 
 	size_t bufferOffset = 0;
-	auto readLength = std::min<uint64_t>(bufferLength, mSize - mOffset);
+	auto readLength = (size_t)std::min<uint64_t>(bufferLength, mSize - mOffset);
 	auto currentOffset = mOffset;
 	while (bufferOffset < readLength)
 	{
@@ -231,15 +231,15 @@ size_t CompositeReadOnlyDataSource::ReadImpl(void* buffer, size_t bufferLength)
 		auto dsEnd = it->first;
 		auto target = (char*)buffer + bufferOffset;
 
-		uint64_t blockSize = 0;
+		size_t blockSize = 0;
 		if (currentOffset < begin)
 		{
-			blockSize = std::min<uint64_t>(begin - currentOffset, readLength - bufferOffset);
+			blockSize = (size_t)std::min<uint64_t>(begin - currentOffset, readLength - bufferOffset);
 			memset(target, 0, blockSize);
 		}
 		else
 		{
-			blockSize = std::min<uint64_t>(dsEnd - currentOffset, readLength - bufferOffset);
+			blockSize = (size_t)std::min<uint64_t>(dsEnd - currentOffset, readLength - bufferOffset);
 			auto dsFragmentOffset = currentOffset - begin;
 			ds->Read(dsFragmentOffset, target, blockSize);
 			++it; // buffer either filled or we need to go to the next fragment

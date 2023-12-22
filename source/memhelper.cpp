@@ -179,22 +179,27 @@ bool MemoryHelper<arch>::GetBasicInfoByAddress(HANDLE hProcess, uint64_t address
 }
 
 template <CPUArchitecture arch>
-void MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryHelperBase::MemoryMapT& result) const
+MemoryHelperBase::MemInfoT64 MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryHelperBase::MemoryMapT& result) const
 {
-    MEMORY_BASIC_INFORMATION_T<uint64_t> primaryMbi, mbi;
+    MemInfoT64 primaryMbi, mbi;
     if (!GetBasicInfoByAddress(hProcess, addressToCheck, primaryMbi) || (primaryMbi.State & MEM_COMMIT) == 0)
-        return;
+        return {};
 
+    MemInfoT64 retMbi = {};
     auto address = primaryMbi.AllocationBase;
     while (GetBasicInfoByAddress(hProcess, address, mbi) && mbi.AllocationBase == primaryMbi.AllocationBase)
     {
         if ((mbi.State & MEM_COMMIT) != 0)
             result.emplace_hint(result.end(), mbi.BaseAddress, mbi); // every next address is higher than previous so must be pushed in the end of map with less comparer
 
+        if (retMbi.AllocationBase == 0 &&
+            primaryMbi.BaseAddress + primaryMbi.RegionSize == mbi.BaseAddress + mbi.RegionSize)
+            retMbi = mbi;
+
         address += std::max<uint64_t>(mbi.RegionSize, PAGE_SIZE);
     }
 
-    return;
+    return retMbi;
 }
 
 template <CPUArchitecture arch>
@@ -295,10 +300,12 @@ template class MemoryHelper<CPUArchitecture::X64>;
 
 template const MemoryHelper<CPUArchitecture::X64>& GetMemoryHelperForArch();
 
+static bool Is64BitOs = (GetOSArch() == CPUArchitecture::X64);
+
 const MemoryHelperBase& GetMemoryHelper() noexcept 
 { 
 #if !_M_AMD64
-    return GetOSArch() == CPUArchitecture::X64 ? (const MemoryHelperBase&)GetMemoryHelperForArch<CPUArchitecture::X64>()
+    return Is64BitOs ? (const MemoryHelperBase&)GetMemoryHelperForArch<CPUArchitecture::X64>()
         : (const MemoryHelperBase&)GetMemoryHelperForArch<CPUArchitecture::X86>();
 #else
     return GetMemoryHelperForArch<CPUArchitecture::X64>();

@@ -2,35 +2,27 @@
 #include "file.hpp"
 #include "log.hpp"
 #include "memdatasource.hpp"
+#include "pe.hpp"
 
 #include "yara.hpp"
 
 thread_local DefaultCallbacks::CurrentScanStateData DefaultCallbacks::currentScanData;
 
 MemoryScanner::Sensitivity DefaultCallbacks::GetMemoryAnalysisSettings(
-    std::vector<uint64_t>& addressesToScan, bool& scanImageForHooks)
+    std::vector<AddressInfo>& addressRangesToCheck, bool& scanImageForHooks, bool& scanRangesWithYara)
 {
-    addressesToScan.clear();
+    addressRangesToCheck.clear();
     scanImageForHooks = false;
 
     if (mAddressToScan != 0)
     {
-        addressesToScan.push_back(mAddressToScan);
+        AddressInfo info = { mAddressToScan, mSizeOfRange };
+        addressRangesToCheck.push_back(info);
         scanImageForHooks = true;
+        scanRangesWithYara = true;
     }
 
     return mMemoryScanSensitivity;
-}
-
-static size_t ScanBlobForMz(const std::vector<uint8_t>& buffer, size_t offset, size_t size)
-{
-    for (size_t i = offset; i < size - 1; ++i)
-    {
-        if (*(uint16_t*)(buffer.data() + i) == 0x5a4d)
-            return i;
-    }
-
-    return size;
 }
 
 static const wchar_t* CpuArchToString(CPUArchitecture arch)
@@ -46,99 +38,20 @@ static const wchar_t* CpuArchToString(CPUArchitecture arch)
     }
 }
 
-static std::pair<uint64_t, CPUArchitecture> ScanRegionForPE(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region)
+void DefaultCallbacks::OnWritableExecImageFound(const MemoryHelperBase::FlatMemoryMapT& /*continiousRegions*/,
+    const std::wstring& imagePath, const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara)
 {
-    ReadOnlyMemoryDataSource memory(hProcess, region.BaseAddress, region.RegionSize);
-    std::vector<uint8_t> buffer(64 * 1024);
-    for (uint64_t offs = 0; offs < region.RegionSize; offs += buffer.size())
-    {
-        try
-        {
-            auto read = (size_t)std::min<uint64_t>(buffer.size(), region.RegionSize - offs);
-            memory.Read(offs, buffer.data(), read);
-            size_t mzPos = ScanBlobForMz(buffer, 0, read);
-            if (mzPos == read)
-                break;
-
-            DataSourceFragment fragment(memory, mzPos);
-            auto arch = PE<>::GetPeArch(fragment);
-            if (arch != CPUArchitecture::Unknown)
-                return  { fragment.GetOrigin(), arch };
-        }
-        catch (const DataSourceException&)
-        {
-        }
-    }
-
-    return { 0, CPUArchitecture::Unknown };
-}
-
-static bool IsSectionBorder(const uint8_t* buffer, size_t size)
-{
-    for (size_t i = 0; i < size / 2; ++i)
-    {
-        if (buffer[i] != 0)
-            return false;
-    }
-
-    size_t counter = 0;
-    for (size_t i = size / 2; i < size; ++i)
-    {
-        if (buffer[i] != 0)
-            ++counter;
-    }
-
-    return counter * 4 >= size;
-}
-
-static bool ScanRegionForPeSections(HANDLE hProcess, const MemoryHelperBase::FlatMemoryMapT relatedRegions)
-{
-    if (relatedRegions.empty())
-        return false;
-
-    auto last = relatedRegions.rbegin();
-    auto begin = relatedRegions.begin()->BaseAddress, end = last->BaseAddress + last->RegionSize;
-    auto size = end - begin;
-
-    if (size < 16 * PAGE_SIZE)
-        return false;
-
-    ReadOnlyMemoryDataSource ds(hProcess, begin, size, 0);
-    uint8_t buffer[64];
-    size_t borders = 0;
-
-    for (int offset = PAGE_SIZE - sizeof(buffer) / 2; offset + sizeof(buffer) / 2 <= size; offset += PAGE_SIZE)
-    {
-        try
-        {
-            ds.Read(offset, buffer, sizeof(buffer));
-            if (IsSectionBorder(buffer, sizeof(buffer)))
-                ++borders;
-        }
-        catch (const DataSourceException&)
-        {
-        }
-    }
-
-    if (borders == 0)
-        return false;
-
-    return size / borders > 4 * PAGE_SIZE;
-}
-
-void DefaultCallbacks::ScanUsingYara(const MemoryHelperBase::MemInfoT64& region, MemoryScanner* scanner)
-{
-    std::list<std::string> yaraDetections;
-    if (!scanner->ScanUsingYara(currentScanData.process, region, yaraDetections))
-        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA isn't initialized properly\n");
-
-    for (const auto& detection : yaraDetections)
-        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tYARA: %S\n", detection.c_str());
+    scanWithYara = true;
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tWX memory region in image %s+0x%llx, 0x%llx\n",
+        imagePath.c_str(), (unsigned long long)(wxRegion.BaseAddress - wxRegion.AllocationBase),
+        (unsigned long long)wxRegion.RegionSize);
 }
 
 void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& relatedRegions,
-    const std::vector<uint64_t>& threadEntryPoints, MemoryScanner* scanner)
+    const std::vector<uint64_t>& threadEntryPoints, bool& scanRangesWithYara)
 {
+    scanRangesWithYara = false;
+
     GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tSuspicious memory region:\n");
     for (const auto& region : relatedRegions)
         printMBI<uint64_t>(region, L"\t\t");
@@ -155,14 +68,13 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
     bool isPeFound = false;
     for (const auto& region : relatedRegions)
     {
-        auto peFound = ScanRegionForPE(currentScanData.process, region);
+        auto peFound = ScanRegionForPeHeaders(currentScanData.process, region);
         if (peFound.first != 0)
         {
             GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tPE (%s) found: 0x%llx\n", CpuArchToString(peFound.second),
                 (unsigned long long)peFound.first);
             isPeFound = true;
-
-            ScanUsingYara(region, scanner);
+            scanRangesWithYara = true;
         }
     }
 
@@ -173,8 +85,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
         GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tPossible PE found: 0x%llx\n",
             (unsigned long long)relatedRegions.begin()->AllocationBase);
 
-        for (const auto& region : relatedRegions)
-            ScanUsingYara(region, scanner);
+        scanRangesWithYara = true;
     }
 
     if (mDumpRoot.empty())
@@ -216,6 +127,12 @@ void DefaultCallbacks::OnHooksFound(const std::vector<HookDescription>& hooks, c
     }
 }
 
+void DefaultCallbacks::OnYaraDetection(const std::list<std::string>& detections)
+{
+    for (const auto& detection : detections)
+        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tYARA detection:%S\n", detection.c_str());
+}
+
 void DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName)
 {
     if (hProcess == nullptr)
@@ -251,11 +168,11 @@ const std::list<std::string> predefinedRules{ "\
                 ($dosText and ($TextSec or $CodeSec)) or ($PeMagic and ($TextSec or $CodeSec))\
              }" };
 
-DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, MemoryScanner::Sensitivity memoryScanSensitivity,
-    MemoryScanner::Sensitivity hookScanSensitivity, MemoryScanner::Sensitivity threadsScanSensitivity, 
-    const wchar_t* dumpsRoot)
+DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, uint64_t sizeOfRangeToScan,
+    MemoryScanner::Sensitivity memoryScanSensitivity, MemoryScanner::Sensitivity hookScanSensitivity,
+    MemoryScanner::Sensitivity threadsScanSensitivity, const wchar_t* dumpsRoot)
     : mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity), mHookScanSensitivity(hookScanSensitivity),
-    mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan)
+    mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan), mSizeOfRange(sizeOfRangeToScan)
 {
     if (dumpsRoot == nullptr)
         return;
@@ -267,4 +184,3 @@ DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, M
     if (*mDumpRoot.rbegin() != L'\\')
         mDumpRoot += L'\\';
 }
-

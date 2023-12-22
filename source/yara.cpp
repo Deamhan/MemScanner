@@ -335,13 +335,20 @@ std::unique_ptr<YaraScanner> BuildYaraScanner(const wchar_t* rootDir)
     return nullptr;
 }
 
-void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result)
+void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region,
+    std::list<std::string>& result, uint64_t startAddress, uint64_t size)
 {
     result.clear();
 
     try
     {
-        ReadOnlyMemoryDataSource dsForYara(hProcess, region.BaseAddress, region.RegionSize, 0);
+        if (startAddress == 0)
+            startAddress = region.BaseAddress;
+
+        if (size == 0)
+            size = (region.BaseAddress + region.RegionSize) - startAddress;
+
+        ReadOnlyMemoryDataSource dsForYara(hProcess, startAddress, size, 0);
         scanner.SetIntVariable("MemoryAttributes", MemoryHelperBase::protToFlags(region.Protect));
         scanner.SetIntVariable("MemoryType", (int)region.Type);
         scanner.Scan(dsForYara, result);

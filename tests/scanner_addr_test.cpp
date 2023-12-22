@@ -14,13 +14,14 @@ class TestCallbacks : public DefaultCallbacks
 {
 public:
 	TestCallbacks(uint64_t address) : 
-		DefaultCallbacks(GetCurrentProcessId(), address, MemoryScanner::Sensitivity::Low,
+		DefaultCallbacks(GetCurrentProcessId(), address, 0, MemoryScanner::Sensitivity::Low,
 			MemoryScanner::Sensitivity::Off, MemoryScanner::Sensitivity::Off)
 	{}
 
 	void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-		const std::vector<uint64_t>& /*threadEntryPoints*/, MemoryScanner* /*scanner*/) override
+		const std::vector<uint64_t>& /*threadEntryPoints*/, bool& scanWithYara) override
 	{
+		scanWithYara = false;
 		detectedMap = continiousRegions;
 	}
 };

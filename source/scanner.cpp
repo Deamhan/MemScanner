@@ -36,7 +36,7 @@ public:
 };
 
 template <CPUArchitecture arch>
-PE<false, arch>* GetOrAddImageToCache(std::pair<std::map<std::wstring, PE<false, arch>>, std::mutex>& cache,
+static PE<false, arch>* GetOrAddImageToCache(std::pair<std::map<std::wstring, PE<false, arch>>, std::mutex>& cache,
     const std::wstring& path)
 {
     auto& parsed = cache.first;
@@ -60,18 +60,53 @@ PE<false, arch>* GetOrAddImageToCache(std::pair<std::map<std::wstring, PE<false,
 }
 
 template <CPUArchitecture arch>
-void CheckForHooks(DataSource& mapped, std::pair<std::map<std::wstring, PE<false, arch>>,std::mutex>& cache,
+static void CheckForHooks(DataSource& mapped, std::pair<std::map<std::wstring, PE<false, arch>>,std::mutex>& cache,
     const std::wstring& path, std::vector<HookDescription>& result)
 {
     try
     {
         auto pe = GetOrAddImageToCache(cache, path);
-        return pe->CheckExportForHooks(mapped, result);
+        pe->CheckExportForHooks(mapped, result);
     }
     catch (const DataSourceException&)
     {}
     catch (const PeException&)
     {}
+}
+
+template <CPUArchitecture arch>
+static bool CheckForPrivateCodeModificationForArch(const std::wstring& imagePath, std::pair<std::map<std::wstring, PE<false, arch>>,
+    std::mutex>& cache, uint64_t moduleAddress, uint64_t address, uint64_t size)
+{
+    if (!imagePath.empty())
+        return false;
+
+    try
+    {
+        uint64_t disp = address - moduleAddress;
+        auto pe = GetOrAddImageToCache(cache, imagePath);
+        if (disp > pe->GetImageSize())
+            return false;
+
+        auto rva = (uint32_t)disp;
+        if (!pe->IsExecutableSectionRva(rva))
+            return false;
+        
+        const auto& exported = pe->GetExportMap();
+        auto it = exported.lower_bound(rva);
+        if (it == exported.end())
+            return true;
+
+        return (it->first >= rva + size);
+    }
+    catch (const DataSourceException&)
+    {
+    }
+    catch (const PeException&)
+    {
+    }
+
+    return false;
 }
 
 class ProcessScanGuard
@@ -108,9 +143,9 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
     if (hProcess == nullptr)
         return;
 
-    std::vector<uint64_t> memAddressesToCheck;
-    bool scanHookForUserAddress = false;
-    auto memoryAnalysisSettings = tlsCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck, scanHookForUserAddress);
+    std::vector<ICallbacks::AddressInfo> memAddressesToCheck;
+    bool scanHookForUserAddress = false, scanRangesWithYara = false;
+    auto memoryAnalysisSettings = tlsCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck, scanHookForUserAddress, scanRangesWithYara);
 
     std::vector<uint64_t> threadsEntryPoints; 
     threadsEntryPoints.reserve(32);
@@ -130,6 +165,8 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
     std::vector<HookDescription> hooksFound;
     hooksFound.reserve(30); // should be enough
 
+    std::multimap<uint64_t, ICallbacks::AddressInfo> requestedImageAddressToAllocBase;
+
     bool hookAnalysisEnabled = tlsCallbacks->GetHookAnalysisSettings() != Sensitivity::Off;
     bool doHookAnalysisWithMemscan = true;
     if (memoryAnalysisSettings != Sensitivity::Off)
@@ -140,8 +177,24 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         else
         {
             doHookAnalysisWithMemscan = scanHookForUserAddress;
-            for (auto addr : memAddressesToCheck)
-                GetMemoryHelper().UpdateMemoryMapForAddr(hProcess, addr, memoryMap);
+            for (const auto& addrInfo : memAddressesToCheck)
+            {
+                auto region = GetMemoryHelper().UpdateMemoryMapForAddr(hProcess, addrInfo.address, memoryMap);
+                if (!scanRangesWithYara)
+                    continue;
+
+                if (region.BaseAddress == 0)
+                    continue;
+
+                if (region.Type == SystemDefinitions::MemType::Image && addrInfo.forceWritten)
+                    requestedImageAddressToAllocBase.emplace(region.AllocationBase, addrInfo);
+
+                std::list<std::string> yaraResults;
+                ScanUsingYara(hProcess, region, yaraResults, addrInfo.address, addrInfo.size);
+
+                if (!yaraResults.empty())
+                    tlsCallbacks->OnYaraDetection(yaraResults);
+            }
         }
 
         auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(memoryMap, [](const MemoryHelperBase::MemInfoT64& mbi) { return ((mbi.State & (PAGE_NOACCESS | PAGE_GUARD)) == 0); });
@@ -183,27 +236,57 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                 }
 
                 if (isSuspGroup || !threadsRelated.empty())
-                    tlsCallbacks->OnSuspiciousMemoryRegionFound(group.second, threadsRelated, this);
+                {
+                    bool scanWithYara = false;
+                    tlsCallbacks->OnSuspiciousMemoryRegionFound(group.second, threadsRelated, scanWithYara);
+                    if (scanWithYara)
+                    {
+                        std::list<std::string> yaraResults;
+                        for (const auto& region : group.second)
+                            ScanUsingYara(hProcess, region, yaraResults);
+
+                        if (!yaraResults.empty())
+                            tlsCallbacks->OnYaraDetection(yaraResults);
+                    }
+                }
             }
-            else if (hookAnalysisEnabled && doHookAnalysisWithMemscan)
+            else
             {
-                ReadOnlyMemoryDataSource memDs(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
-                auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, memDs.GetOrigin());
+                auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, group.first);
                 if (imagePath.empty())
                     continue;
 
-                switch (PE<>::GetPeArch(memDs))
+                for (const auto& region : group.second)
                 {
-                case CPUArchitecture::X86:
-                    CheckForHooks<CPUArchitecture::X86>(memDs, mCached32, imagePath, hooksFound);
-                    break;
-                case CPUArchitecture::X64:
-                    CheckForHooks<CPUArchitecture::X64>(memDs, mCached64, imagePath, hooksFound);
-                    break;
+                    auto protFlags = MemoryHelperBase::protToFlags(region.Protect);
+                    auto suspFlags = (uint32_t)(MemoryHelperBase::WFlag | MemoryHelperBase::XFlag);
+                    if ((protFlags & suspFlags) == suspFlags)
+                    {
+                        bool scanWithYara = false;
+                        tlsCallbacks->OnWritableExecImageFound(group.second, imagePath, region, scanWithYara);
+                        if (!scanWithYara)
+                            continue;
+
+                        std::list<std::string> yaraResults;
+                        ScanUsingYara(hProcess, region, yaraResults);
+                        if (!yaraResults.empty())
+                            tlsCallbacks->OnYaraDetection(yaraResults);
+                    }
                 }
 
-                if (!hooksFound.empty())
-                    tlsCallbacks->OnHooksFound(hooksFound, imagePath.c_str());
+                if (hookAnalysisEnabled && doHookAnalysisWithMemscan)
+                {
+                    ReadOnlyMemoryDataSource memDs(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
+                    
+                    auto moduleArch = PE<>::GetPeArch(memDs);
+                    ScanImageForHooks(moduleArch, memDs, imagePath, hooksFound);
+                    auto eqRange = requestedImageAddressToAllocBase.equal_range(memDs.GetOrigin());
+                    for (auto it = eqRange.first; it != eqRange.second; ++it)
+                    {
+                        CheckForPrivateCodeModification(moduleArch, imagePath, memDs.GetOrigin(),
+                            it->second.address, it->second.size);
+                    }
+                }
             }
         }
     }
@@ -214,21 +297,43 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         for (const auto& image : loadedImages)
         {
             ReadOnlyMemoryDataSource memDs(hProcess, image.BaseAddress, image.ImageSize, PAGE_SIZE);
-
-            switch (image.Architecture)
-            {
-            case CPUArchitecture::X86:
-                CheckForHooks<CPUArchitecture::X86>(memDs, mCached32, image.ImagePath, hooksFound);
-                break;
-            case CPUArchitecture::X64:
-                CheckForHooks<CPUArchitecture::X64>(memDs, mCached64, image.ImagePath, hooksFound);
-                break;
-            }
-
-            if (!hooksFound.empty())
-                tlsCallbacks->OnHooksFound(hooksFound, image.ImagePath.c_str());
+            ScanImageForHooks(image.Architecture, memDs, image.ImagePath, hooksFound);
         }
     }  
+}
+
+void MemoryScanner::ScanImageForHooks(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName,
+    std::vector<HookDescription>& hooksFound)
+{
+    switch (arch)
+    {
+    case CPUArchitecture::X86:
+        CheckForHooks<CPUArchitecture::X86>(ds, mCached32, imageName, hooksFound);
+        break;
+    case CPUArchitecture::X64:
+        CheckForHooks<CPUArchitecture::X64>(ds, mCached64, imageName, hooksFound);
+        break;
+    }
+
+    if (!hooksFound.empty())
+        tlsCallbacks->OnHooksFound(hooksFound, imageName.c_str());
+}
+
+bool MemoryScanner::CheckForPrivateCodeModification(CPUArchitecture arch, const std::wstring& imagePath, uint64_t moduleAddress,
+    uint64_t address, uint64_t size)
+{
+    bool result = false;
+    switch (arch)
+    {
+    case CPUArchitecture::X86:
+        result = CheckForPrivateCodeModificationForArch<CPUArchitecture::X86>(imagePath, mCached32, moduleAddress, address, size);
+        break;
+    case CPUArchitecture::X64:
+        result = CheckForPrivateCodeModificationForArch<CPUArchitecture::X64>(imagePath, mCached64, moduleAddress, address, size);
+        break;
+    }
+
+    return result;
 }
 
 class SimpleThreadPool
@@ -365,13 +470,14 @@ void MemoryScanner::SetYaraRules(const wchar_t* rulesDirectory)
     SetYaraRules(std::make_shared<YaraScanner::YaraRules>(rulesDirectory));
 }
 
-bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result)
+bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result,
+    uint64_t startAddress, uint64_t size)
 {
     auto scanner = GetYaraScanner();
     if (scanner == nullptr)
         return false;
 
-    ::ScanUsingYara(*scanner, hProcess, region, result);
+    ::ScanUsingYara(*scanner, hProcess, region, result, startAddress, size);
     return true;
 }
 

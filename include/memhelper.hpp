@@ -41,7 +41,7 @@ public:
 
 	virtual std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const = 0;
 	virtual MemoryMapT GetMemoryMap(HANDLE hProcess) const = 0;
-	virtual void UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result) const = 0;
+	virtual MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result) const = 0;
 	virtual bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const = 0;
 
 	struct ImageDescription
@@ -68,7 +68,7 @@ public:
 
     std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const override;
     MemoryMapT GetMemoryMap(HANDLE hProcess) const override;
-	void UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result) const override;
+	MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result) const override;
     bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const override;
 
     uint64_t GetHighestUsermodeAddress() const override;
@@ -88,5 +88,9 @@ const MemoryHelper<arch>& GetMemoryHelperForArch();
 const MemoryHelperBase& GetMemoryHelper() noexcept;
 
 const uint32_t PAGE_SIZE = 4096;
+
 template <class T>
-inline T PageAlignUp(T value) { return (value + PAGE_SIZE - 1) & (~(PAGE_SIZE - 1)); }
+inline T PageAlignUp(T value) { return (value + PAGE_SIZE - 1) & (~((T)PAGE_SIZE - 1)); }
+
+template <class T>
+inline T PageAlignDown(T value) { return value& (~((T)PAGE_SIZE - 1)); }

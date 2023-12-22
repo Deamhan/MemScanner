@@ -17,8 +17,10 @@ class MyCallbacks : public DefaultCallbacks
 {
 public:
     void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT&,
-        const std::vector<uint64_t>&, MemoryScanner*) override
-    {}
+        const std::vector<uint64_t>&, bool& scanWithYara) override
+    {
+        scanWithYara = false;
+    }
 
     void OnHooksFound(const std::vector<HookDescription>&, const wchar_t*) override
     {}

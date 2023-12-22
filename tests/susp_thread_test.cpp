@@ -26,17 +26,12 @@ class MyCallbacks : public DefaultCallbacks
 {
 public:
     void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-        const std::vector<uint64_t>& threadEntryPoints, MemoryScanner* scanner) override
+        const std::vector<uint64_t>& threadEntryPoints, bool& scanWithYara) override
     {
-        Super::OnSuspiciousMemoryRegionFound(continiousRegions, threadEntryPoints, scanner);
+        Super::OnSuspiciousMemoryRegionFound(continiousRegions, threadEntryPoints, scanWithYara);
 
         std::lock_guard<std::mutex> guard(lock);
         mFoundThreadEPs.insert(threadEntryPoints.begin(), threadEntryPoints.end());
-    }
-
-    void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override
-    {
-        Super::OnHooksFound(hooks, imageName);
     }
 
     const auto& GetFoundEPs() const noexcept
@@ -52,7 +47,7 @@ public:
 
     const std::map<uint64_t, std::wstring>& GetDumped() const noexcept { return mDumped; }
 
-    MyCallbacks() : DefaultCallbacks(GetCurrentProcessId(), 0, MemoryScanner::Sensitivity::Low,
+    MyCallbacks() : DefaultCallbacks(GetCurrentProcessId(), 0, 0, MemoryScanner::Sensitivity::Low,
         MemoryScanner::Sensitivity::Low, MemoryScanner::Sensitivity::Low, L".") {}
 
 private:

@@ -377,39 +377,18 @@ template class Wow64Helper<CPUArchitecture::X86>;
 
 template class Wow64Helper<CPUArchitecture::X64>;
 
-typedef BOOL (WINAPI* IsWow64Process_t)(HANDLE hProcess, PBOOL res);
+CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept
+{
+    BOOL IsWOW64 = FALSE;
+    IsWow64Process(hProcess, &IsWOW64);
+    return IsWOW64 != FALSE ? CPUArchitecture::X64 : CPUArchitecture::X86;
+}
 
 CPUArchitecture GetOSArch() noexcept
 {
 #if _M_AMD64
     return CPUArchitecture::X64;
 #else
-    auto IsWow64Process = (IsWow64Process_t)GetProcAddress(GetModuleHandleA("kernel32"), "IsWow64Process");
-    if (IsWow64Process != nullptr)
-    {
-        BOOL IsWOW64 = FALSE;
-        IsWow64Process(GetCurrentProcess(), &IsWOW64);
-        return IsWOW64 ? CPUArchitecture::X64 : CPUArchitecture::X86;
-    }
-
-    return CPUArchitecture::X86;
-#endif // _M_AMD64
-}
-
-CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept
-{
-#if _M_AMD64
-    UNREFERENCED_PARAMETER(hProcess);
-    return CPUArchitecture::X64;
-#else
-    auto IsWow64Process = (IsWow64Process_t)GetProcAddress(GetModuleHandleA("kernel32"), "IsWow64Process");
-    if (IsWow64Process != nullptr)
-    {
-        BOOL IsWOW64 = FALSE;
-        IsWow64Process(hProcess, &IsWOW64);
-        return IsWOW64 ? CPUArchitecture::X86 : GetOSArch();
-    }
-
-    return GetOSArch();
+    return GetProcessArch(GetCurrentProcess());
 #endif // _M_AMD64
 }

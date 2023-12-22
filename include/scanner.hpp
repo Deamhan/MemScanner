@@ -6,6 +6,7 @@
 #include <string>
 
 #include "memhelper.hpp"
+#include "memdatasource.hpp"
 #include "pe.hpp"
 #include "yara.hpp"
 
@@ -25,9 +26,13 @@ public:
 	{
 	public:
 		virtual void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-			const std::vector<uint64_t>& threadEntryPoints, MemoryScanner* scanner) = 0;
+			const std::vector<uint64_t>& threadEntryPoints, bool& scanWithYara) = 0;
+
+		virtual void OnWritableExecImageFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions, const std::wstring& imagePath,
+			const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) = 0;
 
 		virtual void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) = 0;
+		virtual void OnYaraDetection(const std::list<std::string>& detections) = 0;
 
 		virtual void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) = 0;
 		virtual void OnProcessScanEnd() = 0;
@@ -35,7 +40,15 @@ public:
 		virtual ~ICallbacks() = default;
 
 		// config requests
-		virtual Sensitivity GetMemoryAnalysisSettings(std::vector<uint64_t>& addressesToCheck, bool& scanImageForHooks) = 0;
+		struct AddressInfo
+		{
+			uint64_t address;
+			uint64_t size;
+			bool forceWritten; // set it if you sure that region was written
+		};
+
+		virtual Sensitivity GetMemoryAnalysisSettings(std::vector<AddressInfo>& addressRangesToCheck,
+			bool& scanImageForHooks, bool& scanRangesWithYara) = 0;
 		virtual Sensitivity GetThreadAnalysisSettings() = 0;
 		virtual Sensitivity GetHookAnalysisSettings() = 0;
 		virtual bool SkipProcess(uint32_t processId, LARGE_INTEGER creationTime, const std::wstring& processName) = 0;
@@ -51,7 +64,8 @@ public:
 
 	static MemoryScanner& GetInstance();
 
-	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result);
+	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result,
+		uint64_t startAddress = 0, uint64_t size = 0);
 	bool ScanProcessUsingYara(uint32_t pid, std::list<std::string>& result);
 	void SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules);
 	void SetYaraRules(const std::list<std::string>& rules);
@@ -70,6 +84,12 @@ private:
 
 	template <CPUArchitecture arch, typename SPI = SystemDefinitions::SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>>>
 	void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api);
+
+	void ScanImageForHooks(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName,
+		std::vector<HookDescription>& hooksFound);
+
+	bool CheckForPrivateCodeModification(CPUArchitecture arch, const std::wstring& imagePath, uint64_t moduleAddress, 
+		uint64_t address, uint64_t size);
 
 	static thread_local ICallbacks* tlsCallbacks;
 	static thread_local std::unique_ptr<YaraScanner> tlsYaraScanner;
