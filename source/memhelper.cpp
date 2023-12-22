@@ -300,12 +300,10 @@ template class MemoryHelper<CPUArchitecture::X64>;
 
 template const MemoryHelper<CPUArchitecture::X64>& GetMemoryHelperForArch();
 
-static bool Is64BitOs = (GetOSArch() == CPUArchitecture::X64);
-
 const MemoryHelperBase& GetMemoryHelper() noexcept 
 { 
 #if !_M_AMD64
-    return Is64BitOs ? (const MemoryHelperBase&)GetMemoryHelperForArch<CPUArchitecture::X64>()
+    return GetOSArch() == CPUArchitecture::X64 ? (const MemoryHelperBase&)GetMemoryHelperForArch<CPUArchitecture::X64>()
         : (const MemoryHelperBase&)GetMemoryHelperForArch<CPUArchitecture::X86>();
 #else
     return GetMemoryHelperForArch<CPUArchitecture::X64>();

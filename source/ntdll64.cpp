@@ -384,11 +384,15 @@ CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept
     return IsWOW64 != FALSE ? CPUArchitecture::X64 : CPUArchitecture::X86;
 }
 
+#if !_M_AMD64
+static CPUArchitecture OsArch = GetProcessArch(GetCurrentProcess());
+#endif
+
 CPUArchitecture GetOSArch() noexcept
 {
 #if _M_AMD64
     return CPUArchitecture::X64;
 #else
-    return GetProcessArch(GetCurrentProcess());
+    return OsArch;
 #endif // _M_AMD64
 }
