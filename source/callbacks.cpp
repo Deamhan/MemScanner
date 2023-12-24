@@ -93,6 +93,8 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
 
         scanRangesWithYara = true;
     }
+    else if (mMemoryScanSensitivity >= MemoryScanner::Sensitivity::Medium)
+        scanRangesWithYara = true;
 
     if (mDumpRoot.empty())
         return;
@@ -136,7 +138,7 @@ void DefaultCallbacks::OnHooksFound(const std::vector<HookDescription>& hooks, c
 void DefaultCallbacks::OnYaraDetection(const std::list<std::string>& detections)
 {
     for (const auto& detection : detections)
-        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tYARA detection:%S\n", detection.c_str());
+        GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tYARA detection: %S\n", detection.c_str());
 }
 
 void DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName)

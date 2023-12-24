@@ -77,7 +77,7 @@ int wmain(int argc, const wchar_t ** argv)
             {
                 if (wcscmp(argv[i] + 1, L"sensitivity") == 0)
                     state = CmdLineSwitch::Sensitivity;
-                if (wcscmp(argv[i] + 1, L"hooks") == 0)
+                else if (wcscmp(argv[i] + 1, L"hooks") == 0)
                     state = CmdLineSwitch::HookSensitivity;
                 else if (wcscmp(argv[i] + 1, L"pid") == 0)
                     state = CmdLineSwitch::Pid;
@@ -124,7 +124,8 @@ int wmain(int argc, const wchar_t ** argv)
                     dumpsDir = argv[i];
                     break;
                 case CmdLineSwitch::Rules:
-
+                    rulesDir = argv[i];
+                    break;
                 default:
                     break;
                 }
