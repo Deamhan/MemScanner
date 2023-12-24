@@ -92,6 +92,10 @@ set(YARA_SCAN_MEM_SRC tests/yara_scan_pids.cpp
                       ${COMMON_SRC}
 )
 
+set(RELOCATIONS_SRC tests/relocations_test.cpp
+                    ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -156,6 +160,7 @@ add_executable(external_vars_test ${EXTERNAL_VARS_SRC})
 add_executable(reload_rules_test ${RELOAD_RULES_SRC})
 add_executable(composite_ds_test ${COMPOSITE_DS_SRC})
 add_executable(yara_scan_mem ${YARA_SCAN_MEM_SRC})
+add_executable(relocations_test ${RELOCATIONS_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -177,6 +182,7 @@ set (EXECUTABLES memscan
                  reload_rules_test
                  composite_ds_test
                  yara_scan_mem
+                 relocations_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -218,3 +224,4 @@ add_test(NAME yara_load_rules_test COMMAND yara_loadrules_test)
 add_test(NAME external_variables_test COMMAND external_vars_test)
 add_test(NAME reload_yara_rules_test COMMAND reload_rules_test)
 add_test(NAME composite_datasrc_test COMMAND composite_ds_test)
+add_test(NAME pe_relocations_test COMMAND relocations_test)

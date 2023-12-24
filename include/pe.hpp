@@ -62,6 +62,16 @@ protected:
 	PeError mErrorCode;
 };
 
+enum class RelocationType
+{
+	Absolute = 0,
+	High = 1,
+	Low = 2,
+	HighLow = 3,
+	HighAdj = 4,
+	Dir64 = 10,
+};
+
 template <bool isMapped = true, CPUArchitecture arch = CPUArchitecture::X64>
 class PE
 {
@@ -75,7 +85,8 @@ public:
 	static CPUArchitecture GetPeArch(DataSource& ds);
 
 	uint32_t GetImageSize() const noexcept { return mOptionalHeader.SizeOfImage; }
-	uint64_t GetImageBase() const noexcept { return mImageBase; }
+	uint64_t GetOriginalImageBase() const noexcept { return mOptionalHeader.ImageBase; }
+	uint64_t GetLoadedImageBase() const noexcept { return mImageBase; }
 
 	PE(const PE&) = delete;
 	PE(PE&&) = delete;
@@ -96,7 +107,7 @@ public:
 
 	void ReleaseDataSource() noexcept { mDataSource.reset(); }
 
-	
+	const std::map<uint32_t, RelocationType>& GetRelocations();
 
 protected:
 	std::shared_ptr<DataSource> mDataSource;
@@ -114,8 +125,10 @@ protected:
 		IMAGE_DOS_HEADER& dosHeader, IMAGE_FILE_HEADER& fileHeader);
 
 	void BuildExportMap();
+	void ParseRelocations();
 
 	const unsigned MaxExportedFunctionsCount = 0x10000;
+	std::unique_ptr<std::map<uint32_t, RelocationType>> mRelocations;
 };
 
 std::pair<uint64_t, CPUArchitecture> ScanRegionForPeHeaders(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region);

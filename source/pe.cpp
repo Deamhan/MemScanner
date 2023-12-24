@@ -168,6 +168,61 @@ void PE<isMapped, arch>::BuildExportMap()
 }
 
 template <bool isMapped, CPUArchitecture arch>
+void PE<isMapped, arch>::ParseRelocations()
+{
+    if (!mDataSource)
+        throw PeException{ PeError::InvalidDataSource };
+
+    try
+    {
+        mRelocations = std::make_unique<std::map<uint32_t, RelocationType>>();
+
+        uint32_t exportRva = mOptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;
+        uint32_t exportSize = mOptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
+
+        if (exportRva == 0)
+            return;
+
+        auto relocOffset = RvaToOffset(exportRva);
+        mDataSource->Seek(relocOffset);
+        for (uint32_t parsed = 0; parsed < exportSize;)
+        {
+            IMAGE_BASE_RELOCATION relocBlock;
+            mDataSource->Read(relocBlock);
+            parsed += relocBlock.SizeOfBlock;
+
+            for (DWORD parsedRelocsPerPageSize = sizeof(IMAGE_BASE_RELOCATION); parsedRelocsPerPageSize < relocBlock.SizeOfBlock;
+                parsedRelocsPerPageSize += 2)
+            {
+                WORD relocTypeAndOffset = 0;
+                mDataSource->Read(relocTypeAndOffset);
+                auto pageOffset = relocTypeAndOffset & 0xFFFu;
+                
+                auto relocType = (RelocationType)(relocTypeAndOffset >> 12);
+                if (relocType == RelocationType::Absolute)
+                    continue;
+
+                auto rva = relocBlock.VirtualAddress + pageOffset;
+                mRelocations->emplace(rva, relocType);
+            }
+        }
+    }
+    catch (const DataSourceException&)
+    {
+        throw PeException{ PeError::InvalidFormat };
+    }
+}
+
+template <bool isMapped, CPUArchitecture arch>
+const std::map<uint32_t, RelocationType>& PE<isMapped, arch>::GetRelocations()
+{
+    if (!mRelocations)
+        ParseRelocations();
+
+    return *mRelocations;
+}
+
+template <bool isMapped, CPUArchitecture arch>
 const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& PE<isMapped, arch>::GetExportMap() 
 { 
     if (!mExportByRva)
