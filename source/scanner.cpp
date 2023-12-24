@@ -283,8 +283,11 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                     auto eqRange = requestedImageAddressToAllocBase.equal_range(memDs.GetOrigin());
                     for (auto it = eqRange.first; it != eqRange.second; ++it)
                     {
-                        CheckForPrivateCodeModification(moduleArch, imagePath, memDs.GetOrigin(),
+                        bool privateCodeModificationFound = CheckForPrivateCodeModification(moduleArch, imagePath, memDs.GetOrigin(),
                             it->second.address, it->second.size);
+
+                        if (privateCodeModificationFound)
+                            tlsCallbacks->OnPrivateCodeModification(imagePath.c_str(), (uint32_t)(it->second.address - group.first));
                     }
                 }
             }

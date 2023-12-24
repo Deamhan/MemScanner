@@ -13,6 +13,8 @@ public:
     void OnWritableExecImageFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions, const std::wstring& imagePath,
 		const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) override;
 
+    void OnPrivateCodeModification(const wchar_t* imageName, uint32_t rva) override;
+
 	void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override;
 	void OnYaraDetection(const std::list<std::string>& detections) override;
 

@@ -47,6 +47,12 @@ void DefaultCallbacks::OnWritableExecImageFound(const MemoryHelperBase::FlatMemo
         (unsigned long long)wxRegion.RegionSize);
 }
 
+void DefaultCallbacks::OnPrivateCodeModification(const wchar_t* imageName, uint32_t rva)
+{
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tPrivate code modification: %s+0x%08x\n",
+        imageName, (unsigned)rva);
+}
+
 void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& relatedRegions,
     const std::vector<uint64_t>& threadEntryPoints, bool& scanRangesWithYara)
 {
