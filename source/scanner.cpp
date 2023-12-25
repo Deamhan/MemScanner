@@ -78,7 +78,7 @@ template <CPUArchitecture arch>
 static bool CheckForPrivateCodeModificationForArch(const std::wstring& imagePath, std::pair<std::map<std::wstring, PE<false, arch>>,
     std::mutex>& cache, uint64_t moduleAddress, uint64_t address, uint64_t size)
 {
-    if (!imagePath.empty())
+    if (imagePath.empty())
         return false;
 
     try

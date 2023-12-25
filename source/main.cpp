@@ -171,7 +171,7 @@ int wmain(int argc, const wchar_t ** argv)
             scanner.SetYaraRules(std::make_shared<YaraScanner::YaraRules>(rulesDir.c_str()));
 
         Timer timer{ L"Memory" };
-        scanner.Scan(std::make_shared<DefaultCallbacks>(pid, 0, 0, sensitivity, hookSensitivity, sensitivity, dumpsDir.c_str()), threadsCount);
+        scanner.Scan(std::make_shared<DefaultCallbacks>(pid, 0, 0, false, sensitivity, hookSensitivity, sensitivity, dumpsDir.c_str()), threadsCount);
     }
     catch (const std::exception& e)
     {

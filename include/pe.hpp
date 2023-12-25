@@ -87,6 +87,7 @@ public:
 	uint32_t GetImageSize() const noexcept { return mOptionalHeader.SizeOfImage; }
 	uint64_t GetOriginalImageBase() const noexcept { return mOptionalHeader.ImageBase; }
 	uint64_t GetLoadedImageBase() const noexcept { return mImageBase; }
+	uint32_t GetEntryPointRVA() const noexcept { return mOptionalHeader.AddressOfEntryPoint; }
 
 	PE(const PE&) = delete;
 	PE(PE&&) = delete;

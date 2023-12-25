@@ -16,7 +16,7 @@ MemoryScanner::Sensitivity DefaultCallbacks::GetMemoryAnalysisSettings(
 
     if (mAddressToScan != 0)
     {
-        AddressInfo info = { mAddressToScan, mSizeOfRange };
+        AddressInfo info = { mAddressToScan, mSizeOfRange, mForceWritten };
         addressRangesToCheck.push_back(info);
         scanImageForHooks = true;
         scanRangesWithYara = true;
@@ -176,11 +176,12 @@ const std::list<std::string> predefinedRules{ "\
                 ($dosText and ($TextSec or $CodeSec)) or ($PeMagic and ($TextSec or $CodeSec))\
              }" };
 
-DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, uint64_t sizeOfRangeToScan,
+DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, uint64_t sizeOfRangeToScan, bool forceWritten,
     MemoryScanner::Sensitivity memoryScanSensitivity, MemoryScanner::Sensitivity hookScanSensitivity,
     MemoryScanner::Sensitivity threadsScanSensitivity, const wchar_t* dumpsRoot)
     : mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity), mHookScanSensitivity(hookScanSensitivity),
-    mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan), mSizeOfRange(sizeOfRangeToScan)
+    mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan), mSizeOfRange(sizeOfRangeToScan),
+    mForceWritten(forceWritten)
 {
     if (dumpsRoot == nullptr)
         return;

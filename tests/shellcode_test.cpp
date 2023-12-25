@@ -36,5 +36,5 @@ int main()
 	std::list<std::string> yaraResult;
 	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, (uintptr_t)execPrivateMemory, sizeof(gShellcode));
 
-	return std::find(yaraResult.begin(), yaraResult.end(), "GenericShellcode") != yaraResult.end() ? 0 : 1;
+	return std::find(yaraResult.begin(), yaraResult.end(), "GenericShellcode64") != yaraResult.end() ? 0 : 1;
 }

@@ -55,7 +55,7 @@ public:
             GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tYARA: %S\n", detection.c_str());
     }
 
-    MyCallbacks(uint32_t pid = 0) : DefaultCallbacks(pid, 0, 0, MemoryScanner::Sensitivity::Off, MemoryScanner::Sensitivity::Off,
+    MyCallbacks(uint32_t pid = 0) : DefaultCallbacks(pid, 0, 0, false, MemoryScanner::Sensitivity::Off, MemoryScanner::Sensitivity::Off,
         MemoryScanner::Sensitivity::Off) {}
 
 private:

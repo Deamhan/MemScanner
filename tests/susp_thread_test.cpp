@@ -47,7 +47,7 @@ public:
 
     const std::map<uint64_t, std::wstring>& GetDumped() const noexcept { return mDumped; }
 
-    MyCallbacks() : DefaultCallbacks(GetCurrentProcessId(), 0, 0, MemoryScanner::Sensitivity::Low,
+    MyCallbacks() : DefaultCallbacks(GetCurrentProcessId(), 0, 0, false, MemoryScanner::Sensitivity::Low,
         MemoryScanner::Sensitivity::Low, MemoryScanner::Sensitivity::Low, L".") {}
 
 private:

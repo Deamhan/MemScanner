@@ -1,4 +1,4 @@
-rule GenericShellcode {
+rule GenericShellcode64 {
   strings:
     $SelfPos = { e8 ?? 00 00 00 }
     $GsRead = { 65 48 8b }
