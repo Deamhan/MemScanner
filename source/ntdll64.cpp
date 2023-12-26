@@ -377,15 +377,17 @@ template class Wow64Helper<CPUArchitecture::X86>;
 
 template class Wow64Helper<CPUArchitecture::X64>;
 
-CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept
+#if !_M_AMD64
+static CPUArchitecture IdentifyOSArch() noexcept
 {
     BOOL IsWOW64 = FALSE;
-    IsWow64Process(hProcess, &IsWOW64);
+    if (IsWow64Process(GetCurrentProcess(), &IsWOW64) == FALSE)
+        return CPUArchitecture::X86;
+
     return IsWOW64 != FALSE ? CPUArchitecture::X64 : CPUArchitecture::X86;
 }
 
-#if !_M_AMD64
-static CPUArchitecture OsArch = GetProcessArch(GetCurrentProcess());
+static CPUArchitecture OsArch = IdentifyOSArch();
 #endif
 
 CPUArchitecture GetOSArch() noexcept
@@ -395,4 +397,14 @@ CPUArchitecture GetOSArch() noexcept
 #else
     return OsArch;
 #endif // _M_AMD64
+}
+
+CPUArchitecture GetProcessArch(HANDLE hProcess) noexcept
+{
+    if (GetOSArch() == CPUArchitecture::X86)
+        return CPUArchitecture::X86;
+
+    BOOL IsWOW64 = FALSE;
+    IsWow64Process(hProcess, &IsWOW64);
+    return IsWOW64 != FALSE ? CPUArchitecture::X86 : CPUArchitecture::X64;
 }
