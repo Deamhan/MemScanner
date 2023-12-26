@@ -31,7 +31,7 @@ public:
 		virtual void OnWritableExecImageFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions, const std::wstring& imagePath,
 			const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) = 0;
 
-		virtual void OnPrivateCodeModification(const wchar_t* imageName, uint32_t rva) = 0;
+		virtual void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) = 0;
 
 		virtual void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) = 0;
 		virtual void OnYaraDetection(const std::list<std::string>& detections) = 0;

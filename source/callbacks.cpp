@@ -47,7 +47,7 @@ void DefaultCallbacks::OnWritableExecImageFound(const MemoryHelperBase::FlatMemo
         (unsigned long long)wxRegion.RegionSize);
 }
 
-void DefaultCallbacks::OnPrivateCodeModification(const wchar_t* imageName, uint32_t rva)
+void DefaultCallbacks::OnPrivateCodeModification(const wchar_t* imageName, uint64_t /*imageBase*/, uint32_t rva, uint32_t /*size*/)
 {
     GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tPrivate code modification: %s+0x%08x\n",
         imageName, (unsigned)rva);

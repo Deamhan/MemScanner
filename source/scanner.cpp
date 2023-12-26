@@ -197,25 +197,25 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
             }
         }
 
+        uint32_t allocProtMask = 0, protMask = 0;
+        switch (memoryAnalysisSettings)
+        {
+        case Sensitivity::Low:
+            protMask = (MemoryHelperBase::WFlag | MemoryHelperBase::XFlag);
+            break;
+        case Sensitivity::Medium:
+            protMask = MemoryHelperBase::XFlag;
+            break;
+        default:
+        case Sensitivity::High:
+            allocProtMask = protMask = MemoryHelperBase::XFlag;
+            break;
+        }
+
         auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(memoryMap, [](const MemoryHelperBase::MemInfoT64& mbi) { return ((mbi.State & (PAGE_NOACCESS | PAGE_GUARD)) == 0); });
 
         for (const auto& group : groupedMm)
         {
-            uint32_t allocProtMask = 0, protMask = 0;
-            switch (memoryAnalysisSettings)
-            {
-            case Sensitivity::Low:
-                protMask = (MemoryHelperBase::WFlag | MemoryHelperBase::XFlag);
-                break;
-            case Sensitivity::Medium:
-                protMask = MemoryHelperBase::XFlag;
-                break;
-            default:
-            case Sensitivity::High:
-                allocProtMask = protMask = MemoryHelperBase::XFlag;
-                break;
-            }
-
             const auto lastInGroup = group.second.rbegin();
             auto groupTopBorder = lastInGroup->BaseAddress + lastInGroup->RegionSize;
             if (lastInGroup->Type != SystemDefinitions::MemType::Image)
@@ -287,7 +287,8 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                             it->second.address, it->second.size);
 
                         if (privateCodeModificationFound)
-                            tlsCallbacks->OnPrivateCodeModification(imagePath.c_str(), (uint32_t)(it->second.address - group.first));
+                            tlsCallbacks->OnPrivateCodeModification(imagePath.c_str(), group.first, (uint32_t)(it->second.address - group.first),
+                                (uint32_t)it->second.size);
                     }
                 }
             }

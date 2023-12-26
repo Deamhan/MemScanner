@@ -32,9 +32,9 @@ public:
 		mYaraDetections.insert(detections.begin(), detections.end());
 	}
 
-	void OnPrivateCodeModification(const wchar_t* imageName, uint32_t rva) override
+	void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) override
 	{
-		Super::OnPrivateCodeModification(imageName, rva);
+		Super::OnPrivateCodeModification(imageName, imageBase, rva, size);
 		mOverwriteRva = rva;
 	}
 
