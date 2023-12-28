@@ -201,6 +201,8 @@ void YaraScanner::YaraRules::SetRules(const std::list<std::string>& rules)
 
     SetIntVariable(compiler, "MemoryAttributes", 0);
     SetIntVariable(compiler, "MemoryType", 0);
+    SetIntVariable(compiler, "ImageOverwrite", 0);
+    SetIntVariable(compiler, "ExternalOperation", 0);
 
     for (const auto& rule : rules)
     {
@@ -336,7 +338,8 @@ std::unique_ptr<YaraScanner> BuildYaraScanner(const wchar_t* rootDir)
 }
 
 void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region,
-    std::list<std::string>& result, uint64_t startAddress, uint64_t size)
+    std::list<std::string>& result, uint64_t startAddress, uint64_t size, bool imageOverwrite,
+    bool externalOperation)
 {
     result.clear();
 
@@ -351,6 +354,13 @@ void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase
         ReadOnlyMemoryDataSource dsForYara(hProcess, startAddress, size, 0);
         scanner.SetIntVariable("MemoryAttributes", MemoryHelperBase::protToFlags(region.Protect));
         scanner.SetIntVariable("MemoryType", (int)region.Type);
+
+        if (imageOverwrite)
+            scanner.SetIntVariable("ImageOverwrite", 1);
+
+        if (externalOperation)
+            scanner.SetIntVariable("ExternalOperation", 1);
+
         scanner.Scan(dsForYara, result);
     }
     catch (const YaraScanner::YaraScannerException& e)

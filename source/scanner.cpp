@@ -186,11 +186,12 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                 if (region.BaseAddress == 0)
                     continue;
 
-                if (region.Type == SystemDefinitions::MemType::Image && addrInfo.forceWritten)
+                bool imageOverwrite = region.Type == SystemDefinitions::MemType::Image && addrInfo.forceWritten;
+                if (imageOverwrite)
                     requestedImageAddressToAllocBase.emplace(region.AllocationBase, addrInfo);
 
                 std::list<std::string> yaraResults;
-                ScanUsingYara(hProcess, region, yaraResults, addrInfo.address, addrInfo.size);
+                ScanUsingYara(hProcess, region, yaraResults, addrInfo.address, addrInfo.size, imageOverwrite, addrInfo.externalOperation);
 
                 if (!yaraResults.empty())
                     tlsCallbacks->OnYaraDetection(yaraResults);
@@ -475,13 +476,14 @@ void MemoryScanner::SetYaraRules(const wchar_t* rulesDirectory)
 }
 
 bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result,
-    uint64_t startAddress, uint64_t size)
+    uint64_t startAddress, uint64_t size, bool imageOverwrite,
+    bool externalOperation)
 {
     auto scanner = GetYaraScanner();
     if (scanner == nullptr)
         return false;
 
-    ::ScanUsingYara(*scanner, hProcess, region, result, startAddress, size);
+    ::ScanUsingYara(*scanner, hProcess, region, result, startAddress, size, imageOverwrite, externalOperation);
     return true;
 }
 

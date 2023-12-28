@@ -177,11 +177,11 @@ const std::list<std::string> predefinedRules{ "\
              }" };
 
 DefaultCallbacks::DefaultCallbacks(uint32_t pidToScan, uint64_t addressToScan, uint64_t sizeOfRangeToScan, bool forceWritten,
-    MemoryScanner::Sensitivity memoryScanSensitivity, MemoryScanner::Sensitivity hookScanSensitivity,
+    bool externalOperation, MemoryScanner::Sensitivity memoryScanSensitivity, MemoryScanner::Sensitivity hookScanSensitivity,
     MemoryScanner::Sensitivity threadsScanSensitivity, const wchar_t* dumpsRoot)
     : mPidToScan(pidToScan), mMemoryScanSensitivity(memoryScanSensitivity), mHookScanSensitivity(hookScanSensitivity),
     mThreadScanSensitivity(threadsScanSensitivity), mAddressToScan(addressToScan), mSizeOfRange(sizeOfRangeToScan),
-    mForceWritten(forceWritten)
+    mForceWritten(forceWritten), mExternalOperation(externalOperation)
 {
     if (dumpsRoot == nullptr)
         return;

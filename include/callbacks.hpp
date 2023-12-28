@@ -22,7 +22,7 @@ public:
 	void OnProcessScanEnd() override;
 
 	DefaultCallbacks(uint32_t pidToScan = 0, uint64_t addressToScan = 0, uint64_t sizeOfRangeToScan = 0,
-		bool forceWritten = false, MemoryScanner::Sensitivity memoryScanSensitivity = MemoryScanner::Sensitivity::Low,
+		bool forceWritten = false, bool externalOperation = false, MemoryScanner::Sensitivity memoryScanSensitivity = MemoryScanner::Sensitivity::Low,
 		MemoryScanner::Sensitivity hookScanSensitivity = MemoryScanner::Sensitivity::Low, 
 		MemoryScanner::Sensitivity threadsScanSensitivity = MemoryScanner::Sensitivity::Low,
 		const wchar_t* dumpsRoot = nullptr);
@@ -58,6 +58,7 @@ protected:
 	uint64_t mAddressToScan;
 	uint64_t mSizeOfRange;
 	bool mForceWritten;
+	bool mExternalOperation;
 
 	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
 };

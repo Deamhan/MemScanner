@@ -47,6 +47,7 @@ public:
 			uint64_t address;
 			uint64_t size;
 			bool forceWritten; // set it if you sure that region was written
+			bool externalOperation; // set if modification operation was initiated from one process to another
 		};
 
 		virtual Sensitivity GetMemoryAnalysisSettings(std::vector<AddressInfo>& addressRangesToCheck,
@@ -67,7 +68,8 @@ public:
 	static MemoryScanner& GetInstance();
 
 	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result,
-		uint64_t startAddress = 0, uint64_t size = 0);
+		uint64_t startAddress = 0, uint64_t size = 0, bool imageOverwrite = false,
+		bool externalOperation = false);
 	bool ScanProcessUsingYara(uint32_t pid, std::list<std::string>& result);
 	void SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules);
 	void SetYaraRules(const std::list<std::string>& rules);
