@@ -38,7 +38,8 @@ int main()
 		return 1;
 
 	MemoryHelperBase::MemoryMapT result;
-	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)dllHandle, result);
+	bool isAlignedAllocation = false;
+	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)dllHandle, result, isAlignedAllocation);
 	std::vector<std::unique_ptr<ReadOnlyMemoryDataSource>> fragments;
 
 	auto allocationBase = result.begin()->second.AllocationBase;
@@ -46,6 +47,9 @@ int main()
 	for (const auto& region : result)
 	{
 		const auto& regionInfo = region.second;
+		if (!MemoryHelperBase::IsReadableRegion(regionInfo))
+			continue;
+
 		fragments.emplace_back(new ReadOnlyMemoryDataSource(GetCurrentProcess(), regionInfo.BaseAddress, regionInfo.RegionSize));
 		compositeDs.AddDataSource(regionInfo.BaseAddress - regionInfo.AllocationBase, fragments.rbegin()->get());
 	}

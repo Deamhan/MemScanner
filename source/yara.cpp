@@ -203,6 +203,7 @@ void YaraScanner::YaraRules::SetRules(const std::list<std::string>& rules)
     SetIntVariable(compiler, "MemoryType", 0);
     SetIntVariable(compiler, "ImageOverwrite", 0);
     SetIntVariable(compiler, "ExternalOperation", 0);
+    SetIntVariable(compiler, "AlignedAllocation", 0);
 
     for (const auto& rule : rules)
     {
@@ -339,7 +340,7 @@ std::unique_ptr<YaraScanner> BuildYaraScanner(const wchar_t* rootDir)
 
 void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region,
     std::list<std::string>& result, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-    bool externalOperation)
+    bool externalOperation, bool isAlignedAllocation)
 {
     result.clear();
 
@@ -360,6 +361,9 @@ void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase
 
         if (externalOperation)
             scanner.SetIntVariable("ExternalOperation", 1);
+
+        if (isAlignedAllocation)
+            scanner.SetIntVariable("AlignedAllocation", 1);
 
         scanner.Scan(dsForYara, result);
     }

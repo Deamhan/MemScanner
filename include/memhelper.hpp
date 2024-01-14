@@ -37,11 +37,15 @@ public:
 	static FlatMemoryMapT GetFlatMemoryMap(
 		const MemoryMapT& mm, const std::function<bool(const MemInfoT64&)>& filter);
 
+	static bool IsAlignedAllocation(const FlatMemoryMapT& mm);
+	static bool IsReadableRegion(const MemInfoT64& region);
+	static uint64_t GetTopReadableBorder(const FlatMemoryMapT& mm);
+
 	virtual uint64_t GetHighestUsermodeAddress() const = 0;
 
 	virtual std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const = 0;
 	virtual MemoryMapT GetMemoryMap(HANDLE hProcess) const = 0;
-	virtual MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result) const = 0;
+	virtual MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result, bool& isAllocationAligned) const = 0;
 	virtual bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const = 0;
 
 	struct ImageDescription
@@ -68,7 +72,7 @@ public:
 
     std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const override;
     MemoryMapT GetMemoryMap(HANDLE hProcess) const override;
-	MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result) const override;
+	MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result, bool& isAllocationAligned) const override;
     bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const override;
 
     uint64_t GetHighestUsermodeAddress() const override;

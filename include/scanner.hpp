@@ -69,7 +69,7 @@ public:
 
 	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result,
 		uint64_t startAddress = 0, uint64_t size = 0, bool imageOverwrite = false,
-		bool externalOperation = false);
+		bool externalOperation = false, bool isAlignedAllocation = false);
 	bool ScanProcessUsingYara(uint32_t pid, std::list<std::string>& result);
 	void SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules);
 	void SetYaraRules(const std::list<std::string>& rules);

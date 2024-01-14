@@ -32,7 +32,7 @@ static std::vector<uint64_t> ScanCurrentProcessMemoryForSectionBorders()
 	auto mm = GetMemoryHelper().GetMemoryMap(GetCurrentProcess());
 	auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(mm, [](const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi)
 		{
-			return mbi.Type != SystemDefinitions::MemType::Image;
+			return MemoryHelperBase::IsReadableRegion(mbi) && mbi.Type != SystemDefinitions::MemType::Image;
 		});
 
 	ReadOnlyMemoryDataSource memory(GetCurrentProcess(), 0, GetMemoryHelper().GetHighestUsermodeAddress() + 1);

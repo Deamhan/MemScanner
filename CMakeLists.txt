@@ -104,6 +104,10 @@ set(SHELLCODE_MODULE_SRC tests/shellcode_module_overwrite.cpp
                          ${COMMON_SRC}
 )
 
+set(ALIGNED_RESERVE_SRC tests/aligned_reserve_test.cpp
+                         ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -171,6 +175,7 @@ add_executable(yara_scan_mem ${YARA_SCAN_MEM_SRC})
 add_executable(relocations_test ${RELOCATIONS_SRC})
 add_executable(shellcode_test ${SHELLCODE_SRC})
 add_executable(shellcode_module_test ${SHELLCODE_MODULE_SRC})
+add_executable(aligned_reserve_test ${ALIGNED_RESERVE_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -195,6 +200,7 @@ set (EXECUTABLES memscan
                  relocations_test
                  shellcode_test
                  shellcode_module_test
+                 aligned_reserve_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -239,3 +245,4 @@ add_test(NAME composite_datasrc_test COMMAND composite_ds_test)
 add_test(NAME pe_relocations_test COMMAND relocations_test)
 add_test(NAME real_shellcode_test COMMAND shellcode_test)
 add_test(NAME shellcode_module_overwrite_test COMMAND shellcode_module_test)
+add_test(NAME align_with_reserve_test COMMAND aligned_reserve_test)

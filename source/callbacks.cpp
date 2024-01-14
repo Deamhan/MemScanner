@@ -62,6 +62,8 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
     for (const auto& region : relatedRegions)
         printMBI<uint64_t>(region, L"\t\t");
 
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tAligned: %s\n", MemoryHelperBase::IsAlignedAllocation(relatedRegions) ? L"yes" : L"no");
+
     if (!threadEntryPoints.empty())
     {
         GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tRelated threads:\n");
@@ -74,6 +76,9 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
     bool isPeFound = false;
     for (const auto& region : relatedRegions)
     {
+        if (!MemoryHelperBase::IsReadableRegion(region))
+            continue;
+
         auto peFound = ScanRegionForPeHeaders(currentScanData.process, region);
         if (peFound.first != 0)
         {
@@ -112,6 +117,9 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
 
     for (const auto& region : relatedRegions)
     {
+        if (!MemoryHelperBase::IsReadableRegion(region))
+            continue;
+
         ReadOnlyMemoryDataSource dsToDump(currentScanData.process, region.BaseAddress, region.RegionSize);
         std::wstring dumpPath = processDumpDir;
         _snwprintf_s(buffer, _countof(buffer), L"\\%llx.bin", (unsigned long long)region.BaseAddress);

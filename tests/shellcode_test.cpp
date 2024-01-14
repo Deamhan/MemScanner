@@ -30,7 +30,8 @@ int main()
 	memcpy(execPrivateMemory, gShellcode, sizeof(gShellcode));
 
 	MemoryHelperBase::MemoryMapT result;
-	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)execPrivateMemory, result);
+	bool isAlignedAllocation = false;
+	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)execPrivateMemory, result, isAlignedAllocation);
 
 	auto scanner = BuildYaraScanner(YARA_RULES_DIR);
 	std::list<std::string> yaraResult;

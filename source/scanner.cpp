@@ -179,7 +179,8 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
             doHookAnalysisWithMemscan = scanHookForUserAddress;
             for (const auto& addrInfo : memAddressesToCheck)
             {
-                auto region = GetMemoryHelper().UpdateMemoryMapForAddr(hProcess, addrInfo.address, memoryMap);
+                bool isAlignedAllocation = false;
+                auto region = GetMemoryHelper().UpdateMemoryMapForAddr(hProcess, addrInfo.address, memoryMap, isAlignedAllocation);
                 if (!scanRangesWithYara)
                     continue;
 
@@ -191,7 +192,8 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                     requestedImageAddressToAllocBase.emplace(region.AllocationBase, addrInfo);
 
                 std::list<std::string> yaraResults;
-                ScanUsingYara(hProcess, region, yaraResults, addrInfo.address, addrInfo.size, imageOverwrite, addrInfo.externalOperation);
+                ScanUsingYara(hProcess, region, yaraResults, addrInfo.address, addrInfo.size, imageOverwrite, addrInfo.externalOperation,
+                    isAlignedAllocation);
 
                 if (!yaraResults.empty())
                     tlsCallbacks->OnYaraDetection(yaraResults);
@@ -213,17 +215,19 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
             break;
         }
 
-        auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(memoryMap, [](const MemoryHelperBase::MemInfoT64& mbi) { return ((mbi.State & (PAGE_NOACCESS | PAGE_GUARD)) == 0); });
+        auto groupedMm = MemoryHelperBase::GetGroupedMemoryMap(memoryMap, [](const MemoryHelperBase::MemInfoT64&) { return true; });
 
         for (const auto& group : groupedMm)
         {
-            const auto lastInGroup = group.second.rbegin();
-            auto groupTopBorder = lastInGroup->BaseAddress + lastInGroup->RegionSize;
-            if (lastInGroup->Type != SystemDefinitions::MemType::Image)
+            auto groupTopBorder = MemoryHelperBase::GetTopReadableBorder(group.second);
+            if (group.second.begin()->Type != SystemDefinitions::MemType::Image)
             {
                 bool isSuspGroup = false;
                 for (const auto& region : group.second)
                 {
+                    if (!MemoryHelperBase::IsReadableRegion(region))
+                        continue;
+
                     bool allocProtRes = (allocProtMask != 0 ? (MemoryHelperBase::protToFlags(region.AllocationProtect) & allocProtMask) == allocProtMask : false);
                     bool protRes = (protMask != 0 ? (MemoryHelperBase::protToFlags(region.Protect) & protMask) == protMask : false);
                     isSuspGroup = protRes || allocProtRes;
@@ -243,8 +247,14 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                     if (scanWithYara)
                     {
                         std::list<std::string> yaraResults;
+                        bool isAlignedAllocation = MemoryHelperBase::IsAlignedAllocation(group.second);
                         for (const auto& region : group.second)
-                            ScanUsingYara(hProcess, region, yaraResults);
+                        {
+                            if (!MemoryHelperBase::IsReadableRegion(region))
+                                continue;
+
+                            ScanUsingYara(hProcess, region, yaraResults, 0, 0, false, false, isAlignedAllocation);
+                        }
 
                         if (!yaraResults.empty())
                             tlsCallbacks->OnYaraDetection(yaraResults);
@@ -259,6 +269,9 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
 
                 for (const auto& region : group.second)
                 {
+                    if (!MemoryHelperBase::IsReadableRegion(region))
+                        continue;
+
                     auto protFlags = MemoryHelperBase::protToFlags(region.Protect);
                     auto suspFlags = (uint32_t)(MemoryHelperBase::WFlag | MemoryHelperBase::XFlag);
                     if ((protFlags & suspFlags) == suspFlags)
@@ -476,14 +489,13 @@ void MemoryScanner::SetYaraRules(const wchar_t* rulesDirectory)
 }
 
 bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result,
-    uint64_t startAddress, uint64_t size, bool imageOverwrite,
-    bool externalOperation)
+    uint64_t startAddress, uint64_t size, bool imageOverwrite, bool externalOperation, bool isAlignedAllocation)
 {
     auto scanner = GetYaraScanner();
     if (scanner == nullptr)
         return false;
 
-    ::ScanUsingYara(*scanner, hProcess, region, result, startAddress, size, imageOverwrite, externalOperation);
+    ::ScanUsingYara(*scanner, hProcess, region, result, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation);
     return true;
 }
 

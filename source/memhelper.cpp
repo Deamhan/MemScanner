@@ -179,7 +179,8 @@ bool MemoryHelper<arch>::GetBasicInfoByAddress(HANDLE hProcess, uint64_t address
 }
 
 template <CPUArchitecture arch>
-MemoryHelperBase::MemInfoT64 MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryHelperBase::MemoryMapT& result) const
+MemoryHelperBase::MemInfoT64 MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck,
+    MemoryHelperBase::MemoryMapT& result, bool& isAllocationAligned) const
 {
     MemInfoT64 primaryMbi, mbi;
     if (!GetBasicInfoByAddress(hProcess, addressToCheck, primaryMbi) || (primaryMbi.State & MEM_COMMIT) == 0)
@@ -189,8 +190,8 @@ MemoryHelperBase::MemInfoT64 MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE h
     auto address = primaryMbi.AllocationBase;
     while (GetBasicInfoByAddress(hProcess, address, mbi) && mbi.AllocationBase == primaryMbi.AllocationBase)
     {
-        if ((mbi.State & MEM_COMMIT) != 0)
-            result.emplace_hint(result.end(), mbi.BaseAddress, mbi); // every next address is higher than previous so must be pushed in the end of map with less comparer
+        if ((mbi.State & (MEM_COMMIT | MEM_RESERVE)) != 0)
+            result.emplace(mbi.BaseAddress, mbi);
 
         if (retMbi.AllocationBase == 0 &&
             primaryMbi.BaseAddress + primaryMbi.RegionSize == mbi.BaseAddress + mbi.RegionSize)
@@ -198,6 +199,8 @@ MemoryHelperBase::MemInfoT64 MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE h
 
         address += std::max<uint64_t>(mbi.RegionSize, PAGE_SIZE);
     }
+
+    isAllocationAligned = (address & 0xFFFF) == 0;
 
     return retMbi;
 }
@@ -210,7 +213,7 @@ MemoryHelperBase::MemoryMapT MemoryHelper<arch>::GetMemoryMap(HANDLE hProcess) c
     MEMORY_BASIC_INFORMATION_T<uint64_t> mbi;
     while (GetBasicInfoByAddress(hProcess, address, mbi))
     {
-        if ((mbi.State & MEM_COMMIT) != 0)
+        if ((mbi.State & (MEM_COMMIT | MEM_RESERVE)) != 0)           // reserved regions can help us to check if allocation was aligned or not (helps with .NET jitted code)
             result.emplace_hint(result.end(), mbi.BaseAddress, mbi); // every next address is higher than previous so must be pushed in the end of map with less comparer
 
         address += std::max<uint64_t>(mbi.RegionSize, PAGE_SIZE);
@@ -235,6 +238,32 @@ MemoryHelperBase::FlatMemoryMapT
     }
 
     return result;
+}
+
+bool MemoryHelperBase::IsAlignedAllocation(const MemoryHelperBase::FlatMemoryMapT& mm)
+{
+    if (mm.empty())
+        return false;
+
+    const auto& last = mm.back();
+    return ((last.BaseAddress + last.RegionSize) & 0xFFFF) == 0;
+}
+
+bool MemoryHelperBase::IsReadableRegion(const MemInfoT64& region)
+{
+    return ((region.State & MEM_COMMIT) != 0 && (region.State & (PAGE_NOACCESS | PAGE_GUARD)) == 0);
+}
+
+uint64_t MemoryHelperBase::GetTopReadableBorder(const MemoryHelperBase::FlatMemoryMapT& mm)
+{
+    for (auto it = mm.rbegin(); it != mm.rend(); ++it)
+    {
+        const auto& region = *it;
+        if (IsReadableRegion(region))
+            return region.BaseAddress + region.RegionSize;
+    }
+
+    return 0;
 }
 
 MemoryHelperBase::GroupedMemoryMapT
