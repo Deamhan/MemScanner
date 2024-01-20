@@ -433,8 +433,7 @@ bool ScanRegionForPeSections(HANDLE hProcess, const MemoryHelperBase::FlatMemory
     if (relatedRegions.empty())
         return false;
 
-    auto last = relatedRegions.rbegin();
-    auto begin = relatedRegions.begin()->BaseAddress, end = last->BaseAddress + last->RegionSize;
+    auto begin = relatedRegions.begin()->BaseAddress, end = MemoryHelperBase::GetTopReadableBorder(relatedRegions);
     auto size = end - begin;
 
     if (size < 16 * PAGE_SIZE)
