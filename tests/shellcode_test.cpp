@@ -34,8 +34,9 @@ int main()
 	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)execPrivateMemory, result, isAlignedAllocation);
 
 	auto scanner = BuildYaraScanner(YARA_RULES_DIR);
-	std::list<std::string> yaraResult;
-	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, (uintptr_t)execPrivateMemory, sizeof(gShellcode));
+	std::set<std::string> yaraResult;
+	uint64_t startAddress = (uintptr_t)execPrivateMemory, size = sizeof(gShellcode);
+	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, startAddress, size);
 
 	return std::find(yaraResult.begin(), yaraResult.end(), "GenericShellcode64") != yaraResult.end() ? 0 : 1;
 }

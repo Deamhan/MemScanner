@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <list>
 #include <mutex>
+#include <sstream>
 #include <stdarg.h>
 #include <utility>
 #include <vector>
@@ -146,3 +147,5 @@ const std::wstring ProtToStr(uint32_t prot);
 
 template <class T>
 void printMBI(const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<T>& mbi, LoggerBase::Level level, const wchar_t* offset = L"");
+
+void storeMBI(const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi, std::wstringstream& storage, const wchar_t* offset = L"");

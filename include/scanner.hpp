@@ -34,7 +34,8 @@ public:
 		virtual void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) = 0;
 
 		virtual void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) = 0;
-		virtual void OnYaraDetection(const std::list<std::string>& detections) = 0;
+		virtual void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
+			bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections) = 0;
 
 		virtual void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) = 0;
 		virtual void OnProcessScanEnd() = 0;
@@ -69,10 +70,10 @@ public:
 
 	static MemoryScanner& GetInstance();
 
-	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result,
+	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region,
 		uint64_t startAddress = 0, uint64_t size = 0, bool imageOverwrite = false,
 		bool externalOperation = false, bool isAlignedAllocation = false);
-	bool ScanProcessUsingYara(uint32_t pid, std::list<std::string>& result);
+	bool ScanProcessUsingYara(uint32_t pid, std::set<std::string>& result);
 	void SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules);
 	void SetYaraRules(const std::list<std::string>& rules);
 	void SetYaraRules(const wchar_t* rulesDirectory);

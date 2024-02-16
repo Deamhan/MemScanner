@@ -227,5 +227,19 @@ void printMBI(const MEMORY_BASIC_INFORMATION_T<T>& mbi, LoggerBase::Level level,
     GetDefaultLoggerForThread()->Log(level, L"\n");
 }
 
+void storeMBI(const MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi, std::wstringstream& storage, const wchar_t* offset)
+{
+    storage << std::hex 
+        << offset << L"{\n"
+        << offset << L"    \"BaseAddress\" : \""        << mbi.BaseAddress                 << L"\",\n"
+        << offset << L"    \"AllocationBase\" : \""    << mbi.AllocationBase               << L"\",\n"
+        << offset << L"    \"AllocationProtect\" : \"" << ProtToStr(mbi.AllocationProtect) << L"\",\n"
+        << offset << L"    \"RegionSize\" : \""        << mbi.RegionSize                   << L"\",\n"
+        << offset << L"    \"State\" : \""             << mbi.State                        << L"\",\n"
+        << offset << L"    \"Protect\" : \""           << ProtToStr(mbi.Protect)           << L"\",\n"
+        << offset << L"    \"Type\" : \""              << typeToStr(mbi.Type)              << L"\"\n"
+        << offset << L"}";
+}
+
 template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint32_t>& mbi, LoggerBase::Level level, const wchar_t* offset);
 template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi, LoggerBase::Level level, const wchar_t* offset);

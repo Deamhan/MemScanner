@@ -18,7 +18,8 @@ public:
     void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) override;
 
 	void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override;
-	void OnYaraDetection(const std::list<std::string>& detections) override;
+    void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
+		bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections) override;
 
 	void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) override;
 	void OnProcessScanEnd() override;
@@ -100,8 +101,11 @@ protected:
 
 	static std::atomic<unsigned> mDumpCounter;
 
-	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
+	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*region*/, const std::wstring& /*dumpPath*/) {}
 	virtual void OnPeFound(uint64_t address, CPUArchitecture arch);
+
+	std::wstring CreateDumpsDirectory();
+	std::wstring WriteMemoryDump(const MemoryHelperBase::MemInfoT64& region, const std::wstring& processDumpDir);
 };
 
 extern const std::list<std::string> predefinedRules;

@@ -185,12 +185,8 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                 if (imageOverwrite)
                     requestedImageAddressToAllocBase.emplace(region.AllocationBase, addrInfo);
 
-                std::list<std::string> yaraResults;
-                ScanUsingYara(hProcess, region, yaraResults, addrInfo.address, addrInfo.size, imageOverwrite, addrInfo.externalOperation,
+                ScanUsingYara(hProcess, region, addrInfo.address, addrInfo.size, imageOverwrite, addrInfo.externalOperation,
                     isAlignedAllocation);
-
-                if (!yaraResults.empty())
-                    tlsCallbacks->OnYaraDetection(yaraResults);
             }
         }
 
@@ -240,18 +236,14 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                     tlsCallbacks->OnSuspiciousMemoryRegionFound(group.second, threadsRelated, scanWithYara);
                     if (scanWithYara)
                     {
-                        std::list<std::string> yaraResults;
                         bool isAlignedAllocation = MemoryHelperBase::IsAlignedAllocation(group.second);
                         for (const auto& region : group.second)
                         {
                             if (!MemoryHelperBase::IsReadableRegion(region))
                                 continue;
 
-                            ScanUsingYara(hProcess, region, yaraResults, 0, 0, false, false, isAlignedAllocation);
+                            ScanUsingYara(hProcess, region, 0, 0, false, false, isAlignedAllocation);
                         }
-
-                        if (!yaraResults.empty())
-                            tlsCallbacks->OnYaraDetection(yaraResults);
                     }
                 }
             }
@@ -275,10 +267,7 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                         if (!scanWithYara)
                             continue;
 
-                        std::list<std::string> yaraResults;
-                        ScanUsingYara(hProcess, region, yaraResults);
-                        if (!yaraResults.empty())
-                            tlsCallbacks->OnYaraDetection(yaraResults);
+                        ScanUsingYara(hProcess, region);
                     }
                 }
 
@@ -560,18 +549,21 @@ void MemoryScanner::SetYaraRules(const wchar_t* rulesDirectory)
     SetYaraRules(std::make_shared<YaraScanner::YaraRules>(rulesDirectory));
 }
 
-bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, std::list<std::string>& result,
-    uint64_t startAddress, uint64_t size, bool imageOverwrite, bool externalOperation, bool isAlignedAllocation)
+bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress,
+    uint64_t size, bool imageOverwrite, bool externalOperation, bool isAlignedAllocation)
 {
     auto scanner = GetYaraScanner();
     if (scanner == nullptr)
         return false;
 
-    ::ScanUsingYara(*scanner, hProcess, region, result, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation);
+    std::set<std::string> yaraResults;
+    ::ScanUsingYara(*scanner, hProcess, region, yaraResults, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation);
+    tlsCallbacks->OnYaraScan(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, yaraResults);
+
     return true;
 }
 
-bool MemoryScanner::ScanProcessUsingYara(uint32_t pid, std::list<std::string>& result)
+bool MemoryScanner::ScanProcessUsingYara(uint32_t pid, std::set<std::string>& result)
 {
     auto scanner = GetYaraScanner();
     if (scanner == nullptr)

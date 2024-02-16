@@ -48,7 +48,7 @@ public:
     void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER, HANDLE, const std::wstring& processName) override
     {
         GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"scanning %u (%s)\n", processId, processName.c_str());
-        std::list<std::string> yaraDetections;
+        std::set<std::string> yaraDetections;
         MemoryScanner::GetInstance().ScanProcessUsingYara(processId, yaraDetections);
 
         for (const auto& detection : yaraDetections)

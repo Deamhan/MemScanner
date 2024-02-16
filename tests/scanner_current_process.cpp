@@ -34,7 +34,8 @@ public:
 			expectedAddress = nullptr;
 	}
 
-	void OnYaraDetection(const std::list<std::string>& detections) override
+	void OnYaraScan(const MemoryHelperBase::MemInfoT64&, uint64_t, uint64_t, bool,
+		bool, bool, const std::set<std::string>& detections) override
 	{
 		yaraDetections.insert(detections.begin(), detections.end());
 	}

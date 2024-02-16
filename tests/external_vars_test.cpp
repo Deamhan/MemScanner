@@ -49,8 +49,9 @@ static bool ScanImage()
 	if (!scanner)
 		return false;
 
-	std::list<std::string> yaraResult;
-	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult);
+	std::set<std::string> yaraResult;
+	uint64_t startAddress = 0, size = 0;
+	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, startAddress, size);
 
 	return yaraResult.empty();
 }
@@ -74,8 +75,9 @@ static bool ScanCopy()
 	if (!scanner)
 		return false;
 
-	std::list<std::string> yaraResult;
-	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult);
+	std::set<std::string> yaraResult;
+	uint64_t startAddress = 0, size = 0;
+	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, startAddress, size);
 
 	return std::find(yaraResult.begin(), yaraResult.end(), "PeSigPrivate") != yaraResult.end();
 }

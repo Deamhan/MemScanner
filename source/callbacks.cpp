@@ -2,6 +2,9 @@
 
 #include "../include/callbacks.hpp"
 
+#include <cstdio>
+#include <sstream>
+
 #include "../include/file.hpp"
 #include "../include/log.hpp"
 #include "../include/memdatasource.hpp"
@@ -62,6 +65,43 @@ void DefaultCallbacks::OnPeFound(uint64_t address, CPUArchitecture arch)
         (unsigned long long)address);
 }
 
+std::wstring DefaultCallbacks::CreateDumpsDirectory()
+{
+    if (mDumpRoot.empty())
+        return std::wstring{};
+
+    std::wstring processDumpDir = mDumpRoot;
+    wchar_t buffer[64] = {};
+    _snwprintf_s(buffer, _countof(buffer), L"_%u_%llu", (unsigned)currentScanData.pid, (unsigned long long)currentScanData.processCreationTime.QuadPart);
+    processDumpDir.append(currentScanData.processName).append(buffer);
+
+    if (!CreateDirectoryW(processDumpDir.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
+    {
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\tUnable to create directory %s:" LOG_ENDLINE_STR, processDumpDir.c_str());
+        return std::wstring{};
+    }
+
+    return processDumpDir;
+}
+
+std::wstring DefaultCallbacks::WriteMemoryDump(const MemoryHelperBase::MemInfoT64& region, const std::wstring& processDumpDir)
+{
+    if (!MemoryHelperBase::IsReadableRegion(region))
+        return std::wstring{};
+
+    wchar_t buffer[64] = {};
+    ReadOnlyMemoryDataSource dsToDump(currentScanData.process, region.BaseAddress, region.RegionSize);
+    std::wstring dumpPath = processDumpDir;
+    _snwprintf_s(buffer, _countof(buffer), L"\\%llx_%u.bin", (unsigned long long)region.BaseAddress,
+        mDumpCounter.fetch_add(1, std::memory_order_relaxed));
+    dumpPath.append(buffer);
+    File dump(dumpPath.c_str(), File::CreateNew, 0);
+    dsToDump.Dump(dump, 0, region.RegionSize, 64 * 1024, true);
+
+    RegisterNewDump(region, dumpPath);
+    return dumpPath;
+}
+
 void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& relatedRegions,
     const std::vector<uint64_t>& threadEntryPoints, bool& scanRangesWithYara)
 {
@@ -81,6 +121,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
             GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\t\t\t0x%llx" LOG_ENDLINE_STR, (unsigned long long)threadEP);
 
         GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"" LOG_ENDLINE_STR);
+        scanRangesWithYara = true;
     }
 
     bool isPeFound = false;
@@ -109,36 +150,6 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
     }
     else if (mMemoryScanSensitivity >= MemoryScanner::Sensitivity::Medium)
         scanRangesWithYara = true;
-
-    if (mDumpRoot.empty())
-        return;
-
-    std::wstring processDumpDir = mDumpRoot;
-    wchar_t buffer[64] = {};
-    _snwprintf_s(buffer, _countof(buffer), L"_%u_%llu", (unsigned)currentScanData.pid, (unsigned long long)currentScanData.processCreationTime.QuadPart);
-    processDumpDir.append(currentScanData.processName).append(buffer);
-
-    if (!CreateDirectoryW(processDumpDir.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
-    {
-        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\tUnable to create directory %s:" LOG_ENDLINE_STR, processDumpDir.c_str());
-        return;
-    }
-
-    for (const auto& region : relatedRegions)
-    {
-        if (!MemoryHelperBase::IsReadableRegion(region))
-            continue;
-
-        ReadOnlyMemoryDataSource dsToDump(currentScanData.process, region.BaseAddress, region.RegionSize);
-        std::wstring dumpPath = processDumpDir;
-        _snwprintf_s(buffer, _countof(buffer), L"\\%llx_%u.bin", (unsigned long long)region.BaseAddress, 
-            mDumpCounter.fetch_add(1, std::memory_order_relaxed));
-        dumpPath.append(buffer);
-        File dump(dumpPath.c_str(), File::CreateNew, 0);
-        dsToDump.Dump(dump, 0, region.RegionSize, 64 * 1024, true);
-
-        RegisterNewDump(region, dumpPath);
-    }
 }
 
 void DefaultCallbacks::OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName)
@@ -154,10 +165,58 @@ void DefaultCallbacks::OnHooksFound(const std::vector<HookDescription>& hooks, c
     }
 }
 
-void DefaultCallbacks::OnYaraDetection(const std::list<std::string>& detections)
+static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
+    bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections, const std::wstring& dumpPath)
+{
+    FILE* metadata = nullptr;
+    _wfopen_s(&metadata, (dumpPath + L".meta").c_str(), L"wb");
+    if (metadata == nullptr)
+    {
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"Unable to write metadata to %s" LOG_ENDLINE_STR, dumpPath.c_str());
+        return;
+    }
+
+    std::unique_ptr<FILE, int(*)(FILE*)> fileGuard(metadata, fclose);
+
+    std::wstringstream result;
+    result << L"{\n    \"Info\":\n";
+    storeMBI(region, result, L"    ");
+    result << L",\n" << std::boolalpha 
+        << L"    \"ImageOverwrite\" : " << imageOverwrite << L",\n"
+        << L"    \"ExternalOperation\" : " << externalOperation << L",\n"
+        << L"    \"AlignedAllocation\" : " << isAlignedAllocation << L",\n\n"
+        << L"    \"StartAddress\" : \"" << startAddress << L"\",\n"
+        << L"    \"Size\" : \"" << size << L"\",\n\n"
+        << L"    \"Detections\" : [";
+
+    for (const auto& detection : detections)
+    {
+        std::wstring wDetection{ detection.begin(), detection.end() };
+        result << L'\"' << wDetection << L"\", ";
+    }
+
+    if (!detections.empty())
+        result.seekp(-2, result.cur); // remove last ", " if present
+
+    result << L"]\n}\n";
+
+    auto bufferToWrite = result.str();
+    _fwrite_nolock(bufferToWrite.data(), sizeof(wchar_t), bufferToWrite.length(), metadata);
+}
+
+void DefaultCallbacks::OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
+    bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections)
 {
     for (const auto& detection : detections)
         GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\tYARA detection: %S" LOG_ENDLINE_STR, detection.c_str());
+
+    std::wstring processDumpDir = CreateDumpsDirectory();
+    if (processDumpDir.empty())
+        return;
+
+    auto dumpFilePath = WriteMemoryDump(region, processDumpDir);
+    if (!dumpFilePath.empty())
+        WriteDumpMetadata(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, detections, dumpFilePath);
 }
 
 void DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName)

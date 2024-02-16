@@ -1,6 +1,7 @@
 #pragma once
 
 #include <list>
+#include <set>
 #include <shared_mutex>
 #include <string>
 #include <utility>
@@ -47,8 +48,8 @@ public:
 
     void SetIntVariable(const char* name, int value);
     void SetStringVariable(const char* name, const char* value);
-    void Scan(DataSource& ds, std::list<std::string>& detections);
-    void ScanProcess(uint32_t pid, std::list<std::string>& detections);
+    void Scan(DataSource& ds, std::set<std::string>& detections);
+    void ScanProcess(uint32_t pid, std::set<std::string>& detections);
 
     YaraScanner(std::shared_ptr<YaraRules> rules);
 
@@ -58,10 +59,10 @@ protected:
 };
 
 void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, 
-    std::list<std::string>& result, uint64_t startAddress = 0, uint64_t size = 0, 
+    std::set<std::string>& result, uint64_t& startAddress, uint64_t& size, 
     bool imageOverwrite = false, bool externalOperation = false, bool isAlignedAllocation = false);
 
-void ScanProcessUsingYara(YaraScanner& scanner, uint32_t pid, std::list<std::string>& result);
+void ScanProcessUsingYara(YaraScanner& scanner, uint32_t pid, std::set<std::string>& result);
 
 std::unique_ptr<YaraScanner> BuildYaraScanner(const std::list<std::string>& rules);
 std::unique_ptr<YaraScanner> BuildYaraScanner(const wchar_t* rootDir);

@@ -37,12 +37,14 @@ int main()
 
 	YaraScanner myScanner{ rules };
 
-	std::list<std::string> predefinedResult, myResult;
-	ScanUsingYara(predefinedScanner, GetCurrentProcess(), result.begin()->second, predefinedResult);
-	ScanUsingYara(myScanner, GetCurrentProcess(), result.begin()->second, myResult);
+	std::set<std::string> predefinedResult, myResult;
+	uint64_t startAddress = 0, size = 0;
+	ScanUsingYara(predefinedScanner, GetCurrentProcess(), result.begin()->second, predefinedResult, startAddress, size);
+	startAddress = 0, size = 0;
+	ScanUsingYara(myScanner, GetCurrentProcess(), result.begin()->second, myResult, startAddress, size);
 
 	bool passed = myResult.empty() 
-		&& std::find(predefinedResult.begin(), predefinedResult.end(), "PeSig") != predefinedResult.end();
+		&& predefinedResult.find("PeSig") != predefinedResult.end();
 
 	return passed ? 0 : 1;
 }

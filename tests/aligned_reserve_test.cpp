@@ -25,8 +25,9 @@ int main()
 	MemoryHelperBase::MemoryMapT result;
 	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)allocatedSpace, result, isAlignedAllocation);
 
-	std::list<std::string> yaraResult;
-	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, 0, 0, false, false, isAlignedAllocation);
+	std::set<std::string> yaraResult;
+	uint64_t startAddress = 0, size = 0;
+	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, startAddress, size, false, false, isAlignedAllocation);
 
 	return std::find(yaraResult.begin(), yaraResult.end(), "AlignedExecPrivateAllocation") != yaraResult.end() ? 0 : 1;
 }

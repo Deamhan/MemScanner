@@ -91,6 +91,8 @@ int main()
     WaitForSingleObject(hEvent, INFINITE);
 
     auto myCallbacks = std::make_shared<MyCallbacks>();
+    auto& scanner = MemoryScanner::GetInstance();
+    scanner.SetYaraRules(predefinedRules);
     MemoryScanner::GetInstance().Scan(myCallbacks, 1);
 
     const auto& found = myCallbacks->GetFoundEPs();

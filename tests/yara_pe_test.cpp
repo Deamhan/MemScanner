@@ -16,8 +16,9 @@ int main()
 	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)ntdllHandle, result, isAlignedAllocation);
 
 	auto scanner = BuildYaraScanner(predefinedRules);
-	std::list<std::string> yaraResult;
-	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult);
+	std::set<std::string> yaraResult;
+	uint64_t startAddress = 0, size = 0;
+	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, startAddress, size);
 
 	return std::find(yaraResult.begin(), yaraResult.end(), "PeSig") != yaraResult.end() ? 0 : 1;
 }

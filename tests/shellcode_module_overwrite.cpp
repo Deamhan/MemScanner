@@ -26,9 +26,10 @@ public:
         Super::OnSuspiciousMemoryRegionFound(continiousRegions, threadEntryPoints, scanWithYara);
     }
 
-	void OnYaraDetection(const std::list<std::string>& detections) override
+	void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
+		bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections) override
 	{
-		Super::OnYaraDetection(detections);
+		Super::OnYaraScan(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, detections);
 		mYaraDetections.insert(detections.begin(), detections.end());
 	}
 

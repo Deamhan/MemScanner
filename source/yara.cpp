@@ -74,8 +74,8 @@ static int YaraCallback(
     auto rule = (YR_RULE*)message_data;
     auto name = rule->identifier;
 
-    auto& detections = *(std::list<std::string>*)user_data;
-    detections.emplace_back(name);
+    auto& detections = *(std::set<std::string>*)user_data;
+    detections.emplace(name);
 
     return CALLBACK_CONTINUE;
 }
@@ -131,7 +131,7 @@ void YaraScanner::SetStringVariable(const char* name, const char* value)
         throw YaraScannerException{ result, "unable to create external variable (string, scanner)" };
 }
 
-void YaraScanner::Scan(DataSource& ds, std::list<std::string>& detections)
+void YaraScanner::Scan(DataSource& ds, std::set<std::string>& detections)
 {
     if (!mScanner)
         throw YaraScannerException{ 0, "scanner is empty" };
@@ -155,7 +155,7 @@ void YaraScanner::Scan(DataSource& ds, std::list<std::string>& detections)
         throw YaraScannerException{ res, "unable to scan memory" };
 }
 
-void YaraScanner::ScanProcess(uint32_t pid, std::list<std::string>& detections)
+void YaraScanner::ScanProcess(uint32_t pid, std::set<std::string>& detections)
 {
     if (!mScanner)
         throw YaraScannerException{ 0, "scanner is empty" };
@@ -341,7 +341,7 @@ std::unique_ptr<YaraScanner> BuildYaraScanner(const wchar_t* rootDir)
 }
 
 void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region,
-    std::list<std::string>& result, uint64_t startAddress, uint64_t size, bool imageOverwrite,
+    std::set<std::string>& result, uint64_t& startAddress, uint64_t& size, bool imageOverwrite,
     bool externalOperation, bool isAlignedAllocation)
 {
     result.clear();
@@ -375,7 +375,7 @@ void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase
     }
 }
 
-void ScanProcessUsingYara(YaraScanner& scanner, uint32_t pid, std::list<std::string>& result)
+void ScanProcessUsingYara(YaraScanner& scanner, uint32_t pid, std::set<std::string>& result)
 {
     result.clear();
 
