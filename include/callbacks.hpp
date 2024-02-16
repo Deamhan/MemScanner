@@ -1,7 +1,9 @@
 #pragma once
 
-#include "scanner.hpp"
+#include <atomic>
 
+#include "log.hpp"
+#include "scanner.hpp"
 #include "yara.hpp"
 
 class DefaultCallbacks : public MemoryScanner::ICallbacks
@@ -21,11 +23,26 @@ public:
 	void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) override;
 	void OnProcessScanEnd() override;
 
-	DefaultCallbacks(uint32_t pidToScan = 0, uint64_t addressToScan = 0, uint64_t sizeOfRangeToScan = 0,
-		bool forceWritten = false, bool externalOperation = false, MemoryScanner::Sensitivity memoryScanSensitivity = MemoryScanner::Sensitivity::Low,
-		MemoryScanner::Sensitivity hookScanSensitivity = MemoryScanner::Sensitivity::Low, 
-		MemoryScanner::Sensitivity threadsScanSensitivity = MemoryScanner::Sensitivity::Low,
-		const wchar_t* dumpsRoot = nullptr);
+	struct ScanningGeneralSettings
+	{
+		MemoryScanner::Sensitivity memoryScanSensitivity = MemoryScanner::Sensitivity::Low;
+		MemoryScanner::Sensitivity hookScanSensitivity = MemoryScanner::Sensitivity::Low;
+		MemoryScanner::Sensitivity threadsScanSensitivity = MemoryScanner::Sensitivity::Low;
+		LoggerBase::Level defaultLoggingLevel = LoggerBase::Debug;
+		const wchar_t* dumpsRoot = nullptr;
+	};
+
+	struct ScanningTarget
+	{
+		uint32_t pidToScan = 0;
+		uint64_t addressToScan = 0;
+		uint64_t sizeOfRangeToScan = 0;
+		bool forceWritten = false;
+		bool externalOperation = false;
+		bool forceCodeStart = false;
+	};
+
+	DefaultCallbacks(const ScanningTarget& scannerTarget, const ScanningGeneralSettings& scannerSettings);
 
 	MemoryScanner::Sensitivity GetMemoryAnalysisSettings(std::vector<AddressInfo>& addressRangesToCheck,
 		bool& scanImageForHooks, bool& scanRangesWithYara) override;
@@ -49,16 +66,20 @@ public:
 protected:
 	static thread_local CurrentScanStateData currentScanData;
 
-	uint32_t mPidToScan;
 	MemoryScanner::Sensitivity mMemoryScanSensitivity;
 	MemoryScanner::Sensitivity mHookScanSensitivity;
 	MemoryScanner::Sensitivity mThreadScanSensitivity;
 	std::wstring mDumpRoot;
+	LoggerBase::Level mDefaultLoggingLevel;
 
+	uint32_t mPidToScan;
 	uint64_t mAddressToScan;
 	uint64_t mSizeOfRange;
 	bool mForceWritten;
 	bool mExternalOperation;
+	bool mForceCodeStart;
+
+	static std::atomic<unsigned> mDumpCounter;
 
 	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
 };

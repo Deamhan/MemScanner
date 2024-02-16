@@ -48,6 +48,7 @@ public:
 			uint64_t size;
 			bool forceWritten; // set it if you sure that region was written
 			bool externalOperation; // set if modification operation was initiated from one process to another
+			bool forceCodeStart; // set if address probably a thread enty point or other function start
 		};
 
 		virtual Sensitivity GetMemoryAnalysisSettings(std::vector<AddressInfo>& addressRangesToCheck,

@@ -213,17 +213,17 @@ static const wchar_t* stateToStr(uint32_t state)
 }
 
 template <class T>
-void printMBI(const MEMORY_BASIC_INFORMATION_T<T>& mbi, const wchar_t* offset)
+void printMBI(const MEMORY_BASIC_INFORMATION_T<T>& mbi, LoggerBase::Level level, const wchar_t* offset)
 {
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"%s   BaseAddress:       0x%llx\n", offset, (unsigned long long)mbi.BaseAddress);
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"%s   AllocationBase:    0x%llx\n", offset, (unsigned long long)mbi.AllocationBase);
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"%s   AllocationProtect: %s\n", offset, ProtToStr(mbi.AllocationProtect).c_str());
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"%s   RegionSize:        0x%llx\n", offset, mbi.RegionSize);
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"%s   State:             %s\n", offset, stateToStr(mbi.State));
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"%s   Protect:           %s\n", offset, ProtToStr(mbi.Protect).c_str());
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"%s   Type:              %s\n", offset, typeToStr(mbi.Type));
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\n");
+    GetDefaultLoggerForThread()->Log(level, L"%s   BaseAddress:       0x%llx" LOG_ENDLINE_STR, offset, (unsigned long long)mbi.BaseAddress);
+    GetDefaultLoggerForThread()->Log(level, L"%s   AllocationBase:    0x%llx" LOG_ENDLINE_STR, offset, (unsigned long long)mbi.AllocationBase);
+    GetDefaultLoggerForThread()->Log(level, L"%s   AllocationProtect: %s" LOG_ENDLINE_STR, offset, ProtToStr(mbi.AllocationProtect).c_str());
+    GetDefaultLoggerForThread()->Log(level, L"%s   RegionSize:        0x%llx" LOG_ENDLINE_STR, offset, mbi.RegionSize);
+    GetDefaultLoggerForThread()->Log(level, L"%s   State:             %s" LOG_ENDLINE_STR, offset, stateToStr(mbi.State));
+    GetDefaultLoggerForThread()->Log(level, L"%s   Protect:           %s" LOG_ENDLINE_STR, offset, ProtToStr(mbi.Protect).c_str());
+    GetDefaultLoggerForThread()->Log(level, L"%s   Type:              %s" LOG_ENDLINE_STR, offset, typeToStr(mbi.Type));
+    GetDefaultLoggerForThread()->Log(level, L"\n");
 }
 
-template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint32_t>& mbi, const wchar_t* offset);
-template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi, const wchar_t* offset);
+template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint32_t>& mbi, LoggerBase::Level level, const wchar_t* offset);
+template void printMBI(const MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi, LoggerBase::Level level, const wchar_t* offset);

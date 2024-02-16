@@ -118,6 +118,10 @@ void SetThreadLocalDefaultLogger(LoggerBase* newLogger);
 
 LoggerBase* GetDefaultLoggerForThread();
 
+#ifndef LOG_ENDLINE_STR
+#define LOG_ENDLINE_STR L"\n"
+#endif // LOG_ENDLINE_STR
+
 class Timer
 {
 public:
@@ -129,7 +133,7 @@ public:
 		auto end = std::chrono::high_resolution_clock::now();
 		auto ticks = (end - mBegin).count();
 
-		GetDefaultLoggerForThread()->Log(LoggerBase::Debug,  L"\nTime spent (%s): %lld us\n", mName.c_str(), ticks / 1000);
+		GetDefaultLoggerForThread()->Log(LoggerBase::Debug,  L"\nTime spent (%s): %lld us" LOG_ENDLINE_STR, mName.c_str(), ticks / 1000);
 	}
 
 private:
@@ -140,4 +144,4 @@ private:
 const std::wstring ProtToStr(uint32_t prot);
 
 template <class T>
-void printMBI(const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<T>& mbi, const wchar_t* offset = L"");
+void printMBI(const SystemDefinitions::MEMORY_BASIC_INFORMATION_T<T>& mbi, LoggerBase::Level level, const wchar_t* offset = L"");

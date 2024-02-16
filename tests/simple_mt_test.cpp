@@ -35,7 +35,7 @@ public:
         mScannedPids.emplace(GetCurrentThreadId(), processId);
     }
 
-    MyCallbacks() : DefaultCallbacks() {}
+    MyCallbacks() : DefaultCallbacks(DefaultCallbacks::ScanningTarget{}, DefaultCallbacks::ScanningGeneralSettings{}) {}
 
     const std::multimap<uint32_t, uint32_t>& GetScannedPids()
     {

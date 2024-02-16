@@ -39,7 +39,7 @@ public:
 	}
 
 	MyCallbacks(void* address, uint64_t size) : 
-		DefaultCallbacks(GetCurrentProcessId(), (uintptr_t)address, size, true), mOverwriteRva(0)
+		DefaultCallbacks({ GetCurrentProcessId(), (uintptr_t)address, size, true }, DefaultCallbacks::ScanningGeneralSettings{}), mOverwriteRva(0)
     {}
 
 	const std::set<std::string>& GetYaraDetections() const noexcept { return mYaraDetections; }
