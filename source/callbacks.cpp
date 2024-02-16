@@ -1,10 +1,12 @@
-#include "callbacks.hpp"
-#include "file.hpp"
-#include "log.hpp"
-#include "memdatasource.hpp"
-#include "pe.hpp"
+#include "stdafx.h"
 
-#include "yara.hpp"
+#include "../include/callbacks.hpp"
+
+#include "../include/file.hpp"
+#include "../include/log.hpp"
+#include "../include/memdatasource.hpp"
+#include "../include/pe.hpp"
+#include "../include/yara.hpp"
 
 thread_local DefaultCallbacks::CurrentScanStateData DefaultCallbacks::currentScanData;
 std::atomic<unsigned> DefaultCallbacks::mDumpCounter = 0;

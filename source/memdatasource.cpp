@@ -1,4 +1,6 @@
-#include "memdatasource.hpp"
+#include "stdafx.h"
+
+#include "../include/memdatasource.hpp"
 
 ReadOnlyMemoryDataSource::ReadOnlyMemoryDataSource(HANDLE hProcess, uint64_t baseAddress, uint64_t size, size_t bufferSize) 
 	: DataSource(bufferSize), mOffset(0), mBaseAddress(baseAddress), mSize(size), mProcess(hProcess), mApi(GetIWow64Helper())

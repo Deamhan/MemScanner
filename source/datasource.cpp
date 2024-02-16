@@ -1,8 +1,10 @@
-#include "datasource.hpp"
+#include "stdafx.h"
+
+#include "../include/datasource.hpp"
 
 #include <algorithm>
 
-#include <memhelper.hpp>
+#include "../include/memhelper.hpp"
 
 #undef min
 #undef max

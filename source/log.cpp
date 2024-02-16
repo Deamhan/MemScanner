@@ -1,4 +1,6 @@
-#include "log.hpp"
+#include "stdafx.h"
+
+#include "../include/log.hpp"
 
 #include <atomic>
 #include <iomanip>

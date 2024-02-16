@@ -1,4 +1,6 @@
-#include "ntdll64.hpp"
+#include "stdafx.h"
+
+#include "../include/ntdll64.hpp"
 
 #include <memory>
 

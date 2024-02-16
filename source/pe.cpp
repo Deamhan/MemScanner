@@ -1,10 +1,12 @@
-#include "pe.hpp"
+#include "stdafx.h"
 
-#include "file.hpp"
-#include "memdatasource.hpp"
-#include "memhelper.hpp"
+#include "../include/pe.hpp"
 
 #include <algorithm>
+
+#include "../include/file.hpp"
+#include "../include/memdatasource.hpp"
+#include "../include/memhelper.hpp"
 
 const uint16_t MzMagic = 0x5a4d;
 const uint32_t PeMagic = 0x4550;

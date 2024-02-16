@@ -1,10 +1,12 @@
-#include "yara.hpp"
+#include "stdafx.h"
+
+#include "../include/yara.hpp"
 
 #include <shared_mutex>
 
-#include "file.hpp"
-#include "log.hpp"
-#include "memdatasource.hpp"
+#include "../include/file.hpp"
+#include "../include/log.hpp"
+#include "../include/memdatasource.hpp"
 
 #include "yara.h"
 

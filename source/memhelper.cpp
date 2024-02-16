@@ -1,9 +1,11 @@
-#include "memhelper.hpp"
+#include "stdafx.h"
+
+#include "../include/memhelper.hpp"
 
 #include <algorithm>
 #include <memory>
 
-#include "memdatasource.hpp"
+#include "../include/memdatasource.hpp"
 
 using namespace SystemDefinitions;
 

@@ -1,4 +1,6 @@
-#include "file.hpp"
+#include "stdafx.h"
+
+#include "../include/file.hpp"
 
 File::File(const wchar_t* path, FileMode mode, size_t bufferSize) : DataSource(bufferSize), mLastError(ERROR_SUCCESS)
 {

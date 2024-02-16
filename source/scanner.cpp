@@ -1,4 +1,6 @@
-#include "scanner.hpp"
+#include "stdafx.h"
+
+#include "../include/scanner.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -13,11 +15,11 @@
 #include <queue>
 #include <vector>
 
-#include "file.hpp"
-#include "log.hpp"
-#include "memdatasource.hpp"
-#include "memhelper.hpp"
-#include "pe.hpp"
+#include "../include/file.hpp"
+#include "../include/log.hpp"
+#include "../include/memdatasource.hpp"
+#include "../include/memhelper.hpp"
+#include "../include/pe.hpp"
 
 #undef min
 #undef max
