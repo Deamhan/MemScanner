@@ -60,6 +60,7 @@ public:
 	};
 
 	void Scan(std::shared_ptr<ICallbacks> scanCallbacks, uint32_t workersCount = 1);
+	void Scan(int32_t pid, std::shared_ptr<ICallbacks> scanCallbacks);
 
 	MemoryScanner(const MemoryScanner&) = delete;
 	MemoryScanner(MemoryScanner&&) = delete;
@@ -87,8 +88,14 @@ private:
 	template <CPUArchitecture arch>
 	void ScanMemoryImpl(uint32_t workersCount, ICallbacks* scanCallbacks);
 
+	template <CPUArchitecture arch>
+	void ScanProcessMemoryImpl(uint32_t pid, ICallbacks* scanCallbacks);
+
 	template <CPUArchitecture arch, typename SPI = SystemDefinitions::SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>>>
-	void ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api);
+	void ScanProcessMemoryImpl(SPI* procInfo, const Wow64Helper<arch>& api);
+
+	template <CPUArchitecture arch>
+	void ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWORD>& threads, const Wow64Helper<arch>& api);
 
 	void ScanImageForHooks(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName,
 		std::vector<HookDescription>& hooksFound);

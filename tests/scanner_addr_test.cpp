@@ -45,8 +45,8 @@ static bool MapAndCheckPeCopy()
 
 	memcpy((char*)address + offset, moduleHandle, size);
 
-	auto tlsCallbacks = std::make_shared<TestCallbacks>((uintptr_t)address + 0x3000);
-	MemoryScanner::GetInstance().Scan(tlsCallbacks);
+	auto callbacks = std::make_shared<TestCallbacks>((uintptr_t)address + 0x3000);
+	MemoryScanner::GetInstance().Scan(callbacks);
 
 	if (detectedMap.size() != 1)
 		return false;

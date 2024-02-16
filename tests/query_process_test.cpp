@@ -4,7 +4,7 @@ int main()
 {
     const auto& helper = GetIWow64Helper();
     LARGE_INTEGER creationTime = {};
-    if (!helper.QueryProcessCreateionTime(GetCurrentProcess(),creationTime) || creationTime.QuadPart == 0)
+    if (!helper.QueryProcessCreateTime(GetCurrentProcess(),creationTime) || creationTime.QuadPart == 0)
         return 1;
     
     auto currentProcessName = helper.QueryProcessName(GetCurrentProcess());

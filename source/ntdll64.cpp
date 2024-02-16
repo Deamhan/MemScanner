@@ -315,7 +315,7 @@ bool Wow64Helper<arch>::WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAdd
 }
 
 template <CPUArchitecture arch>
-bool Wow64Helper<arch>::QueryProcessCreateionTime(HANDLE hProcess, LARGE_INTEGER& createTime) const noexcept
+bool Wow64Helper<arch>::QueryProcessCreateTime(HANDLE hProcess, LARGE_INTEGER& createTime) const noexcept
 {
     KERNEL_USER_TIMES processTimes;
     uint32_t retLen = 0;
@@ -335,6 +335,9 @@ uint32_t Wow64Helper<arch>::QueryProcessMainExecutablePath(HANDLE hProcess, wcha
         return 0;
 
     uint32_t result = pUnicodeStr->Length;
+    if (result == 0)
+        return 0;
+
     memmove(buffer, (const void*)(uintptr_t)pUnicodeStr->Buffer, result);
     result /= sizeof(wchar_t);
 

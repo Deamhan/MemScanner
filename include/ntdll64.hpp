@@ -57,7 +57,7 @@ public:
     virtual bool ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept = 0;
     virtual bool WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept = 0;
 
-    virtual bool QueryProcessCreateionTime(HANDLE hProces, LARGE_INTEGER& createTime) const noexcept = 0;
+    virtual bool QueryProcessCreateTime(HANDLE hProces, LARGE_INTEGER& createTime) const noexcept = 0;
     virtual uint32_t QueryProcessMainExecutablePath(HANDLE hProces, wchar_t* buffer, uint32_t sizeInBytes) const noexcept = 0;
     std::wstring QueryProcessName(HANDLE hProcess) const;
 
@@ -90,7 +90,7 @@ public:
     bool ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept override;
     bool WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept override;
 
-    bool QueryProcessCreateionTime(HANDLE hProcess, LARGE_INTEGER& createTime) const noexcept override;
+    bool QueryProcessCreateTime(HANDLE hProcess, LARGE_INTEGER& createTime) const noexcept override;
     uint32_t QueryProcessMainExecutablePath(HANDLE hProcess, wchar_t* buffer, uint32_t sizeInBytes) const noexcept override;
 
 private:

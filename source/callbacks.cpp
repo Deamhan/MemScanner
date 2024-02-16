@@ -175,7 +175,7 @@ void DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LARGE_INTEGER crea
 
 void DefaultCallbacks::OnProcessScanEnd()
 {
-    if (currentScanData.process != 0)
+    if (currentScanData.process != nullptr)
         GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"Process [PID = %u]: done" LOG_ENDLINE_STR, currentScanData.pid);
 }
 
@@ -194,6 +194,7 @@ DefaultCallbacks::DefaultCallbacks(const ScanningTarget& scannerTarget, const Sc
     mMemoryScanSensitivity(scannerSettings.memoryScanSensitivity),
     mHookScanSensitivity(scannerSettings.hookScanSensitivity),
     mThreadScanSensitivity(scannerSettings.threadsScanSensitivity),
+    mDefaultLoggingLevel(scannerSettings.defaultLoggingLevel),
     mPidToScan(scannerTarget.pidToScan), mAddressToScan(scannerTarget.addressToScan),
     mSizeOfRange(scannerTarget.sizeOfRangeToScan), mForceWritten(scannerTarget.forceWritten),
     mExternalOperation(scannerTarget.externalOperation)

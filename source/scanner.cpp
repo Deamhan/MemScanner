@@ -126,36 +126,13 @@ private:
     MemoryScanner::ICallbacks* tlsCallbacks;
 };
 
-template <CPUArchitecture arch, typename SPI>
-void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& api)
+template <CPUArchitecture arch>
+static void QueryThreadEntryPoints(const std::vector<DWORD>& threads, std::vector<uint64_t>& threadsEntryPoints, const Wow64Helper<arch>& api)
 {
-    DWORD pid = (DWORD)(uint64_t)procInfo->ProcessId;
-    std::wstring processName((const wchar_t*)procInfo->ImageName.Buffer, procInfo->ImageName.Length / sizeof(wchar_t));
-    auto createTime = procInfo->CreateTime;
-    
-    if (tlsCallbacks->SkipProcess(pid, createTime, processName))
-        return;
-   
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
-    std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
-
-    tlsCallbacks->OnProcessScanBegin(pid, createTime, hProcess, processName);
-    ProcessScanGuard scanGuard{ tlsCallbacks };
-
-    if (hProcess == nullptr)
-        return;
-
-    std::vector<ICallbacks::AddressInfo> memAddressesToCheck;
-    bool scanHookForUserAddress = false, scanRangesWithYara = false;
-    auto memoryAnalysisSettings = tlsCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck, scanHookForUserAddress, scanRangesWithYara);
-
-    std::vector<uint64_t> threadsEntryPoints; 
-    threadsEntryPoints.reserve(32);
-    const bool threadAnanlysisEnabled = tlsCallbacks->GetThreadAnalysisSettings() != Sensitivity::Off;
-    for (uint32_t i = 0; threadAnanlysisEnabled && i < procInfo->NumberOfThreads; ++i)
+    for (auto threadId : threads)
     {
         uint64_t startAddress = 0;
-        HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, (DWORD)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread);
+        HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, threadId);
         if (hThread == nullptr)
             continue;
 
@@ -163,7 +140,21 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
         if (NtSuccess(api.NtQueryInformationThread64(hThread, SystemDefinitions::THREADINFOCLASS::ThreadQuerySetWin32StartAddress, &startAddress, sizeof(startAddress), nullptr)))
             threadsEntryPoints.push_back(startAddress);
     }
-  
+}
+
+template <CPUArchitecture arch>
+void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWORD>& threads, const Wow64Helper<arch>& api)
+{
+    std::vector<ICallbacks::AddressInfo> memAddressesToCheck;
+    bool scanHookForUserAddress = false, scanRangesWithYara = false;
+    auto memoryAnalysisSettings = tlsCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck, scanHookForUserAddress, scanRangesWithYara);
+
+    std::vector<uint64_t> threadsEntryPoints;
+    threadsEntryPoints.reserve(32);
+    const bool threadAnanlysisEnabled = !threads.empty() && tlsCallbacks->GetThreadAnalysisSettings() != Sensitivity::Off;
+    if (threadAnanlysisEnabled)
+        QueryThreadEntryPoints<arch>(threads, threadsEntryPoints, api);
+    
     std::vector<HookDescription> hooksFound;
     hooksFound.reserve(30); // should be enough
 
@@ -189,7 +180,8 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                 if (region.BaseAddress == 0)
                     continue;
 
-                bool imageOverwrite = region.Type == SystemDefinitions::MemType::Image && addrInfo.forceWritten;
+                bool isImageRegion = (region.Type == SystemDefinitions::MemType::Image);
+                bool imageOverwrite = isImageRegion && addrInfo.forceWritten;
                 if (imageOverwrite)
                     requestedImageAddressToAllocBase.emplace(region.AllocationBase, addrInfo);
 
@@ -293,7 +285,7 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
                 if (hookAnalysisEnabled && doHookAnalysisWithMemscan)
                 {
                     ReadOnlyMemoryDataSource memDs(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
-                    
+
                     auto moduleArch = PE<>::GetPeArch(memDs);
                     ScanImageForHooks(moduleArch, memDs, imagePath, hooksFound);
                     auto eqRange = requestedImageAddressToAllocBase.equal_range(memDs.GetOrigin());
@@ -319,7 +311,73 @@ void MemoryScanner::ScanProcessMemory(SPI* procInfo, const Wow64Helper<arch>& ap
             ReadOnlyMemoryDataSource memDs(hProcess, image.BaseAddress, image.ImageSize, PAGE_SIZE);
             ScanImageForHooks(image.Architecture, memDs, image.ImagePath, hooksFound);
         }
-    }  
+    }
+}
+
+template <CPUArchitecture arch>
+void MemoryScanner::ScanProcessMemoryImpl(uint32_t pid, ICallbacks* scanCallbacks)
+{
+    TlsScannerCleaner scannerCleaner;
+    tlsCallbacks = scanCallbacks;
+
+    auto& memLogger = MemoryLogger::GetInstance();
+    MemoryLogger::AutoFlush flusher(memLogger);
+    SetThreadLocalDefaultLogger(&memLogger); // there can be a lot of threads execiting current routine in parallel
+
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+    std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
+
+    LARGE_INTEGER createTime = {};
+    std::wstring processName;
+
+    if (hProcess == nullptr)
+    {
+        tlsCallbacks->OnProcessScanBegin(pid, createTime, hProcess, processName); // notifies client about open failure (hProcess is nullptr)
+        return;
+    }
+
+    auto& api = GetWow64Helper<arch>();
+    if (!api.QueryProcessCreateTime(hProcess, createTime))
+    {
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"Unable to query creation time for process [PID = %u]" LOG_ENDLINE_STR,
+            (unsigned)pid);
+        return; // no unique process identification, leaving
+    }
+
+    processName = api.QueryProcessName(hProcess); // even if it fails we can work without it
+    tlsCallbacks->OnProcessScanBegin(pid, createTime, hProcess, processName);
+    ProcessScanGuard scanGuard{ tlsCallbacks };
+
+    if (hProcess == nullptr)
+        return;
+
+    ScanProcessMemoryImpl(hProcess, std::vector<DWORD>{}, api);
+}
+
+template <CPUArchitecture arch, typename SPI>
+void MemoryScanner::ScanProcessMemoryImpl(SPI* procInfo, const Wow64Helper<arch>& api)
+{
+    DWORD pid = (DWORD)(uint64_t)procInfo->ProcessId;
+    std::wstring processName((const wchar_t*)procInfo->ImageName.Buffer, procInfo->ImageName.Length / sizeof(wchar_t));
+    auto createTime = procInfo->CreateTime;
+    
+    if (tlsCallbacks->SkipProcess(pid, createTime, processName))
+        return;
+   
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+    std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
+
+    tlsCallbacks->OnProcessScanBegin(pid, createTime, hProcess, processName);
+    ProcessScanGuard scanGuard{ tlsCallbacks };
+
+    if (hProcess == nullptr)
+        return;
+
+    std::vector<DWORD> threads(procInfo->NumberOfThreads);
+    for (uint32_t i = 0; i < procInfo->NumberOfThreads; ++i)
+        threads[i] = (DWORD)(uintptr_t)procInfo->Threads[i].ClientId.UniqueThread;
+
+    ScanProcessMemoryImpl(hProcess, threads, api);
 }
 
 void MemoryScanner::ScanImageForHooks(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName,
@@ -406,7 +464,7 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
             continue;
 
         if (isSingleThreaded)
-            ScanProcessMemory<arch>(procInfo, api);
+            ScanProcessMemoryImpl<arch>(procInfo, api);
         else
             processInfoParsed.push(procInfo);
     }
@@ -439,7 +497,7 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
 
                 try
                 {
-                    this->ScanProcessMemory<arch>(procInfo, api);
+                    this->ScanProcessMemoryImpl<arch>(procInfo, api);
                 }
                 catch (const std::exception& e)
                 {
@@ -461,6 +519,18 @@ void MemoryScanner::Scan(std::shared_ptr<MemoryScanner::ICallbacks> scanCallback
         ScanMemoryImpl<CPUArchitecture::X64>(workersCount, scanCallbacks.get());
     else
         ScanMemoryImpl<CPUArchitecture::X86>(workersCount, scanCallbacks.get());
+#endif
+}
+
+void MemoryScanner::Scan(int32_t pid, std::shared_ptr<ICallbacks> scanCallbacks)
+{
+#if _M_AMD64
+    ScanProcessMemoryImpl<CPUArchitecture::X64>(pid, scanCallbacks.get());
+#else
+    if (GetOSArch() == CPUArchitecture::X64)
+        ScanProcessMemoryImpl<CPUArchitecture::X64>(pid, scanCallbacks.get());
+    else
+        ScanProcessMemoryImpl<CPUArchitecture::X86>(pid, scanCallbacks.get());
 #endif
 }
 
