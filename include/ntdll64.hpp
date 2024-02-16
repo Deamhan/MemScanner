@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <windows.h>
 #include "system_defs.hpp"
 
@@ -52,9 +53,13 @@ public:
     virtual SystemDefinitions::NT_STATUS NtQuerySystemInformation64(SystemDefinitions::SYSTEM_INFORMATION_CLASS SystemInformation,
         void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept = 0;
     virtual uint64_t VirtualAllocEx64(HANDLE hProcess, uint64_t lpAddress, uint64_t dwSize, uint32_t flAllocationType, uint32_t flProtect) const noexcept = 0;
-    virtual BOOL VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept = 0;
-    virtual BOOL ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept = 0;
-    virtual BOOL WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept = 0;
+    virtual bool VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept = 0;
+    virtual bool ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept = 0;
+    virtual bool WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept = 0;
+
+    virtual bool QueryProcessCreateionTime(HANDLE hProces, LARGE_INTEGER& createTime) const noexcept = 0;
+    virtual uint32_t QueryProcessMainExecutablePath(HANDLE hProces, wchar_t* buffer, uint32_t sizeInBytes) const noexcept = 0;
+    std::wstring QueryProcessName(HANDLE hProcess) const;
 
     IWow64Helper(const IWow64Helper&) = delete;
     IWow64Helper(IWow64Helper&&) = delete;
@@ -81,9 +86,12 @@ public:
     SystemDefinitions::NT_STATUS NtQuerySystemInformation64(SystemDefinitions::SYSTEM_INFORMATION_CLASS SystemInformation,
         void* lpBuffer, uint32_t dwLength, uint32_t* pReturnLength) const noexcept override;
     uint64_t VirtualAllocEx64(HANDLE hProcess, uint64_t lpAddress, uint64_t dwSize, uint32_t flAllocationType, uint32_t flProtect) const noexcept override;
-    BOOL VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept override;
-    BOOL ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept override;
-    BOOL WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept override;
+    bool VirtualFreeEx64(HANDLE hProcess, uint64_t lpAddress, uint32_t dwSize, uint32_t dwFreeType) const noexcept override;
+    bool ReadProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesRead) const noexcept override;
+    bool WriteProcessMemory64(HANDLE hProcess, uint64_t lpBaseAddress, const void* lpBuffer, uint64_t nSize, uint64_t* lpNumberOfBytesWritten) const noexcept override;
+
+    bool QueryProcessCreateionTime(HANDLE hProcess, LARGE_INTEGER& createTime) const noexcept override;
+    uint32_t QueryProcessMainExecutablePath(HANDLE hProcess, wchar_t* buffer, uint32_t sizeInBytes) const noexcept override;
 
 private:
     HMODULE_T<arch> m_Ntdll;

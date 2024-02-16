@@ -613,6 +613,14 @@ namespace SystemDefinitions
             T     dymmy4;
         };
     };
+
+    struct KERNEL_USER_TIMES
+    {
+        LARGE_INTEGER CreateTime;
+        LARGE_INTEGER ExitTime;
+        LARGE_INTEGER KernelTime;
+        LARGE_INTEGER UserTime;
+    };
 }
 
 #pragma pack(pop)

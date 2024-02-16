@@ -108,6 +108,10 @@ set(ALIGNED_RESERVE_SRC tests/aligned_reserve_test.cpp
                          ${COMMON_SRC}
 )
 
+set(QUERY_PROCESS_SRC tests/query_process_test.cpp
+                         ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -176,6 +180,7 @@ add_executable(relocations_test ${RELOCATIONS_SRC})
 add_executable(shellcode_test ${SHELLCODE_SRC})
 add_executable(shellcode_module_test ${SHELLCODE_MODULE_SRC})
 add_executable(aligned_reserve_test ${ALIGNED_RESERVE_SRC})
+add_executable(query_process_test ${QUERY_PROCESS_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -201,6 +206,7 @@ set (EXECUTABLES memscan
                  shellcode_test
                  shellcode_module_test
                  aligned_reserve_test
+                 query_process_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -246,3 +252,4 @@ add_test(NAME pe_relocations_test COMMAND relocations_test)
 add_test(NAME real_shellcode_test COMMAND shellcode_test)
 add_test(NAME shellcode_module_overwrite_test COMMAND shellcode_module_test)
 add_test(NAME align_with_reserve_test COMMAND aligned_reserve_test)
+add_test(NAME query_process_info_test COMMAND query_process_test)
