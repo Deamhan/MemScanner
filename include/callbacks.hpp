@@ -25,21 +25,40 @@ public:
 
 	struct ScanningGeneralSettings
 	{
-		MemoryScanner::Sensitivity memoryScanSensitivity = MemoryScanner::Sensitivity::Low;
-		MemoryScanner::Sensitivity hookScanSensitivity = MemoryScanner::Sensitivity::Low;
-		MemoryScanner::Sensitivity threadsScanSensitivity = MemoryScanner::Sensitivity::Low;
-		LoggerBase::Level defaultLoggingLevel = LoggerBase::Debug;
-		const wchar_t* dumpsRoot = nullptr;
+		typedef MemoryScanner::Sensitivity Sensitivity;
+		typedef LoggerBase::Level LogLevel;
+
+		Sensitivity memoryScanSensitivity ;
+		Sensitivity hookScanSensitivity;
+		Sensitivity threadsScanSensitivity;
+		LoggerBase::Level defaultLoggingLevel;
+		const wchar_t* dumpsRoot;
+
+		ScanningGeneralSettings(Sensitivity _memoryScanSensitivity = Sensitivity::Low,
+			Sensitivity _hookScanSensitivity = Sensitivity::Low,
+			Sensitivity _threadsScanSensitivity = Sensitivity::Low,
+			LogLevel _defaultLoggingLevel = LoggerBase::Debug,
+			const wchar_t* _dumpsRoot = nullptr) noexcept :
+			memoryScanSensitivity(_memoryScanSensitivity), hookScanSensitivity(_hookScanSensitivity), 
+			threadsScanSensitivity(_threadsScanSensitivity), defaultLoggingLevel(_defaultLoggingLevel),
+			dumpsRoot(_dumpsRoot)
+		{}
 	};
 
 	struct ScanningTarget
 	{
-		uint32_t pidToScan = 0;
-		uint64_t addressToScan = 0;
-		uint64_t sizeOfRangeToScan = 0;
-		bool forceWritten = false;
-		bool externalOperation = false;
-		bool forceCodeStart = false;
+		uint32_t pidToScan;
+		uint64_t addressToScan;
+		uint64_t sizeOfRangeToScan;
+		bool forceWritten;
+		bool externalOperation;
+		bool forceCodeStart;
+
+		ScanningTarget(uint32_t _pidToScan = 0, uint64_t _addressToScan = 0, uint64_t _sizeOfRangeToScan = 0,
+			bool _forceWritten = false, bool _externalOperation = false, bool _forceCodeStart = false) noexcept :
+			pidToScan(_pidToScan), addressToScan(_addressToScan), sizeOfRangeToScan(_sizeOfRangeToScan),
+			forceWritten(_forceWritten), externalOperation(_externalOperation), forceCodeStart(_forceCodeStart)
+		{}
 	};
 
 	DefaultCallbacks(const ScanningTarget& scannerTarget, const ScanningGeneralSettings& scannerSettings);

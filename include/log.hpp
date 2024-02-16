@@ -79,6 +79,9 @@ private:
 
 LoggerBase* GetDefaultLogger();
 
+LoggerBase* GetThreadLocalDefaultLogger();
+void SetThreadLocalDefaultLogger(LoggerBase* newLogger);
+
 class MemoryLogger : public LoggerBase
 {
 public:
@@ -95,6 +98,7 @@ public:
 		~AutoFlush()
 		{
 			mLogger.Flush(GetDefaultLogger());
+			SetThreadLocalDefaultLogger(nullptr); // let's switch to global log
 		}
 
 	private:
@@ -112,9 +116,6 @@ private:
 };
 
 void SetDefaultLogger(LoggerBase* newLogger);
-
-LoggerBase* GetThreadLocalDefaultLogger();
-void SetThreadLocalDefaultLogger(LoggerBase* newLogger);
 
 LoggerBase* GetDefaultLoggerForThread();
 

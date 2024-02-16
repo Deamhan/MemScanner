@@ -202,7 +202,7 @@ DefaultCallbacks::DefaultCallbacks(const ScanningTarget& scannerTarget, const Sc
     mDefaultLoggingLevel(scannerSettings.defaultLoggingLevel),
     mPidToScan(scannerTarget.pidToScan), mAddressToScan(scannerTarget.addressToScan),
     mSizeOfRange(scannerTarget.sizeOfRangeToScan), mForceWritten(scannerTarget.forceWritten),
-    mExternalOperation(scannerTarget.externalOperation)
+    mExternalOperation(scannerTarget.externalOperation), mForceCodeStart(scannerTarget.forceCodeStart)
 {
     if (scannerSettings.dumpsRoot == nullptr)
         return;

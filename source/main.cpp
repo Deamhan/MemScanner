@@ -171,8 +171,8 @@ int wmain(int argc, const wchar_t ** argv)
             scanner.SetYaraRules(std::make_shared<YaraScanner::YaraRules>(rulesDir.c_str()));
 
         Timer timer{ L"Memory" };
-        DefaultCallbacks::ScanningGeneralSettings generalSettings = { sensitivity, hookSensitivity, sensitivity, LoggerBase::Info, dumpsDir.c_str() };
-        DefaultCallbacks::ScanningTarget scanTarget = { pid };
+        DefaultCallbacks::ScanningGeneralSettings generalSettings { sensitivity, hookSensitivity, sensitivity, LoggerBase::Info, dumpsDir.c_str() };
+        DefaultCallbacks::ScanningTarget scanTarget { pid };
         scanner.Scan(std::make_shared<DefaultCallbacks>(scanTarget, generalSettings), threadsCount);
     }
     catch (const std::exception& e)
