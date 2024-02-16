@@ -82,6 +82,7 @@ protected:
 	static std::atomic<unsigned> mDumpCounter;
 
 	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*info*/, const std::wstring& /*dumpPath*/) {}
+	virtual void OnPeFound(uint64_t address, CPUArchitecture arch);
 };
 
 extern const std::list<std::string> predefinedRules;

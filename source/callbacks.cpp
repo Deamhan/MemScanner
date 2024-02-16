@@ -56,6 +56,12 @@ void DefaultCallbacks::OnPrivateCodeModification(const wchar_t* imageName, uint6
         imageName, (unsigned)rva);
 }
 
+void DefaultCallbacks::OnPeFound(uint64_t address, CPUArchitecture arch)
+{
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tPE (%s) found: 0x%llx" LOG_ENDLINE_STR, CpuArchToString(arch),
+        (unsigned long long)address);
+}
+
 void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& relatedRegions,
     const std::vector<uint64_t>& threadEntryPoints, bool& scanRangesWithYara)
 {
@@ -86,8 +92,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
         auto peFound = ScanRegionForPeHeaders(currentScanData.process, region);
         if (peFound.first != 0)
         {
-            GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\t\tPE (%s) found: 0x%llx" LOG_ENDLINE_STR, CpuArchToString(peFound.second),
-                (unsigned long long)peFound.first);
+            OnPeFound(peFound.first, peFound.second);
             isPeFound = true;
             scanRangesWithYara = true;
         }
