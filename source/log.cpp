@@ -231,11 +231,11 @@ void storeMBI(const MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi, std::wstringstrea
 {
     storage << std::hex 
         << offset << L"{\n"
-        << offset << L"    \"BaseAddress\" : \""        << mbi.BaseAddress                 << L"\",\n"
+        << offset << L"    \"BaseAddress\" : \""       << mbi.BaseAddress                  << L"\",\n"
         << offset << L"    \"AllocationBase\" : \""    << mbi.AllocationBase               << L"\",\n"
         << offset << L"    \"AllocationProtect\" : \"" << ProtToStr(mbi.AllocationProtect) << L"\",\n"
         << offset << L"    \"RegionSize\" : \""        << mbi.RegionSize                   << L"\",\n"
-        << offset << L"    \"State\" : \""             << mbi.State                        << L"\",\n"
+        << offset << L"    \"State\" : \""             << stateToStr(mbi.State)            << L"\",\n"
         << offset << L"    \"Protect\" : \""           << ProtToStr(mbi.Protect)           << L"\",\n"
         << offset << L"    \"Type\" : \""              << typeToStr(mbi.Type)              << L"\"\n"
         << offset << L"}";

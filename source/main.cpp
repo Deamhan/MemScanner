@@ -42,7 +42,7 @@ static std::wstring toString(T& value)
 
 static void PrintHelp()
 {
-    wprintf(L"Help: memscan.exe [-sensitivity low|medium|high|off] [-hooks low|medium|high|off] [-pid ID] [-log path] [-threads N] [-rules rulesDir][dumpDirectory]\n"
+    wprintf(L"Help: memscan.exe [-sensitivity low|medium|high|off] [-hooks low|medium|high|off] [-pid ID] [-log path] [-threads N] [-rules rulesDir|default][dumpDirectory]\n"
         "\tdefault: low sensitivity all process scan without dumping, single thread\n");
 }
 
@@ -153,7 +153,7 @@ int wmain(int argc, const wchar_t ** argv)
             sensitivityString.c_str(), hookSensitivityString.c_str(), pid == 0 ? L"all" : toString(pid).c_str(),
             logPath.empty() ? L"console" : logPath.c_str(),
             threadsCount == 0 ? std::thread::hardware_concurrency() : threadsCount,
-            rulesDir.empty() ? L"none (prefedined set)" : rulesDir.c_str(),
+            rulesDir.empty() ? L"none" : rulesDir.c_str(),
             dumpsDir.empty() ? L"none" : dumpsDir.c_str());
 
     try
@@ -165,9 +165,9 @@ int wmain(int argc, const wchar_t ** argv)
         GetDefaultLogger()->Log(LoggerBase::Info, L">>> Scanner Architecture: %s <<<\n\n", sizeof(void*) == 8 ? L"X64" : L"X86");
 
         auto& scanner = MemoryScanner::GetInstance();
-        if (rulesDir.empty())
+        if (rulesDir == L"default")
             scanner.SetYaraRules(std::make_shared<YaraScanner::YaraRules>(predefinedRules));
-        else
+        else if (!rulesDir.empty())
             scanner.SetYaraRules(std::make_shared<YaraScanner::YaraRules>(rulesDir.c_str()));
 
         Timer timer{ L"Memory" };

@@ -77,7 +77,7 @@ std::wstring DefaultCallbacks::CreateDumpsDirectory()
 
     if (!CreateDirectoryW(processDumpDir.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
     {
-        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\tUnable to create directory %s:" LOG_ENDLINE_STR, processDumpDir.c_str());
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\tUnable to create directory %s" LOG_ENDLINE_STR, processDumpDir.c_str());
         return std::wstring{};
     }
 
@@ -169,7 +169,7 @@ static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64
     bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections, const std::wstring& dumpPath)
 {
     FILE* metadata = nullptr;
-    _wfopen_s(&metadata, (dumpPath + L".meta").c_str(), L"wb");
+    _wfopen_s(&metadata, (dumpPath + L".json").c_str(), L"wb");
     if (metadata == nullptr)
     {
         GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"Unable to write metadata to %s" LOG_ENDLINE_STR, dumpPath.c_str());
@@ -203,10 +203,11 @@ static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64
         result << L"]\n}\n";
     }
     else
-        result << L"\"\n}";
+        result << L"\"\n}\n";
 
-    auto bufferToWrite = result.str();
-    _fwrite_nolock(bufferToWrite.data(), sizeof(wchar_t), bufferToWrite.length(), metadata);
+    auto wcharStr = result.str();
+    std::string bufferToWrite{ wcharStr.begin(), wcharStr.end() }; // convert unicode to ascii by simple truncation 
+    _fwrite_nolock(bufferToWrite.data(), sizeof(bufferToWrite[0]), bufferToWrite.length(), metadata);
 }
 
 void DefaultCallbacks::OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
