@@ -430,6 +430,10 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
     TlsScannerCleaner scannerCleaner;
     tlsCallbacks = scanCallbacks;
 
+    auto& memLogger = MemoryLogger::GetInstance();
+    MemoryLogger::AutoFlush flusher(memLogger);
+    SetThreadLocalDefaultLogger(&memLogger); // there can be a lot of threads execiting current routine in parallel
+
     if (!MemoryHelper<arch>::EnableDebugPrivilege())
         GetDefaultLogger()->Log(LoggerBase::Info, L"Unable to enable SeDebugPrivilege, functionality is limited\n");
 
