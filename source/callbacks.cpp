@@ -166,7 +166,7 @@ void DefaultCallbacks::OnHooksFound(const std::vector<HookDescription>& hooks, c
 }
 
 static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-    bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections, const std::wstring& dumpPath)
+    bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections, const std::wstring& dumpPath)
 {
     FILE* metadata = nullptr;
     _wfopen_s(&metadata, (dumpPath + L".meta").c_str(), L"wb");
@@ -181,35 +181,43 @@ static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64
     std::wstringstream result;
     result << L"{\n    \"Info\":\n";
     storeMBI(region, result, L"    ");
-    result << L",\n" << std::boolalpha 
+    result << L",\n" << std::boolalpha
         << L"    \"ImageOverwrite\" : " << imageOverwrite << L",\n"
         << L"    \"ExternalOperation\" : " << externalOperation << L",\n"
         << L"    \"AlignedAllocation\" : " << isAlignedAllocation << L",\n\n"
         << L"    \"StartAddress\" : \"" << startAddress << L"\",\n"
-        << L"    \"Size\" : \"" << size << L"\",\n\n"
-        << L"    \"Detections\" : [";
-
-    for (const auto& detection : detections)
+        << L"    \"Size\" : \"" << size;
+    
+    if (detections)
     {
-        std::wstring wDetection{ detection.begin(), detection.end() };
-        result << L'\"' << wDetection << L"\", ";
+        result << L"\",\n\n    \"Detections\" : [";
+        for (const auto& detection : *detections)
+        {
+            std::wstring wDetection{ detection.begin(), detection.end() };
+            result << L'\"' << wDetection << L"\", ";
+        }
+
+        if (!detections->empty())
+            result.seekp(-2, result.cur); // remove last ", " if present
+
+        result << L"]\n}\n";
     }
-
-    if (!detections.empty())
-        result.seekp(-2, result.cur); // remove last ", " if present
-
-    result << L"]\n}\n";
+    else
+        result << L"\"\n}";
 
     auto bufferToWrite = result.str();
     _fwrite_nolock(bufferToWrite.data(), sizeof(wchar_t), bufferToWrite.length(), metadata);
 }
 
 void DefaultCallbacks::OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-    bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections)
+    bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections)
 {
-    for (const auto& detection : detections)
-        GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\tYARA detection: %S" LOG_ENDLINE_STR, detection.c_str());
-
+    if (detections)
+    {
+        for (const auto& detection : *detections)
+            GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\tYARA detection: %S" LOG_ENDLINE_STR, detection.c_str());
+    }
+    
     std::wstring processDumpDir = CreateDumpsDirectory();
     if (processDumpDir.empty())
         return;

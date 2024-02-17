@@ -35,7 +35,7 @@ public:
 
 		virtual void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) = 0;
 		virtual void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-			bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections) = 0;
+			bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections) = 0;
 
 		virtual void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) = 0;
 		virtual void OnProcessScanEnd() = 0;

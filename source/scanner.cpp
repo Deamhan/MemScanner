@@ -554,11 +554,15 @@ bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemIn
 {
     auto scanner = GetYaraScanner();
     if (scanner == nullptr)
+    {
+        // we still need to notify about scanning attempt
+        tlsCallbacks->OnYaraScan(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, nullptr);
         return false;
+    }
 
     std::set<std::string> yaraResults;
     ::ScanUsingYara(*scanner, hProcess, region, yaraResults, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation);
-    tlsCallbacks->OnYaraScan(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, yaraResults);
+    tlsCallbacks->OnYaraScan(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, &yaraResults);
 
     return true;
 }

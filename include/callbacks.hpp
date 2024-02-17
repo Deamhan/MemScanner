@@ -19,7 +19,7 @@ public:
 
 	void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override;
     void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-		bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections) override;
+		bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections) override;
 
 	void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) override;
 	void OnProcessScanEnd() override;

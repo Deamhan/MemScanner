@@ -27,10 +27,11 @@ public:
     }
 
 	void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-		bool externalOperation, bool isAlignedAllocation, const std::set<std::string>& detections) override
+		bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections) override
 	{
 		Super::OnYaraScan(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, detections);
-		mYaraDetections.insert(detections.begin(), detections.end());
+		if (detections)
+			mYaraDetections.insert(detections->begin(), detections->end());
 	}
 
 	void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) override
