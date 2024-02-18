@@ -224,7 +224,7 @@ void printMBI(const MEMORY_BASIC_INFORMATION_T<T>& mbi, LoggerBase::Level level,
     GetDefaultLoggerForThread()->Log(level, L"%s   State:             %s" LOG_ENDLINE_STR, offset, stateToStr(mbi.State));
     GetDefaultLoggerForThread()->Log(level, L"%s   Protect:           %s" LOG_ENDLINE_STR, offset, ProtToStr(mbi.Protect).c_str());
     GetDefaultLoggerForThread()->Log(level, L"%s   Type:              %s" LOG_ENDLINE_STR, offset, typeToStr(mbi.Type));
-    GetDefaultLoggerForThread()->Log(level, L"\n");
+    GetDefaultLoggerForThread()->Log(level, L"" LOG_ENDLINE_STR);
 }
 
 void storeMBI(const MEMORY_BASIC_INFORMATION_T<uint64_t>& mbi, std::wstringstream& storage, const wchar_t* offset)

@@ -2,6 +2,7 @@
 
 #include "../include/yara.hpp"
 
+#include <algorithm>
 #include <shared_mutex>
 
 #include "../include/file.hpp"
@@ -99,7 +100,7 @@ static void CompilerCallback(
     if (rule != nullptr)
     {
         GetDefaultLogger()->Log(level,
-            L"%s: rule \"%S\" in %S(%d): %S\n",
+            L"%s: rule \"%S\" in %S(%d): %S" LOG_ENDLINE_STR,
             msg_type,
             rule->identifier,
             file_name == nullptr ? "unknown" : file_name,
@@ -109,7 +110,7 @@ static void CompilerCallback(
     else
     {
         GetDefaultLogger()->Log(level,
-            L"%S(%d): %s: %S\n",
+            L"%S(%d): %s: %S" LOG_ENDLINE_STR,
             file_name == nullptr ? "unknown" : file_name,
             line_number,
             msg_type,
@@ -316,7 +317,7 @@ std::unique_ptr<YaraScanner> BuildYaraScanner(const std::list<std::string>& rule
     }
     catch (const YaraScanner::YaraScannerException& e)
     {
-        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception: %S (%d)" LOG_ENDLINE_STR, e.what(), e.GetErrorCode());
     }
 
     return nullptr;
@@ -330,11 +331,11 @@ std::unique_ptr<YaraScanner> BuildYaraScanner(const wchar_t* rootDir)
     }
     catch (const YaraScanner::YaraScannerException& e)
     {
-        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception: %S (%d)" LOG_ENDLINE_STR, e.what(), e.GetErrorCode());
     }
     catch (const DataSourceException& e)
     {
-        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception (data access): %d\n", e.GetErrorCode());
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception (data access): %d" LOG_ENDLINE_STR, e.GetErrorCode());
     }
 
     return nullptr;
@@ -371,7 +372,7 @@ void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase
     }
     catch (const YaraScanner::YaraScannerException& e)
     {
-        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception: %S (%d)" LOG_ENDLINE_STR, e.what(), e.GetErrorCode());
     }
 }
 
@@ -385,6 +386,6 @@ void ScanProcessUsingYara(YaraScanner& scanner, uint32_t pid, std::set<std::stri
     }
     catch (const YaraScanner::YaraScannerException& e)
     {
-        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception: %S (%d)\n", e.what(), e.GetErrorCode());
+        GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"\t\tYARA exception: %S (%d)" LOG_ENDLINE_STR, e.what(), e.GetErrorCode());
     }
 }

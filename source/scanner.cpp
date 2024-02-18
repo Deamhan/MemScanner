@@ -151,8 +151,8 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
 
     std::vector<uint64_t> threadsEntryPoints;
     threadsEntryPoints.reserve(32);
-    const bool threadAnanlysisEnabled = !threads.empty() && tlsCallbacks->GetThreadAnalysisSettings() != Sensitivity::Off;
-    if (threadAnanlysisEnabled)
+    const bool threadAnalysisEnabled = tlsCallbacks->GetThreadAnalysisSettings() != Sensitivity::Off;
+    if (!threads.empty() && threadAnalysisEnabled)
         QueryThreadEntryPoints<arch>(threads, threadsEntryPoints, api);
     
     std::vector<HookDescription> hooksFound;
@@ -184,6 +184,9 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                 bool imageOverwrite = isImageRegion && addrInfo.forceWritten;
                 if (imageOverwrite)
                     requestedImageAddressToAllocBase.emplace(region.AllocationBase, addrInfo);
+
+                if (threadAnalysisEnabled && addrInfo.forceCodeStart)
+                    threadsEntryPoints.push_back(addrInfo.address);
 
                 ScanUsingYara(hProcess, region, addrInfo.address, addrInfo.size, imageOverwrite, addrInfo.externalOperation,
                     isAlignedAllocation);
@@ -303,6 +306,29 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
     }
 }
 
+
+class DegugPrivelegeEnabler
+{
+public:
+    DegugPrivelegeEnabler() noexcept
+    {
+        mPrivilegeEnabled = MemoryHelperBase::EnableDebugPrivilege();
+    }
+
+    bool IsPrivelegeEnabled() const noexcept { return mPrivilegeEnabled; }
+
+private:
+    bool mPrivilegeEnabled;
+};
+
+static DegugPrivelegeEnabler gDebugPrivilegeEnabler;
+
+void MemoryScanner::ValidateTokenPrivileges()
+{
+    if (!gDebugPrivilegeEnabler.IsPrivelegeEnabled())
+        GetDefaultLogger()->Log(LoggerBase::Info, L"Unable to enable SeDebugPrivilege, functionality is limited" LOG_ENDLINE_STR);
+}
+
 template <CPUArchitecture arch>
 void MemoryScanner::ScanProcessMemoryImpl(uint32_t pid, ICallbacks* scanCallbacks)
 {
@@ -312,6 +338,8 @@ void MemoryScanner::ScanProcessMemoryImpl(uint32_t pid, ICallbacks* scanCallback
     auto& memLogger = MemoryLogger::GetInstance();
     MemoryLogger::AutoFlush flusher(memLogger);
     SetThreadLocalDefaultLogger(&memLogger); // there can be a lot of threads execiting current routine in parallel
+
+    ValidateTokenPrivileges();
 
     HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
     std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
@@ -336,9 +364,6 @@ void MemoryScanner::ScanProcessMemoryImpl(uint32_t pid, ICallbacks* scanCallback
     processName = api.QueryProcessName(hProcess); // even if it fails we can work without it
     tlsCallbacks->OnProcessScanBegin(pid, createTime, hProcess, processName);
     ProcessScanGuard scanGuard{ tlsCallbacks };
-
-    if (hProcess == nullptr)
-        return;
 
     ScanProcessMemoryImpl(hProcess, std::vector<DWORD>{}, api);
 }
@@ -434,8 +459,7 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
     MemoryLogger::AutoFlush flusher(memLogger);
     SetThreadLocalDefaultLogger(&memLogger); // there can be a lot of threads execiting current routine in parallel
 
-    if (!MemoryHelper<arch>::EnableDebugPrivilege())
-        GetDefaultLogger()->Log(LoggerBase::Info, L"Unable to enable SeDebugPrivilege, functionality is limited\n");
+    ValidateTokenPrivileges();
 
     std::vector<uint8_t> buffer(64 * 1024);
     uint32_t resLen = 0;

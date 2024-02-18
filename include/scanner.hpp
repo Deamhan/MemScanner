@@ -104,6 +104,8 @@ private:
 	bool CheckForPrivateCodeModification(CPUArchitecture arch, const std::wstring& imagePath, uint64_t moduleAddress, 
 		uint64_t address, uint64_t size);
 
+	void ValidateTokenPrivileges();
+
 	static thread_local ICallbacks* tlsCallbacks;
 	static thread_local std::unique_ptr<YaraScanner> tlsYaraScanner;
 
