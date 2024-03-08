@@ -84,6 +84,8 @@ public:
 private:
 	static MemInfoT64 ConvertToMemoryBasicInfo64(const MemInfoT& mbi);
 	const Wow64Helper<arch>& mApi;
+
+	static thread_local std::vector<uint8_t> ImageNameBuffer;
 };
 
 template <CPUArchitecture arch>

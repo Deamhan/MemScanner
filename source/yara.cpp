@@ -18,16 +18,19 @@ static const uint8_t* FetchDataFunc(YR_MEMORY_BLOCK* self) noexcept
 
 struct IteratorContext
 {
-    DataSource& Ds;
-    std::vector<uint8_t> Buffer;
+    DataSource& Ds;  
     YR_MEMORY_BLOCK Result;
     uint64_t FileSize;
 
-    IteratorContext(DataSource& ds, size_t bufferSize) : Ds(ds), Buffer(bufferSize), FileSize(ds.GetSize())
+    static thread_local std::vector<uint8_t> Buffer;
+
+    IteratorContext(DataSource& ds) : Ds(ds), FileSize(ds.GetSize())
     {
         Result.fetch_data = FetchDataFunc;
     }
 };
+
+thread_local std::vector<uint8_t> IteratorContext::Buffer(1024 * 1024);
 
 static YR_MEMORY_BLOCK* DataIteratorFunc(YR_MEMORY_BLOCK_ITERATOR* self) noexcept
 {
@@ -142,7 +145,7 @@ void YaraScanner::Scan(DataSource& ds, std::set<std::string>& detections)
     detections.clear();
 
     ds.Seek(0);
-    IteratorContext iteratorContext(ds, 1024 * 1024);
+    IteratorContext iteratorContext(ds);
 
     YR_MEMORY_BLOCK_ITERATOR iterator;
     iterator.context = &iteratorContext;
