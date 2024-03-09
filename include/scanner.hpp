@@ -61,7 +61,20 @@ public:
 	};
 
 	void Scan(std::shared_ptr<ICallbacks> scanCallbacks, uint32_t workersCount = 1);
-	void Scan(int32_t pid, std::shared_ptr<ICallbacks> scanCallbacks);
+
+	struct TargetProcessInformation
+	{
+		uint32_t processId;
+		HANDLE processHandle;
+		LARGE_INTEGER createTime;
+		const wchar_t* processMainExecPath;
+
+		TargetProcessInformation(uint32_t pid, LARGE_INTEGER creationTime = {},
+			HANDLE handleToProcess = nullptr, const wchar_t*  processExecPath = nullptr) noexcept: 
+			processId(pid), processHandle(handleToProcess), createTime(creationTime), processMainExecPath(processExecPath)
+		{}
+	};
+	void Scan(const TargetProcessInformation& targetProcess, std::shared_ptr<ICallbacks> scanCallbacks);
 
 	MemoryScanner(const MemoryScanner&) = delete;
 	MemoryScanner(MemoryScanner&&) = delete;
@@ -90,7 +103,7 @@ private:
 	void ScanMemoryImpl(uint32_t workersCount, ICallbacks* scanCallbacks);
 
 	template <CPUArchitecture arch>
-	void ScanProcessMemoryImpl(uint32_t pid, ICallbacks* scanCallbacks);
+	void ScanProcessMemoryImpl(const TargetProcessInformation& targetProcess, ICallbacks* scanCallbacks);
 
 	template <CPUArchitecture arch, typename SPI = SystemDefinitions::SYSTEM_PROCESS_INFORMATION_T<PTR_T<arch>>>
 	void ScanProcessMemoryImpl(SPI* procInfo, const Wow64Helper<arch>& api);

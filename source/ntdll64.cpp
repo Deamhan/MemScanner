@@ -344,6 +344,15 @@ uint32_t Wow64Helper<arch>::QueryProcessMainExecutablePath(HANDLE hProcess, wcha
     return result;
 }
 
+std::wstring IWow64Helper::QueryProcessNameByMainExecutablePath(const std::wstring& mainExecPath)
+{
+    auto slashPosition = mainExecPath.rfind(L'\\');
+    if (slashPosition == std::wstring::npos)
+        return mainExecPath;
+
+    return mainExecPath.substr(slashPosition + 1);
+}
+
 std::wstring IWow64Helper::QueryProcessName(HANDLE hProcess) const
 {
     const auto bufferSizeInChars = 32 * 1024;
@@ -352,12 +361,8 @@ std::wstring IWow64Helper::QueryProcessName(HANDLE hProcess) const
     if (lenInChars == 0)
         return std::wstring{};
 
-    std::wstring result(buffer.get(), lenInChars);
-    auto slashPosition = result.rfind(L'\\');
-    if (slashPosition == std::wstring::npos)
-        return result;
-
-    return result.substr(slashPosition + 1);
+    std::wstring path(buffer.get(), lenInChars);
+    return QueryProcessNameByMainExecutablePath(path);
 }
 
 #if !_M_AMD64

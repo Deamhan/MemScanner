@@ -330,7 +330,7 @@ void MemoryScanner::ValidateTokenPrivileges()
 }
 
 template <CPUArchitecture arch>
-void MemoryScanner::ScanProcessMemoryImpl(uint32_t pid, ICallbacks* scanCallbacks)
+void MemoryScanner::ScanProcessMemoryImpl(const TargetProcessInformation& targetProcess, ICallbacks* scanCallbacks)
 {
     TlsScannerCleaner scannerCleaner;
     tlsCallbacks = scanCallbacks;
@@ -341,12 +341,17 @@ void MemoryScanner::ScanProcessMemoryImpl(uint32_t pid, ICallbacks* scanCallback
 
     ValidateTokenPrivileges();
 
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
-    std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(&hProcess, MemoryHelper<arch>::CloseHandleByPtr);
+    HANDLE hProcess = targetProcess.processHandle;
+    uint32_t pid = targetProcess.processId;
+    std::unique_ptr<HANDLE, void(*)(HANDLE*)> processGuard(nullptr, MemoryHelper<arch>::CloseHandleByPtr);
+    if (hProcess == nullptr)
+    {
+        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+        processGuard.reset(&hProcess);
+    }
 
-    LARGE_INTEGER createTime = {};
-    std::wstring processName;
-
+    LARGE_INTEGER createTime = targetProcess.createTime;
+    std::wstring processName = targetProcess.processMainExecPath != nullptr ? targetProcess.processMainExecPath : L"";
     if (hProcess == nullptr)
     {
         tlsCallbacks->OnProcessScanBegin(pid, createTime, hProcess, processName); // notifies client about open failure (hProcess is nullptr)
@@ -354,14 +359,18 @@ void MemoryScanner::ScanProcessMemoryImpl(uint32_t pid, ICallbacks* scanCallback
     }
 
     auto& api = GetWow64Helper<arch>();
-    if (!api.QueryProcessCreateTime(hProcess, createTime))
+    if (createTime.QuadPart == 0 && !api.QueryProcessCreateTime(hProcess, createTime))
     {
         GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"Unable to query creation time for process [PID = %u]" LOG_ENDLINE_STR,
             (unsigned)pid);
         return; // no unique process identification, leaving
     }
 
-    processName = api.QueryProcessName(hProcess); // even if it fails we can work without it
+    if (processName.empty())
+        processName = api.QueryProcessName(hProcess); // even if it fails we can work without it
+    else
+        processName = IWow64Helper::QueryProcessNameByMainExecutablePath(processName);
+
     tlsCallbacks->OnProcessScanBegin(pid, createTime, hProcess, processName);
     ProcessScanGuard scanGuard{ tlsCallbacks };
 
@@ -539,15 +548,15 @@ void MemoryScanner::Scan(std::shared_ptr<MemoryScanner::ICallbacks> scanCallback
 #endif
 }
 
-void MemoryScanner::Scan(int32_t pid, std::shared_ptr<ICallbacks> scanCallbacks)
+void MemoryScanner::Scan(const TargetProcessInformation& targetProcess, std::shared_ptr<ICallbacks> scanCallbacks)
 {
 #if _M_AMD64
-    ScanProcessMemoryImpl<CPUArchitecture::X64>(pid, scanCallbacks.get());
+    ScanProcessMemoryImpl<CPUArchitecture::X64>(targetProcess, scanCallbacks.get());
 #else
     if (GetOSArch() == CPUArchitecture::X64)
-        ScanProcessMemoryImpl<CPUArchitecture::X64>(pid, scanCallbacks.get());
+        ScanProcessMemoryImpl<CPUArchitecture::X64>(targetProcess, scanCallbacks.get());
     else
-        ScanProcessMemoryImpl<CPUArchitecture::X86>(pid, scanCallbacks.get());
+        ScanProcessMemoryImpl<CPUArchitecture::X86>(targetProcess, scanCallbacks.get());
 #endif
 }
 

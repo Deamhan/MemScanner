@@ -61,6 +61,8 @@ public:
     virtual uint32_t QueryProcessMainExecutablePath(HANDLE hProces, wchar_t* buffer, uint32_t sizeInBytes) const noexcept = 0;
     std::wstring QueryProcessName(HANDLE hProcess) const;
 
+    static std::wstring QueryProcessNameByMainExecutablePath(const std::wstring& mainExecPath);
+
     IWow64Helper(const IWow64Helper&) = delete;
     IWow64Helper(IWow64Helper&&) = delete;
     IWow64Helper& operator = (const IWow64Helper&) = delete;

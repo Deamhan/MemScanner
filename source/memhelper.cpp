@@ -11,7 +11,7 @@ using namespace SystemDefinitions;
 
 void MemoryHelperBase::CloseHandleByPtr(HANDLE* handle)
 {
-    if (*handle == INVALID_HANDLE_VALUE || *handle == nullptr)
+    if (handle == nullptr || *handle == INVALID_HANDLE_VALUE || *handle == nullptr)
         return;
 
     CloseHandle(*handle);
