@@ -150,10 +150,12 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
     auto memoryAnalysisSettings = tlsCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck, scanHookForUserAddress, scanRangesWithYara);
 
     std::vector<uint64_t> threadsEntryPoints;
-    threadsEntryPoints.reserve(32);
     const bool threadAnalysisEnabled = tlsCallbacks->GetThreadAnalysisSettings() != Sensitivity::Off;
     if (!threads.empty() && threadAnalysisEnabled)
+    {
+        threadsEntryPoints.reserve(threads.size());
         QueryThreadEntryPoints<arch>(threads, threadsEntryPoints, api);
+    }
     
     std::vector<HookDescription> hooksFound;
     hooksFound.reserve(30); // should be enough
@@ -173,11 +175,17 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
             for (const auto& addrInfo : memAddressesToCheck)
             {
                 bool isAlignedAllocation = false;
-                auto region = GetMemoryHelper().UpdateMemoryMapForAddr(hProcess, addrInfo.address, memoryMap, isAlignedAllocation);
+
+                MemoryHelperBase::MemoryMapConstIteratorT rangeBegin, rangeEnd;
+                auto region = GetMemoryHelper().UpdateMemoryMapForAddr(hProcess, addrInfo.address, memoryMap, 
+                    rangeBegin, rangeEnd, isAlignedAllocation);
                 if (!scanRangesWithYara)
                     continue;
 
                 if (region.BaseAddress == 0)
+                    continue;
+
+                if (!tlsCallbacks->OnExplicitAddressScan(region, rangeBegin, rangeEnd, isAlignedAllocation))
                     continue;
 
                 bool isImageRegion = (region.Type == SystemDefinitions::MemType::Image);

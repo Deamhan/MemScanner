@@ -30,7 +30,8 @@ int main()
 
 	MemoryHelperBase::MemoryMapT result;
 	bool isAlignedAllocation = false;
-	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)ntdllHandle, result, isAlignedAllocation);
+	MemoryHelperBase::MemoryMapConstIteratorT begin, end;
+	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)ntdllHandle, result, begin, end, isAlignedAllocation);
 
 	YaraScanner predefinedScanner{ rules };
 	rules = std::make_shared<YaraScanner::YaraRules>(myNewRules);

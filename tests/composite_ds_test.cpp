@@ -39,7 +39,8 @@ int main()
 
 	MemoryHelperBase::MemoryMapT result;
 	bool isAlignedAllocation = false;
-	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)dllHandle, result, isAlignedAllocation);
+	MemoryHelperBase::MemoryMapConstIteratorT begin, end;
+	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)dllHandle, result, begin, end, isAlignedAllocation);
 	std::vector<std::unique_ptr<ReadOnlyMemoryDataSource>> fragments;
 
 	auto allocationBase = result.begin()->second.AllocationBase;

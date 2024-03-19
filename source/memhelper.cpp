@@ -184,7 +184,8 @@ bool MemoryHelper<arch>::GetBasicInfoByAddress(HANDLE hProcess, uint64_t address
 
 template <CPUArchitecture arch>
 MemoryHelperBase::MemInfoT64 MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck,
-    MemoryHelperBase::MemoryMapT& result, bool& isAllocationAligned) const
+    MemoryHelperBase::MemoryMapT& result, MemoryMapConstIteratorT& rangeBegin, MemoryMapConstIteratorT& rangeEnd, 
+    bool& isAllocationAligned) const
 {
     MemInfoT64 primaryMbi, mbi;
     if (!GetBasicInfoByAddress(hProcess, addressToCheck, primaryMbi) || (primaryMbi.State & MEM_COMMIT) == 0)
@@ -192,10 +193,18 @@ MemoryHelperBase::MemInfoT64 MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE h
 
     MemInfoT64 retMbi = {};
     auto address = primaryMbi.AllocationBase;
+    rangeBegin = result.cend();
+    rangeEnd = result.cend();
     while (GetBasicInfoByAddress(hProcess, address, mbi) && mbi.AllocationBase == primaryMbi.AllocationBase)
     {
         if ((mbi.State & (MEM_COMMIT | MEM_RESERVE)) != 0)
-            result.emplace(mbi.BaseAddress, mbi);
+        {
+            auto newItem = result.emplace(mbi.BaseAddress, mbi);
+            if (rangeBegin == result.end())
+                rangeBegin = newItem.first;
+
+            rangeEnd = newItem.first;
+        }
 
         if (retMbi.AllocationBase == 0 &&
             primaryMbi.BaseAddress + primaryMbi.RegionSize == mbi.BaseAddress + mbi.RegionSize)
@@ -205,6 +214,9 @@ MemoryHelperBase::MemInfoT64 MemoryHelper<arch>::UpdateMemoryMapForAddr(HANDLE h
     }
 
     isAllocationAligned = (address & 0xFFFF) == 0;
+
+    if (rangeEnd != result.cend())
+        ++rangeEnd;
 
     return retMbi;
 }

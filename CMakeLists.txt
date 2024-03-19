@@ -105,19 +105,23 @@ set(SHELLCODE_MODULE_SRC tests/shellcode_module_overwrite.cpp
 )
 
 set(ALIGNED_RESERVE_SRC tests/aligned_reserve_test.cpp
-                         ${COMMON_SRC}
+                        ${COMMON_SRC}
 )
 
 set(QUERY_PROCESS_SRC tests/query_process_test.cpp
-                         ${COMMON_SRC}
+                      ${COMMON_SRC}
 )
 
 set(SCANNER_PROCESS_SRC tests/scanner_current_process.cpp
-                         ${COMMON_SRC}
+                        ${COMMON_SRC}
 )
 
 set(SCANNER_OPENED_PROCESS_SRC tests/scanner_opened_current_process.cpp
-                         ${COMMON_SRC}
+                               ${COMMON_SRC}
+)
+
+set(MULTIPLE_ALLOC_SRC tests/multiple_allocations_test.cpp
+                       ${COMMON_SRC}
 )
 
 if (MSVC)  
@@ -191,6 +195,7 @@ add_executable(aligned_reserve_test ${ALIGNED_RESERVE_SRC})
 add_executable(query_process_test ${QUERY_PROCESS_SRC})
 add_executable(scanner_process_test ${SCANNER_PROCESS_SRC})
 add_executable(scanner_opened_process_test ${SCANNER_OPENED_PROCESS_SRC})
+add_executable(multiple_alloc_test ${MULTIPLE_ALLOC_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -219,6 +224,7 @@ set (EXECUTABLES memscan
                  query_process_test
                  scanner_process_test
                  scanner_opened_process_test
+                 multiple_alloc_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -267,3 +273,4 @@ add_test(NAME align_with_reserve_test COMMAND aligned_reserve_test)
 add_test(NAME query_process_info_test COMMAND query_process_test)
 add_test(NAME scanner_single_process_test COMMAND scanner_process_test)
 add_test(NAME scanner_preopen_process_test COMMAND scanner_opened_process_test)
+add_test(NAME multiple_allocations_test COMMAND multiple_alloc_test)

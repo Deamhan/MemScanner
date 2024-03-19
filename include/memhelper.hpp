@@ -28,7 +28,9 @@ public:
 
 	using MemInfoT64 = SystemDefinitions::MEMORY_BASIC_INFORMATION_T<uint64_t>;
 	using MemoryMapT = std::map<uint64_t, MemInfoT64>;
+	using MemoryMapConstIteratorT = MemoryMapT::const_iterator;
 	using FlatMemoryMapT = std::vector<MemInfoT64>;
+	using FlatMemoryMapConstIteratorT = FlatMemoryMapT::const_iterator;
 	using GroupedMemoryMapT = std::map<uint64_t, FlatMemoryMapT>;
 
 	static GroupedMemoryMapT GetGroupedMemoryMap(
@@ -45,7 +47,8 @@ public:
 
 	virtual std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const = 0;
 	virtual MemoryMapT GetMemoryMap(HANDLE hProcess) const = 0;
-	virtual MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result, bool& isAllocationAligned) const = 0;
+	virtual MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result, 
+		MemoryMapConstIteratorT& rangeBegin, MemoryMapConstIteratorT& rangeEnd, bool& isAllocationAligned) const = 0;
 	virtual bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const = 0;
 
 	struct ImageDescription
@@ -72,7 +75,8 @@ public:
 
     std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const override;
     MemoryMapT GetMemoryMap(HANDLE hProcess) const override;
-	MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result, bool& isAllocationAligned) const override;
+	MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result, 
+		MemoryMapConstIteratorT& rangeBegin, MemoryMapConstIteratorT& rangeEnd, bool& isAllocationAligned) const override;
     bool GetBasicInfoByAddress(HANDLE hProcess, uint64_t address, MemInfoT64& result) const override;
 
     uint64_t GetHighestUsermodeAddress() const override;

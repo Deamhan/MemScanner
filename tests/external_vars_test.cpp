@@ -43,7 +43,8 @@ static bool ScanImage()
 
 	MemoryHelperBase::MemoryMapT result;
 	bool isAlignedAllocation = false;
-	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)ntdllHandle, result, isAlignedAllocation);
+	MemoryHelperBase::MemoryMapConstIteratorT begin, end;
+	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)ntdllHandle, result, begin, end, isAlignedAllocation);
 
 	auto scanner = BuildYaraScanner(rules);
 	if (!scanner)
@@ -69,7 +70,8 @@ static bool ScanCopy()
 
 	MemoryHelperBase::MemoryMapT result;
 	bool isAlignedAllocation = false;
-	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)copyAddr, result, isAlignedAllocation);
+	MemoryHelperBase::MemoryMapConstIteratorT begin, end;
+	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)copyAddr, result, begin, end, isAlignedAllocation);
 
 	auto scanner = BuildYaraScanner(rules);
 	if (!scanner)

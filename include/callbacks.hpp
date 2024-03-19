@@ -12,6 +12,10 @@ public:
 	void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
 		const std::vector<uint64_t>& threadEntryPoints, bool& scanWithYara) override;
 
+	bool OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64& regionInfo,
+		MemoryHelperBase::MemoryMapConstIteratorT rangeBegin, MemoryHelperBase::MemoryMapConstIteratorT rangeEnd,
+		bool isAlignedAllocation) override;
+
     void OnWritableExecImageFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions, const std::wstring& imagePath,
 		const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) override;
 
@@ -106,6 +110,9 @@ protected:
 
 	std::wstring CreateDumpsDirectory();
 	std::wstring WriteMemoryDump(const MemoryHelperBase::MemInfoT64& region, const std::wstring& processDumpDir);
+
+	template<class Iter>
+	bool IsClrJitLikeMemoryRegion(Iter begin, Iter end, bool isAlignedAllocation);
 };
 
 extern const std::list<std::string> predefinedRules;

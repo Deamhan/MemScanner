@@ -28,6 +28,10 @@ public:
 		virtual void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
 			const std::vector<uint64_t>& threadEntryPoints, bool& scanWithYara) = 0;
 
+		virtual bool OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64& regionInfo, 
+			MemoryHelperBase::MemoryMapConstIteratorT rangeBegin, MemoryHelperBase::MemoryMapConstIteratorT rangeEnd, 
+			bool isAlignedAllocation) = 0;
+
 		virtual void OnWritableExecImageFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions, const std::wstring& imagePath,
 			const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) = 0;
 

@@ -23,7 +23,8 @@ int main()
 
 	bool isAlignedAllocation = false;
 	MemoryHelperBase::MemoryMapT result;
-	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)allocatedSpace, result, isAlignedAllocation);
+	MemoryHelperBase::MemoryMapConstIteratorT begin, end;
+	GetMemoryHelper().UpdateMemoryMapForAddr(GetCurrentProcess(), (uintptr_t)allocatedSpace, result, begin, end, isAlignedAllocation);
 
 	std::set<std::string> yaraResult;
 	uint64_t startAddress = 0, size = 0;
