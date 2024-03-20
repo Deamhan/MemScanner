@@ -118,24 +118,12 @@ bool DefaultCallbacks::IsClrJitLikeMemoryRegion(Iter begin, Iter end, bool isAli
 {
     /*
      * The code below tries to filter out typical CLR stuff : allocation of blocks inside reserved space
-     * aligned by allocation granularity (64K). Such memory blocks have RWX attributes and private type, to be sure
-     * checking for CLR DLLs makes sense.
+     * aligned by allocation granularity (64K). To be sure checking for CLR DLLs makes sense.
      */
     if (begin == end)
         return false;
 
     if (!isAlignedAllocation)
-        return false;
-
-    uint32_t flags = MemoryHelperBase::XFlag | MemoryHelperBase::WFlag | MemoryHelperBase::RFlag;
-    if (std::any_of(begin, end, [flags](const auto& item)
-        {
-            const auto& region = GetRegionByIteratorRef(item);
-            bool result =  region.State != MEM_RESERVE && ((MemoryHelperBase::protToFlags(region.Protect) & flags) != flags 
-                || region.Type != SystemDefinitions::MemType::Private);
-
-            return result;
-        }))
         return false;
 
     if (std::none_of(begin, end, [](const auto& item)
