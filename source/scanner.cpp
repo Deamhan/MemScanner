@@ -288,6 +288,13 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
 
                     auto moduleArch = PE<>::GetPeArch(memDs);
                     ScanImageForHooks(moduleArch, memDs, imagePath, hooksFound);
+                    if (!hooksFound.empty())
+                    {
+                        bool isKnown = false;
+                        if (GetMemoryHelper().IsModuleKnownByPeb(hProcess, group.first, isKnown) && !isKnown)
+                            tlsCallbacks->OnHiddenImage(imagePath.c_str(), group.first);
+                    }
+
                     auto eqRange = requestedImageAddressToAllocBase.equal_range(memDs.GetOrigin());
                     for (auto it = eqRange.first; it != eqRange.second; ++it)
                     {
@@ -411,7 +418,7 @@ void MemoryScanner::ScanProcessMemoryImpl(SPI* procInfo, const Wow64Helper<arch>
     ScanProcessMemoryImpl(hProcess, threads, api);
 }
 
-void MemoryScanner::ScanImageForHooks(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName,
+void MemoryScanner::ScanImageForHooks(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName, 
     std::vector<HookDescription>& hooksFound)
 {
     switch (arch)

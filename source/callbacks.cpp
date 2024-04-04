@@ -60,6 +60,12 @@ void DefaultCallbacks::OnPrivateCodeModification(const wchar_t* imageName, uint6
         imageName, (unsigned)rva);
 }
 
+void DefaultCallbacks::OnHiddenImage(const wchar_t* imageName, uint64_t imageBase)
+{
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tHidden image found: %s (0x%llx)" LOG_ENDLINE_STR,
+        imageName, (unsigned long long)imageBase);
+}
+
 void DefaultCallbacks::OnPeFound(uint64_t address, CPUArchitecture arch)
 {
     GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tPE (%s) found: 0x%llx" LOG_ENDLINE_STR, CpuArchToString(arch),

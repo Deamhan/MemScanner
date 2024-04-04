@@ -65,6 +65,8 @@ public:
 	};
 
 	virtual std::vector<ImageDescription> GetImageDataFromPeb(HANDLE hProcess) const = 0;
+	virtual bool IsModuleKnownByPeb(HANDLE hProcess, uint64_t addressInModule, 
+		bool& found) const = 0;
 };
 
 template <CPUArchitecture arch>
@@ -82,6 +84,8 @@ public:
     uint64_t GetHighestUsermodeAddress() const override;
 
     std::vector<ImageDescription> GetImageDataFromPeb(HANDLE hProcess) const override;
+
+	bool IsModuleKnownByPeb(HANDLE hProcess, uint64_t addressInModule, bool& found) const override;
 
 	MemoryHelper() : mApi(GetWow64Helper<arch>()) {}
 

@@ -118,6 +118,75 @@ static void ParseLoadedModules(const MemoryHelperBase& helper, uint64_t pebAddre
 }
 
 template <CPUArchitecture arch>
+static bool FindLoadedModuleByAddress(uint64_t pebAddress, ReadOnlyMemoryDataSource& mds, 
+    uint64_t addressInModule, bool& found)
+{
+    try
+    {
+        found = false;
+        auto addressToFind = (PTR_T<arch>)addressInModule;
+
+        PTR_T<arch> ldrPtr = 0;
+        mds.Read(pebAddress + offsetof(PEB_T<PTR_T<arch>>, Ldr), ldrPtr);
+
+        PEB_LDR_DATA_T<PTR_T<arch>> pebLdrData;
+        mds.Read(ldrPtr, pebLdrData);
+
+        auto rootEntry = ldrPtr + offsetof(PEB_LDR_DATA_T<PTR_T<arch>>, InLoadOrderModuleList);
+        LDR_DATA_TABLE_ENTRY_T<PTR_T<arch>> ldrEntry;
+
+        for (auto nextEntry = pebLdrData.InLoadOrderModuleList.Flink;
+            nextEntry != rootEntry; nextEntry = ldrEntry.InLoadOrderLinks.Flink)
+        {
+            mds.Read(nextEntry, ldrEntry);
+            if (addressToFind < ldrEntry.DllBase)
+                continue;
+
+            if (addressToFind >= ldrEntry.DllBase + ldrEntry.SizeOfImage)
+                continue;
+
+            found = true;
+            break;
+        }
+
+        return true;
+    }
+    catch (const DataSourceException&)
+    {
+    }
+
+    return false;
+}
+
+template <CPUArchitecture arch>
+bool MemoryHelper<arch>::IsModuleKnownByPeb(HANDLE hProcess, uint64_t addressInModule, bool& found) const
+{
+    found = false;
+    uint32_t retLength = 0;
+    PROCESS_BASIC_INFORMATION<PTR_T<arch>> pbi = {};
+
+    if (!NtSuccess(GetIWow64Helper().NtQueryInformationProcess64(hProcess, PROCESSINFOCLASS::ProcessBasicInformation,
+        &pbi, sizeof(pbi), &retLength)))
+        return false;
+    
+    ReadOnlyMemoryDataSource mds{ hProcess, 0, GetHighestUsermodeAddress(), 0 };
+    if (!FindLoadedModuleByAddress<arch>(pbi.PebBaseAddressT, mds, addressInModule, found))
+        return false;
+
+    if (found || arch == CPUArchitecture::X86)
+        return true;
+
+    uint64_t wow64peb = 0;
+    GetIWow64Helper().NtQueryInformationProcess64(hProcess, PROCESSINFOCLASS::ProcessWow64Information,
+        &wow64peb, sizeof(wow64peb), &retLength);
+
+    if (wow64peb == 0)
+        return true;
+
+    return FindLoadedModuleByAddress<CPUArchitecture::X86>(wow64peb, mds, addressInModule, found);
+}
+
+template <CPUArchitecture arch>
 std::vector<MemoryHelperBase::ImageDescription> MemoryHelper<arch>::GetImageDataFromPeb(HANDLE hProcess) const
 {
     std::vector<MemoryHelperBase::ImageDescription> result;

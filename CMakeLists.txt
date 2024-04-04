@@ -124,6 +124,10 @@ set(MULTIPLE_ALLOC_SRC tests/multiple_allocations_test.cpp
                        ${COMMON_SRC}
 )
 
+set(PEB_LDR_SRC tests/peb_ldr_validation_test.cpp
+                ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -196,6 +200,7 @@ add_executable(query_process_test ${QUERY_PROCESS_SRC})
 add_executable(scanner_process_test ${SCANNER_PROCESS_SRC})
 add_executable(scanner_opened_process_test ${SCANNER_OPENED_PROCESS_SRC})
 add_executable(multiple_alloc_test ${MULTIPLE_ALLOC_SRC})
+add_executable(peb_ldr_validation_test ${PEB_LDR_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -225,6 +230,7 @@ set (EXECUTABLES memscan
                  scanner_process_test
                  scanner_opened_process_test
                  multiple_alloc_test
+                 peb_ldr_validation_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -274,3 +280,4 @@ add_test(NAME query_process_info_test COMMAND query_process_test)
 add_test(NAME scanner_single_process_test COMMAND scanner_process_test)
 add_test(NAME scanner_preopen_process_test COMMAND scanner_opened_process_test)
 add_test(NAME multiple_allocations_test COMMAND multiple_alloc_test)
+add_test(NAME peb_ldr_img_validation_test COMMAND peb_ldr_validation_test)
