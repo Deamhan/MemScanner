@@ -98,6 +98,7 @@ public:
 	uint32_t RvaToOffset(uint32_t rva, bool useTranslation = !isMapped) const;
 
 	bool IsExecutableSectionRva(uint32_t rva);
+	bool IsExecutableRange(uint32_t rva, uint32_t size);
 
 	const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& GetExportMap();
 	std::shared_ptr<ExportedFunctionDescription> GetExportedFunction(uint32_t rva);

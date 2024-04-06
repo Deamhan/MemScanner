@@ -91,7 +91,7 @@ static bool CheckForPrivateCodeModificationForArch(const std::wstring& imagePath
             return false;
 
         auto rva = (uint32_t)disp;
-        if (!pe->IsExecutableSectionRva(rva))
+        if (!pe->IsExecutableRange(rva, (uint32_t)size))
             return false;
         
         const auto& exported = pe->GetExportMap();
@@ -99,7 +99,7 @@ static bool CheckForPrivateCodeModificationForArch(const std::wstring& imagePath
         if (it == exported.end())
             return true;
 
-        return (it->first >= rva + size);
+        return (it->first > rva);
     }
     catch (const DataSourceException&)
     {
@@ -185,7 +185,7 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                 if (region.BaseAddress == 0)
                     continue;
 
-                if (!tlsCallbacks->OnExplicitAddressScan(region, rangeBegin, rangeEnd, isAlignedAllocation))
+                if (!tlsCallbacks->OnExplicitAddressScan(region, rangeBegin, rangeEnd, isAlignedAllocation, addrInfo))
                     continue;
 
                 bool isImageRegion = (region.Type == SystemDefinitions::MemType::Image);

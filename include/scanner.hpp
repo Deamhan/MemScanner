@@ -28,9 +28,19 @@ public:
 		virtual void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
 			const std::vector<uint64_t>& threadEntryPoints, bool& scanWithYara) = 0;
 
+		// config requests
+		struct AddressInfo
+		{
+			uint64_t address;
+			uint64_t size;
+			bool forceWritten; // set it if you sure that region was written
+			bool externalOperation; // set if modification operation was initiated from one process to another
+			bool forceCodeStart; // set if address probably a thread enty point or other function start
+		};
+
 		virtual bool OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64& regionInfo, 
 			MemoryHelperBase::MemoryMapConstIteratorT rangeBegin, MemoryHelperBase::MemoryMapConstIteratorT rangeEnd, 
-			bool isAlignedAllocation) = 0;
+			bool isAlignedAllocation, const AddressInfo& addrInfo) = 0;
 
 		virtual void OnWritableExecImageFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions, const std::wstring& imagePath,
 			const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) = 0;
@@ -47,16 +57,6 @@ public:
 		virtual void OnProcessScanEnd() = 0;
 
 		virtual ~ICallbacks() = default;
-
-		// config requests
-		struct AddressInfo
-		{
-			uint64_t address;
-			uint64_t size;
-			bool forceWritten; // set it if you sure that region was written
-			bool externalOperation; // set if modification operation was initiated from one process to another
-			bool forceCodeStart; // set if address probably a thread enty point or other function start
-		};
 
 		virtual Sensitivity GetMemoryAnalysisSettings(std::vector<AddressInfo>& addressRangesToCheck,
 			bool& scanImageForHooks, bool& scanRangesWithYara) = 0;

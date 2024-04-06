@@ -119,37 +119,43 @@ static const MemoryHelperBase::MemInfoT64& GetRegionByIteratorRef(MemoryHelperBa
     return ref;
 }
 
+
+/*
+ * Heap segments are aligned and have at least one reserved guard page at the end
+ */
 template<class Iter>
-bool DefaultCallbacks::IsClrJitLikeMemoryRegion(Iter begin, Iter end, bool isAlignedAllocation)
+bool DefaultCallbacks::IsHeapJitLikeMemoryRegion(Iter begin, Iter end, bool isAlignedAllocation)
 {
-    /*
-     * The code below tries to filter out typical CLR stuff : allocation of blocks inside reserved space
-     * aligned by allocation granularity (64K). To be sure checking for CLR DLLs makes sense.
-     */
     if (begin == end)
         return false;
 
     if (!isAlignedAllocation)
         return false;
 
-    if (std::none_of(begin, end, [](const auto& item)
+    // FIXME: test for trailing guard page could be more accurate
+    return std::any_of(begin, end, [](const auto& item)
         {
             const auto& region = GetRegionByIteratorRef(item);
             return region.State == MEM_RESERVE;
-        }))
-        return false;
-
-     return true;
+        });
 }
 
 bool DefaultCallbacks::OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64& /*regionInfo*/,
     MemoryHelperBase::MemoryMapConstIteratorT rangeBegin, MemoryHelperBase::MemoryMapConstIteratorT rangeEnd,
-    bool isAlignedAllocation)
+    bool isAlignedAllocation, const AddressInfo& addrInfo)
 {
+    bool isHeapLike = IsHeapJitLikeMemoryRegion(rangeBegin, rangeEnd, isAlignedAllocation);
+
+    // external modification of heap looks as unusual operation
+    if (addrInfo.externalOperation && isHeapLike)
+    {
+        // TODO: add a handling here
+    }
+
     if (mMemoryScanSensitivity > MemoryScanner::Sensitivity::Low)
         return true;
 
-    return !IsClrJitLikeMemoryRegion(rangeBegin, rangeEnd, isAlignedAllocation);
+    return !isHeapLike;
 }
 
 void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& relatedRegions,
@@ -158,7 +164,7 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
     scanRangesWithYara = false;
 
     if (mMemoryScanSensitivity == MemoryScanner::Sensitivity::Low 
-        && IsClrJitLikeMemoryRegion(relatedRegions.cbegin(), relatedRegions.cend(), MemoryHelperBase::IsAlignedAllocation(relatedRegions)))
+        && IsHeapJitLikeMemoryRegion(relatedRegions.cbegin(), relatedRegions.cend(), MemoryHelperBase::IsAlignedAllocation(relatedRegions)))
         return;
 
     GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\tSuspicious memory region:" LOG_ENDLINE_STR);

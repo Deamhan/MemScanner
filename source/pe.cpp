@@ -276,6 +276,21 @@ bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva)
 }
 
 template <bool isMapped, CPUArchitecture arch>
+bool PE<isMapped, arch>::IsExecutableRange(uint32_t rva, uint32_t size)
+{
+    for (auto iter = mSections.upper_bound(rva); iter != mSections.end(); ++iter)
+    {
+        if (iter->second.VirtualAddress >= rva + size)
+            break;
+
+        if ((iter->second.Characteristics & (IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE)) != 0)
+            return true;
+    }
+
+    return false;
+}
+
+template <bool isMapped, CPUArchitecture arch>
 void PE<isMapped, arch>::CheckExportForHooks(DataSource& oppositeDs, std::vector<HookDescription>& result)
 {
     const auto& exportMap = GetExportMap();
