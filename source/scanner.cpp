@@ -142,6 +142,18 @@ static void QueryThreadEntryPoints(const std::vector<DWORD>& threads, std::vecto
     }
 }
 
+static bool IsCodeStartOperation(OperationType operation)
+{
+    switch (operation)
+    {
+    case OperationType::CreateThread:
+    case OperationType::Apc:
+        return true;
+    default:
+        return false;
+    }
+}
+
 template <CPUArchitecture arch>
 void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWORD>& threads, const Wow64Helper<arch>& api)
 {
@@ -149,12 +161,12 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
     bool scanHookForUserAddress = false, scanRangesWithYara = false;
     auto memoryAnalysisSettings = tlsCallbacks->GetMemoryAnalysisSettings(memAddressesToCheck, scanHookForUserAddress, scanRangesWithYara);
 
-    std::vector<uint64_t> threadsEntryPoints;
+    std::vector<uint64_t> codeEntryPoints;
     const bool threadAnalysisEnabled = tlsCallbacks->GetThreadAnalysisSettings() != Sensitivity::Off;
     if (!threads.empty() && threadAnalysisEnabled)
     {
-        threadsEntryPoints.reserve(threads.size());
-        QueryThreadEntryPoints<arch>(threads, threadsEntryPoints, api);
+        codeEntryPoints.reserve(threads.size());
+        QueryThreadEntryPoints<arch>(threads, codeEntryPoints, api);
     }
     
     std::vector<HookDescription> hooksFound;
@@ -189,14 +201,14 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                     continue;
 
                 bool isImageRegion = (region.Type == SystemDefinitions::MemType::Image);
-                bool imageOverwrite = isImageRegion && addrInfo.forceWritten;
+                bool imageOverwrite = isImageRegion && addrInfo.operation == OperationType::Write;
                 if (imageOverwrite)
                     requestedImageAddressToAllocBase.emplace(region.AllocationBase, addrInfo);
 
-                if (threadAnalysisEnabled && addrInfo.forceCodeStart)
-                    threadsEntryPoints.push_back(addrInfo.address);
+                if (threadAnalysisEnabled && IsCodeStartOperation(addrInfo.operation))
+                    codeEntryPoints.push_back(addrInfo.address);
 
-                ScanUsingYara(hProcess, region, addrInfo.address, addrInfo.size, imageOverwrite, addrInfo.externalOperation,
+                ScanUsingYara(hProcess, region, addrInfo.address, addrInfo.size, addrInfo.operation, addrInfo.externalOperation,
                     isAlignedAllocation);
             }
         }
@@ -234,17 +246,17 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                     isSuspGroup = protRes || allocProtRes;
                 }
 
-                std::vector<uint64_t> threadsRelated;
-                for (const auto threadEP : threadsEntryPoints)
+                std::vector<uint64_t> codeEpRelated;
+                for (const auto codeEP : codeEntryPoints)
                 {
-                    if (group.first <= threadEP && threadEP < groupTopBorder)
-                        threadsRelated.push_back(threadEP);
+                    if (group.first <= codeEP && codeEP < groupTopBorder)
+                        codeEpRelated.push_back(codeEP);
                 }
 
-                if (isSuspGroup || !threadsRelated.empty())
+                if (isSuspGroup || !codeEpRelated.empty())
                 {
                     bool scanWithYara = false;
-                    tlsCallbacks->OnSuspiciousMemoryRegionFound(group.second, threadsRelated, scanWithYara);
+                    tlsCallbacks->OnSuspiciousMemoryRegionFound(group.second, codeEpRelated, scanWithYara);
                     if (scanWithYara)
                     {
                         bool isAlignedAllocation = MemoryHelperBase::IsAlignedAllocation(group.second);
@@ -253,7 +265,7 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                             if (!MemoryHelperBase::IsReadableRegion(region))
                                 continue;
 
-                            ScanUsingYara(hProcess, region, 0, 0, false, false, isAlignedAllocation);
+                            ScanUsingYara(hProcess, region, 0, 0, OperationType::Unknown, false, isAlignedAllocation);
                         }
                     }
                 }
@@ -298,12 +310,16 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                     auto eqRange = requestedImageAddressToAllocBase.equal_range(memDs.GetOrigin());
                     for (auto it = eqRange.first; it != eqRange.second; ++it)
                     {
+                        auto rva = (uint32_t)(it->second.address - group.first);
                         bool privateCodeModificationFound = CheckForPrivateCodeModification(moduleArch, imagePath, memDs.GetOrigin(),
                             it->second.address, it->second.size);
 
                         if (privateCodeModificationFound)
-                            tlsCallbacks->OnPrivateCodeModification(imagePath.c_str(), group.first, (uint32_t)(it->second.address - group.first),
-                                (uint32_t)it->second.size);
+                            tlsCallbacks->OnPrivateCodeModification(imagePath.c_str(), group.first, rva, (uint32_t)it->second.size);
+
+                        bool imageHeadersModification = it->second.address < group.first + PAGE_SIZE;
+                        if (imageHeadersModification)
+                            tlsCallbacks->OnImageHeadersModification(imagePath.c_str(), group.first, rva, (uint32_t)it->second.size);
                     }
                 }
             }
@@ -602,19 +618,19 @@ void MemoryScanner::SetYaraRules(const wchar_t* rulesDirectory)
 }
 
 bool MemoryScanner::ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress,
-    uint64_t size, bool imageOverwrite, bool externalOperation, bool isAlignedAllocation)
+    uint64_t size, OperationType operation, bool externalOperation, bool isAlignedAllocation)
 {
     auto scanner = GetYaraScanner();
     if (scanner == nullptr)
     {
         // we still need to notify about scanning attempt
-        tlsCallbacks->OnYaraScan(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, nullptr);
+        tlsCallbacks->OnYaraScan(region, startAddress, size, externalOperation, operation, isAlignedAllocation, nullptr);
         return false;
     }
 
     std::set<std::string> yaraResults;
-    ::ScanUsingYara(*scanner, hProcess, region, yaraResults, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation);
-    tlsCallbacks->OnYaraScan(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, &yaraResults);
+    ::ScanUsingYara(*scanner, hProcess, region, yaraResults, startAddress, size, operation, externalOperation, isAlignedAllocation);
+    tlsCallbacks->OnYaraScan(region, startAddress, size, externalOperation, operation, isAlignedAllocation, &yaraResults);
 
     return true;
 }

@@ -205,9 +205,12 @@ void YaraScanner::YaraRules::SetRules(const std::list<std::string>& rules)
     SetIntVariable(compiler, "MappedType", (int)SystemDefinitions::MemType::Mapped);
     SetIntVariable(compiler, "PrivateType", (int)SystemDefinitions::MemType::Private);
 
+    for (int i = 0; i < (int)OperationType::Max; ++i)
+        SetIntVariable(compiler, OperationTypeToText((OperationType)i), i);
+
     SetIntVariable(compiler, "MemoryAttributes", 0);
     SetIntVariable(compiler, "MemoryType", 0);
-    SetIntVariable(compiler, "ImageOverwrite", 0);
+    SetIntVariable(compiler, "OperationType", (int)OperationType::Unknown);
     SetIntVariable(compiler, "ExternalOperation", 0);
     SetIntVariable(compiler, "AlignedAllocation", 0);
 
@@ -345,7 +348,7 @@ std::unique_ptr<YaraScanner> BuildYaraScanner(const wchar_t* rootDir)
 }
 
 void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region,
-    std::set<std::string>& result, uint64_t& startAddress, uint64_t& size, bool imageOverwrite,
+    std::set<std::string>& result, uint64_t& startAddress, uint64_t& size, OperationType operation,
     bool externalOperation, bool isAlignedAllocation)
 {
     result.clear();
@@ -361,9 +364,7 @@ void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase
         ReadOnlyMemoryDataSource dsForYara(hProcess, startAddress, size, 0);
         scanner.SetIntVariable("MemoryAttributes", MemoryHelperBase::protToFlags(region.Protect));
         scanner.SetIntVariable("MemoryType", (int)region.Type);
-
-        if (imageOverwrite)
-            scanner.SetIntVariable("ImageOverwrite", 1);
+        scanner.SetIntVariable("OperationType", (int)operation);
 
         if (externalOperation)
             scanner.SetIntVariable("ExternalOperation", 1);

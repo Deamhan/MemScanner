@@ -15,6 +15,7 @@ set(COMMON_SRC source/callbacks.cpp
                source/pe.cpp
                source/scanner.cpp
                source/yara.cpp
+               source/operations.cpp   
                include/callbacks.hpp
                include/datasource.hpp
                include/file.hpp
@@ -25,7 +26,8 @@ set(COMMON_SRC source/callbacks.cpp
                include/pe.hpp
                include/system_defs.hpp
                include/scanner.hpp   
-               include/yara.hpp               
+               include/yara.hpp  
+               include/operations.hpp               
 )
 
 set(SCANNER_SRC source/main.cpp
@@ -128,6 +130,10 @@ set(PEB_LDR_SRC tests/peb_ldr_validation_test.cpp
                 ${COMMON_SRC}
 )
 
+set(IMAGE_MODIFICATION_SRC tests/image_modification_test.cpp
+                           ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -201,6 +207,7 @@ add_executable(scanner_process_test ${SCANNER_PROCESS_SRC})
 add_executable(scanner_opened_process_test ${SCANNER_OPENED_PROCESS_SRC})
 add_executable(multiple_alloc_test ${MULTIPLE_ALLOC_SRC})
 add_executable(peb_ldr_validation_test ${PEB_LDR_SRC})
+add_executable(image_modification_test ${IMAGE_MODIFICATION_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -231,6 +238,7 @@ set (EXECUTABLES memscan
                  scanner_opened_process_test
                  multiple_alloc_test
                  peb_ldr_validation_test
+                 image_modification_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -281,3 +289,4 @@ add_test(NAME scanner_single_process_test COMMAND scanner_process_test)
 add_test(NAME scanner_preopen_process_test COMMAND scanner_opened_process_test)
 add_test(NAME multiple_allocations_test COMMAND multiple_alloc_test)
 add_test(NAME peb_ldr_img_validation_test COMMAND peb_ldr_validation_test)
+add_test(NAME img_modification_test COMMAND image_modification_test)

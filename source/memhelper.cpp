@@ -159,28 +159,40 @@ static bool FindLoadedModuleByAddress(uint64_t pebAddress, ReadOnlyMemoryDataSou
 }
 
 template <CPUArchitecture arch>
-bool MemoryHelper<arch>::IsModuleKnownByPeb(HANDLE hProcess, uint64_t addressInModule, bool& found) const
+bool MemoryHelper<arch>::GetPebAddress(HANDLE hProcess, uint64_t& peb, uint64_t& wow64peb) const
 {
-    found = false;
+    peb = 0, wow64peb = 0;
+
     uint32_t retLength = 0;
     PROCESS_BASIC_INFORMATION<PTR_T<arch>> pbi = {};
-
     if (!NtSuccess(GetIWow64Helper().NtQueryInformationProcess64(hProcess, PROCESSINFOCLASS::ProcessBasicInformation,
         &pbi, sizeof(pbi), &retLength)))
         return false;
-    
-    ReadOnlyMemoryDataSource mds{ hProcess, 0, GetHighestUsermodeAddress(), 0 };
-    if (!FindLoadedModuleByAddress<arch>(pbi.PebBaseAddressT, mds, addressInModule, found))
-        return false;
 
-    if (found || arch == CPUArchitecture::X86)
+    peb = pbi.PebBaseAddressT;
+    if (arch == CPUArchitecture::X86)
         return true;
 
-    uint64_t wow64peb = 0;
     GetIWow64Helper().NtQueryInformationProcess64(hProcess, PROCESSINFOCLASS::ProcessWow64Information,
         &wow64peb, sizeof(wow64peb), &retLength);
 
-    if (wow64peb == 0)
+    return true;
+}
+
+template <CPUArchitecture arch>
+bool MemoryHelper<arch>::IsModuleKnownByPeb(HANDLE hProcess, uint64_t addressInModule, bool& found) const
+{
+    found = false;
+
+    uint64_t peb = 0, wow64peb = 0;
+    if (!GetPebAddress(hProcess, peb, wow64peb))
+        return false;
+    
+    ReadOnlyMemoryDataSource mds{ hProcess, 0, GetHighestUsermodeAddress(), 0 };
+    if (!FindLoadedModuleByAddress<arch>(peb, mds, addressInModule, found))
+        return false;
+
+    if (wow64peb == 0 || found)
         return true;
 
     return FindLoadedModuleByAddress<CPUArchitecture::X86>(wow64peb, mds, addressInModule, found);
@@ -191,20 +203,14 @@ std::vector<MemoryHelperBase::ImageDescription> MemoryHelper<arch>::GetImageData
 {
     std::vector<MemoryHelperBase::ImageDescription> result;
 
-    PROCESS_BASIC_INFORMATION<PTR_T<arch>> pbi = {};
-    uint32_t retLength = 0;
-    if (!NtSuccess(GetIWow64Helper().NtQueryInformationProcess64(hProcess, PROCESSINFOCLASS::ProcessBasicInformation,
-        &pbi, sizeof(pbi), &retLength)))
+    uint64_t peb = 0, wow64peb = 0;
+    if (!GetPebAddress(hProcess, peb, wow64peb))
         return result;
-
-    uint64_t wow64peb = 0;
-    GetIWow64Helper().NtQueryInformationProcess64(hProcess, PROCESSINFOCLASS::ProcessWow64Information,
-        &wow64peb, sizeof(wow64peb), &retLength);
 
     ReadOnlyMemoryDataSource mds{ hProcess, 0, GetHighestUsermodeAddress(), 0 };
 
-    ParseLoadedModules<arch>(*this, pbi.PebBaseAddressT, mds, result, wow64peb != 0);
-    if (arch == CPUArchitecture::X86)
+    ParseLoadedModules<arch>(*this, peb, mds, result, wow64peb != 0);
+    if (wow64peb == 0)
         return result;
 
     ParseLoadedModules<CPUArchitecture::X86>(*this, wow64peb, mds, result, false);

@@ -6,7 +6,7 @@
 const std::list<std::string> rules{ "\
             rule AlignedExecPrivateAllocation { \
               condition: \
-                (MemoryType == PrivateType) and ((MemoryAttributes & XFlag) != 0) and (AlignedAllocation != 0)\
+                (MemoryType == PrivateType) and ((MemoryAttributes & XFlag) != 0) and (AlignedAllocation != 0) and (OperationType == AllocOperation)\
              }" };
 
 int main()
@@ -28,7 +28,7 @@ int main()
 
 	std::set<std::string> yaraResult;
 	uint64_t startAddress = 0, size = 0;
-	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, startAddress, size, false, false, isAlignedAllocation);
+	ScanUsingYara(*scanner, GetCurrentProcess(), result.begin()->second, yaraResult, startAddress, size, OperationType::Alloc, false, isAlignedAllocation);
 
 	return std::find(yaraResult.begin(), yaraResult.end(), "AlignedExecPrivateAllocation") != yaraResult.end() ? 0 : 1;
 }

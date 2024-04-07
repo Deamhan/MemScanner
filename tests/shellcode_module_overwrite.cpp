@@ -26,10 +26,10 @@ public:
         Super::OnSuspiciousMemoryRegionFound(continiousRegions, threadEntryPoints, scanWithYara);
     }
 
-	void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-		bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections) override
+	void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool externalOperation, 
+		OperationType operation, bool isAlignedAllocation, const std::set<std::string>* detections) override
 	{
-		Super::OnYaraScan(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, detections);
+		Super::OnYaraScan(region, startAddress, size, externalOperation, operation, isAlignedAllocation, detections);
 		if (detections)
 			mYaraDetections.insert(detections->begin(), detections->end());
 	}
@@ -41,7 +41,7 @@ public:
 	}
 
 	MyCallbacks(void* address, uint64_t size) : 
-		DefaultCallbacks({ GetCurrentProcessId(), (uintptr_t)address, size, true }, DefaultCallbacks::ScanningGeneralSettings{}), mOverwriteRva(0)
+		DefaultCallbacks({ GetCurrentProcessId(), (uintptr_t)address, size, true, OperationType::Write }, DefaultCallbacks::ScanningGeneralSettings{}), mOverwriteRva(0)
     {}
 
 	const std::set<std::string>& GetYaraDetections() const noexcept { return mYaraDetections; }

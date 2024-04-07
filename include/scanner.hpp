@@ -7,6 +7,7 @@
 
 #include "memhelper.hpp"
 #include "memdatasource.hpp"
+#include "operations.hpp"
 #include "pe.hpp"
 #include "yara.hpp"
 
@@ -26,16 +27,15 @@ public:
 	{
 	public:
 		virtual void OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions,
-			const std::vector<uint64_t>& threadEntryPoints, bool& scanWithYara) = 0;
+			const std::vector<uint64_t>& codeEntryPoints, bool& scanWithYara) = 0;
 
 		// config requests
 		struct AddressInfo
 		{
 			uint64_t address;
 			uint64_t size;
-			bool forceWritten; // set it if you sure that region was written
 			bool externalOperation; // set if modification operation was initiated from one process to another
-			bool forceCodeStart; // set if address probably a thread enty point or other function start
+			OperationType operation;
 		};
 
 		virtual bool OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64& regionInfo, 
@@ -46,12 +46,13 @@ public:
 			const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) = 0;
 
 		virtual void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) = 0;
+		virtual void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) = 0;
 
 		virtual void OnHiddenImage(const wchar_t* imageName, uint64_t imageBase) = 0;
 
 		virtual void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) = 0;
-		virtual void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-			bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections) = 0;
+		virtual void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool externalOperation, 
+			OperationType operation, bool isAlignedAllocation, const std::set<std::string>* detections) = 0;
 
 		virtual void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) = 0;
 		virtual void OnProcessScanEnd() = 0;
@@ -90,7 +91,7 @@ public:
 	static MemoryScanner& GetInstance();
 
 	bool ScanUsingYara(HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region,
-		uint64_t startAddress = 0, uint64_t size = 0, bool imageOverwrite = false,
+		uint64_t startAddress = 0, uint64_t size = 0, OperationType operation = OperationType::Unknown,
 		bool externalOperation = false, bool isAlignedAllocation = false);
 	bool ScanProcessUsingYara(uint32_t pid, std::set<std::string>& result);
 	void SetYaraRules(std::shared_ptr<YaraScanner::YaraRules> rules);

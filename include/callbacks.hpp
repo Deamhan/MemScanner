@@ -20,12 +20,13 @@ public:
 		const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) override;
 
     void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) override;
+	void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) override;
 
     void OnHiddenImage(const wchar_t* imageName, uint64_t imageBase) override;
 
 	void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override;
-    void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-		bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections) override;
+    void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool externalOperation, 
+		OperationType operation, bool isAlignedAllocation, const std::set<std::string>* detections) override;
 
 	void OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName) override;
 	void OnProcessScanEnd() override;
@@ -57,14 +58,13 @@ public:
 		uint32_t pidToScan;
 		uint64_t addressToScan;
 		uint64_t sizeOfRangeToScan;
-		bool forceWritten;
+		OperationType operationType;
 		bool externalOperation;
-		bool forceCodeStart;
 
 		ScanningTarget(uint32_t _pidToScan = 0, uint64_t _addressToScan = 0, uint64_t _sizeOfRangeToScan = 0,
-			bool _forceWritten = false, bool _externalOperation = false, bool _forceCodeStart = false) noexcept :
+			bool _externalOperation = false, OperationType operation = OperationType::Unknown) noexcept :
 			pidToScan(_pidToScan), addressToScan(_addressToScan), sizeOfRangeToScan(_sizeOfRangeToScan),
-			forceWritten(_forceWritten), externalOperation(_externalOperation), forceCodeStart(_forceCodeStart)
+			operationType(operation), externalOperation(_externalOperation)
 		{}
 	};
 
@@ -101,20 +101,20 @@ protected:
 	uint32_t mPidToScan;
 	uint64_t mAddressToScan;
 	uint64_t mSizeOfRange;
-	bool mForceWritten;
+	OperationType mOperation;
 	bool mExternalOperation;
-	bool mForceCodeStart;
 
 	static std::atomic<unsigned> mDumpCounter;
 
 	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*region*/, const std::wstring& /*dumpPath*/) {}
 	virtual void OnPeFound(uint64_t address, CPUArchitecture arch);
+	virtual void OnExternalHeapModification(const AddressInfo& info);
 
 	std::wstring CreateDumpsDirectory();
 	std::wstring WriteMemoryDump(const MemoryHelperBase::MemInfoT64& region, const std::wstring& processDumpDir);
 
 	template<class Iter>
-	bool IsHeapJitLikeMemoryRegion(Iter begin, Iter end, bool isAlignedAllocation);
+	bool IsHeapLikeMemoryRegion(Iter begin, Iter end, bool isAlignedAllocation);
 };
 
 extern const std::list<std::string> predefinedRules;

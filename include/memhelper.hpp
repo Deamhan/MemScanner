@@ -67,6 +67,8 @@ public:
 	virtual std::vector<ImageDescription> GetImageDataFromPeb(HANDLE hProcess) const = 0;
 	virtual bool IsModuleKnownByPeb(HANDLE hProcess, uint64_t addressInModule, 
 		bool& found) const = 0;
+
+	virtual bool GetPebAddress(HANDLE hProcess, uint64_t& peb, uint64_t& wow64peb) const = 0;
 };
 
 template <CPUArchitecture arch>
@@ -86,6 +88,8 @@ public:
     std::vector<ImageDescription> GetImageDataFromPeb(HANDLE hProcess) const override;
 
 	bool IsModuleKnownByPeb(HANDLE hProcess, uint64_t addressInModule, bool& found) const override;
+
+	bool GetPebAddress(HANDLE hProcess, uint64_t& peb, uint64_t& wow64peb) const override;
 
 	MemoryHelper() : mApi(GetWow64Helper<arch>()) {}
 

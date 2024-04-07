@@ -8,6 +8,7 @@
 
 #include "datasource.hpp"
 #include "memhelper.hpp"
+#include "operations.hpp"
 
 #include "yara.h"
 
@@ -59,8 +60,8 @@ protected:
 };
 
 void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase::MemInfoT64& region, 
-    std::set<std::string>& result, uint64_t& startAddress, uint64_t& size, 
-    bool imageOverwrite = false, bool externalOperation = false, bool isAlignedAllocation = false);
+    std::set<std::string>& result, uint64_t& startAddress, uint64_t& size, OperationType operation = OperationType::Unknown,
+    bool externalOperation = false, bool isAlignedAllocation = false);
 
 void ScanProcessUsingYara(YaraScanner& scanner, uint32_t pid, std::set<std::string>& result);
 

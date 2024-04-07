@@ -9,6 +9,7 @@
 #include "../include/file.hpp"
 #include "../include/log.hpp"
 #include "../include/memdatasource.hpp"
+#include "../include/operations.hpp"
 #include "../include/pe.hpp"
 #include "../include/yara.hpp"
 
@@ -23,7 +24,7 @@ MemoryScanner::Sensitivity DefaultCallbacks::GetMemoryAnalysisSettings(
 
     if (mAddressToScan != 0)
     {
-        AddressInfo info = { mAddressToScan, mSizeOfRange, mForceWritten, mExternalOperation, mForceCodeStart };
+        AddressInfo info = { mAddressToScan, mSizeOfRange, mExternalOperation, mOperation };
         addressRangesToCheck.push_back(info);
         scanImageForHooks = true;
         scanRangesWithYara = true;
@@ -60,6 +61,12 @@ void DefaultCallbacks::OnPrivateCodeModification(const wchar_t* imageName, uint6
         imageName, (unsigned)rva);
 }
 
+void DefaultCallbacks::OnImageHeadersModification(const wchar_t* imageName, uint64_t /*imageBase*/, uint32_t rva, uint32_t /*size*/)
+{
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tImage headers modification: %s+0x%08x" LOG_ENDLINE_STR,
+        imageName, (unsigned)rva);
+}
+
 void DefaultCallbacks::OnHiddenImage(const wchar_t* imageName, uint64_t imageBase)
 {
     GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tHidden image found: %s (0x%llx)" LOG_ENDLINE_STR,
@@ -70,6 +77,12 @@ void DefaultCallbacks::OnPeFound(uint64_t address, CPUArchitecture arch)
 {
     GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tPE (%s) found: 0x%llx" LOG_ENDLINE_STR, CpuArchToString(arch),
         (unsigned long long)address);
+}
+
+void DefaultCallbacks::OnExternalHeapModification(const AddressInfo& info)
+{
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tExternal heap modification: 0x%llx (%S)" LOG_ENDLINE_STR, 
+        (unsigned long long)info.address, OperationTypeToText(info.operation));
 }
 
 std::wstring DefaultCallbacks::CreateDumpsDirectory()
@@ -124,7 +137,7 @@ static const MemoryHelperBase::MemInfoT64& GetRegionByIteratorRef(MemoryHelperBa
  * Heap segments are aligned and have at least one reserved guard page at the end
  */
 template<class Iter>
-bool DefaultCallbacks::IsHeapJitLikeMemoryRegion(Iter begin, Iter end, bool isAlignedAllocation)
+bool DefaultCallbacks::IsHeapLikeMemoryRegion(Iter begin, Iter end, bool isAlignedAllocation)
 {
     if (begin == end)
         return false;
@@ -144,12 +157,13 @@ bool DefaultCallbacks::OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64&
     MemoryHelperBase::MemoryMapConstIteratorT rangeBegin, MemoryHelperBase::MemoryMapConstIteratorT rangeEnd,
     bool isAlignedAllocation, const AddressInfo& addrInfo)
 {
-    bool isHeapLike = IsHeapJitLikeMemoryRegion(rangeBegin, rangeEnd, isAlignedAllocation);
+    bool isHeapLike = IsHeapLikeMemoryRegion(rangeBegin, rangeEnd, isAlignedAllocation);
 
     // external modification of heap looks as unusual operation
     if (addrInfo.externalOperation && isHeapLike)
     {
-        // TODO: add a handling here
+        OnExternalHeapModification(addrInfo);
+        return true;
     }
 
     if (mMemoryScanSensitivity > MemoryScanner::Sensitivity::Low)
@@ -159,12 +173,12 @@ bool DefaultCallbacks::OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64&
 }
 
 void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::FlatMemoryMapT& relatedRegions,
-    const std::vector<uint64_t>& threadEntryPoints, bool& scanRangesWithYara)
+    const std::vector<uint64_t>& codeEntryPoints, bool& scanRangesWithYara)
 {
     scanRangesWithYara = false;
 
     if (mMemoryScanSensitivity == MemoryScanner::Sensitivity::Low 
-        && IsHeapJitLikeMemoryRegion(relatedRegions.cbegin(), relatedRegions.cend(), MemoryHelperBase::IsAlignedAllocation(relatedRegions)))
+        && IsHeapLikeMemoryRegion(relatedRegions.cbegin(), relatedRegions.cend(), MemoryHelperBase::IsAlignedAllocation(relatedRegions)))
         return;
 
     GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\tSuspicious memory region:" LOG_ENDLINE_STR);
@@ -174,10 +188,10 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
     GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\t\tAligned: %s" LOG_ENDLINE_STR, 
         MemoryHelperBase::IsAlignedAllocation(relatedRegions) ? L"yes" : L"no");
 
-    if (!threadEntryPoints.empty())
+    if (!codeEntryPoints.empty())
     {
         GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\t\tRelated threads:" LOG_ENDLINE_STR);
-        for (const auto threadEP : threadEntryPoints)
+        for (const auto threadEP : codeEntryPoints)
             GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\t\t\t0x%llx" LOG_ENDLINE_STR, (unsigned long long)threadEP);
 
         GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"" LOG_ENDLINE_STR);
@@ -225,8 +239,9 @@ void DefaultCallbacks::OnHooksFound(const std::vector<HookDescription>& hooks, c
     }
 }
 
-static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-    bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections, const std::wstring& dumpPath)
+static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool externalOperation,
+    OperationType operation, bool isAlignedAllocation, const std::set<std::string>* detections,
+    const std::wstring& dumpPath)
 {
     FILE* metadata = nullptr;
     _wfopen_s(&metadata, (dumpPath + L".json").c_str(), L"wb");
@@ -242,7 +257,7 @@ static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64
     result << L"{\n    \"Info\":\n";
     storeMBI(region, result, L"    ");
     result << L",\n" << std::boolalpha
-        << L"    \"ImageOverwrite\" : " << imageOverwrite << L",\n"
+        << L"    \"Operation\" : " << OperationTypeToText(operation) << L",\n"
         << L"    \"ExternalOperation\" : " << externalOperation << L",\n"
         << L"    \"AlignedAllocation\" : " << isAlignedAllocation << L",\n\n"
         << L"    \"StartAddress\" : \"" << startAddress << L"\",\n"
@@ -270,8 +285,8 @@ static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64
     _fwrite_nolock(bufferToWrite.data(), sizeof(bufferToWrite[0]), bufferToWrite.length(), metadata);
 }
 
-void DefaultCallbacks::OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool imageOverwrite,
-    bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections)
+void DefaultCallbacks::OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool externalOperation, 
+    OperationType operation, bool isAlignedAllocation, const std::set<std::string>* detections)
 {
     if (detections)
     {
@@ -285,7 +300,7 @@ void DefaultCallbacks::OnYaraScan(const MemoryHelperBase::MemInfoT64& region, ui
 
     auto dumpFilePath = WriteMemoryDump(region, processDumpDir);
     if (!dumpFilePath.empty())
-        WriteDumpMetadata(region, startAddress, size, imageOverwrite, externalOperation, isAlignedAllocation, detections, dumpFilePath);
+        WriteDumpMetadata(region, startAddress, size, externalOperation, operation, isAlignedAllocation, detections, dumpFilePath);
 }
 
 void DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName)
@@ -329,8 +344,8 @@ DefaultCallbacks::DefaultCallbacks(const ScanningTarget& scannerTarget, const Sc
     mThreadScanSensitivity(scannerSettings.threadsScanSensitivity),
     mDefaultLoggingLevel(scannerSettings.defaultLoggingLevel),
     mPidToScan(scannerTarget.pidToScan), mAddressToScan(scannerTarget.addressToScan),
-    mSizeOfRange(scannerTarget.sizeOfRangeToScan), mForceWritten(scannerTarget.forceWritten),
-    mExternalOperation(scannerTarget.externalOperation), mForceCodeStart(scannerTarget.forceCodeStart)
+    mSizeOfRange(scannerTarget.sizeOfRangeToScan), mOperation(scannerTarget.operationType),
+    mExternalOperation(scannerTarget.externalOperation)
 {
     if (scannerSettings.dumpsRoot == nullptr)
         return;

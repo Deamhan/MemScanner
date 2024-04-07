@@ -34,10 +34,10 @@ public:
 			expectedAddress = nullptr;
 	}
 
-	void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t address, uint64_t size, bool imageOverwrite,
-		bool externalOperation, bool isAlignedAllocation, const std::set<std::string>* detections) override
+	void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t address, uint64_t size, bool externalOperation, 
+		OperationType operation, bool isAlignedAllocation, const std::set<std::string>* detections) override
 	{
-		DefaultCallbacks::OnYaraScan(region, address, size, imageOverwrite, externalOperation, isAlignedAllocation, detections);
+		DefaultCallbacks::OnYaraScan(region, address, size, externalOperation, operation, isAlignedAllocation, detections);
 		if (detections)
 			yaraDetections.insert(detections->begin(), detections->end());
 	}
