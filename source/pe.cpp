@@ -266,7 +266,7 @@ uint32_t PE<isMapped, arch>::RvaToOffset(uint32_t rva, bool useTranslation) cons
 }
 
 template <bool isMapped, CPUArchitecture arch>
-bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva)
+bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva) const
 {
     auto iter = mSections.upper_bound(rva);
     if (iter != mSections.end() && rva >= iter->second.VirtualAddress)
@@ -276,7 +276,7 @@ bool PE<isMapped, arch>::IsExecutableSectionRva(uint32_t rva)
 }
 
 template <bool isMapped, CPUArchitecture arch>
-bool PE<isMapped, arch>::IsExecutableRange(uint32_t rva, uint32_t size)
+bool PE<isMapped, arch>::IsExecutableRange(uint32_t rva, uint32_t size) const
 {
     for (auto iter = mSections.upper_bound(rva); iter != mSections.end(); ++iter)
     {

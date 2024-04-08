@@ -79,10 +79,10 @@ void DefaultCallbacks::OnPeFound(uint64_t address, CPUArchitecture arch)
         (unsigned long long)address);
 }
 
-void DefaultCallbacks::OnExternalHeapModification(const AddressInfo& info)
+void DefaultCallbacks::OnExternalHeapModification(const AddressInfo& info, const MemoryHelperBase::MemInfoT64& regionInfo)
 {
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tExternal heap modification: 0x%llx (%S)" LOG_ENDLINE_STR, 
-        (unsigned long long)info.address, OperationTypeToText(info.operation));
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tExternal heap modification: 0x%llx (%S, %s)" LOG_ENDLINE_STR, 
+        (unsigned long long)info.address, OperationTypeToText(info.operation), ProtToStr(regionInfo.Protect).c_str());
 }
 
 std::wstring DefaultCallbacks::CreateDumpsDirectory()
@@ -153,7 +153,7 @@ bool DefaultCallbacks::IsHeapLikeMemoryRegion(Iter begin, Iter end, bool isAlign
         });
 }
 
-bool DefaultCallbacks::OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64& /*regionInfo*/,
+bool DefaultCallbacks::OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64& regionInfo,
     MemoryHelperBase::MemoryMapConstIteratorT rangeBegin, MemoryHelperBase::MemoryMapConstIteratorT rangeEnd,
     bool isAlignedAllocation, const AddressInfo& addrInfo)
 {
@@ -162,7 +162,7 @@ bool DefaultCallbacks::OnExplicitAddressScan(const MemoryHelperBase::MemInfoT64&
     // external modification of heap looks as unusual operation
     if (addrInfo.externalOperation && isHeapLike)
     {
-        OnExternalHeapModification(addrInfo);
+        OnExternalHeapModification(addrInfo, regionInfo);
         return true;
     }
 

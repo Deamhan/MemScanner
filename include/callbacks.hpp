@@ -108,7 +108,7 @@ protected:
 
 	virtual void RegisterNewDump(const MemoryHelperBase::MemInfoT64& /*region*/, const std::wstring& /*dumpPath*/) {}
 	virtual void OnPeFound(uint64_t address, CPUArchitecture arch);
-	virtual void OnExternalHeapModification(const AddressInfo& info);
+	virtual void OnExternalHeapModification(const AddressInfo& info, const MemoryHelperBase::MemInfoT64& regionInfo);
 
 	std::wstring CreateDumpsDirectory();
 	std::wstring WriteMemoryDump(const MemoryHelperBase::MemInfoT64& region, const std::wstring& processDumpDir);
