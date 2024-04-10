@@ -45,7 +45,9 @@ public:
 
 	virtual uint64_t GetHighestUsermodeAddress() const = 0;
 
-	virtual std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const = 0;
+	using NT_STATUS = SystemDefinitions::NT_STATUS;
+	virtual std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address, NT_STATUS* status = nullptr) const = 0;
+
 	virtual MemoryMapT GetMemoryMap(HANDLE hProcess) const = 0;
 	virtual MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result, 
 		MemoryMapConstIteratorT& rangeBegin, MemoryMapConstIteratorT& rangeEnd, bool& isAllocationAligned) const = 0;
@@ -77,7 +79,7 @@ class MemoryHelper final : public MemoryHelperBase
 public:
 	using MemInfoT = SystemDefinitions::MEMORY_BASIC_INFORMATION_T<PTR_T<arch>>;
 
-    std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address) const override;
+    std::wstring GetImageNameByAddress(HANDLE hProcess, uint64_t address, NT_STATUS* status = nullptr) const override;
     MemoryMapT GetMemoryMap(HANDLE hProcess) const override;
 	MemInfoT64 UpdateMemoryMapForAddr(HANDLE hProcess, uint64_t addressToCheck, MemoryMapT& result, 
 		MemoryMapConstIteratorT& rangeBegin, MemoryMapConstIteratorT& rangeEnd, bool& isAllocationAligned) const override;

@@ -73,6 +73,12 @@ void DefaultCallbacks::OnHiddenImage(const wchar_t* imageName, uint64_t imageBas
         imageName, (unsigned long long)imageBase);
 }
 
+void DefaultCallbacks::OnDoppelgangingFound(uint64_t imageBase)
+{
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tDoppelganging found at 0x%llx" LOG_ENDLINE_STR,
+        (unsigned long long)imageBase);
+}
+
 void DefaultCallbacks::OnPeFound(uint64_t address, CPUArchitecture arch)
 {
     GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tPE (%s) found: 0x%llx" LOG_ENDLINE_STR, CpuArchToString(arch),

@@ -48,13 +48,16 @@ template <CPUArchitecture arch>
 thread_local std::vector<uint8_t> MemoryHelper<arch>::ImageNameBuffer(sizeof(UNICODE_STRING_T<PTR_T<arch>>) + 64 * 1024);
 
 template <CPUArchitecture arch>
-std::wstring MemoryHelper<arch>::GetImageNameByAddress(HANDLE hProcess, uint64_t address) const 
+std::wstring MemoryHelper<arch>::GetImageNameByAddress(HANDLE hProcess, uint64_t address, NT_STATUS* status) const
 {
     auto ptr = (UNICODE_STRING_T<PTR_T<arch>>*)ImageNameBuffer.data();
 
     uint64_t retLen = 0;
     auto result = mApi.NtQueryVirtualMemory64(hProcess, address, MEMORY_INFORMATION_CLASS::MemorySectionName,
         ptr, ImageNameBuffer.size(), &retLen);
+
+    if (status)
+        *status = result;
 
     if (!NtSuccess(result))
         return L"";

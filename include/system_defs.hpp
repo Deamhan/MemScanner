@@ -12,6 +12,7 @@ namespace SystemDefinitions
         StatusInfoLengthMismatch = 0xC0000004,
         StatusBufferOverflow     = 0x80000005,
         StatusBufferTooSmall     = 0xC0000023,
+        StatusFileDeleted        = 0xC0000123,
         StatusSuccess            = 0x00000000,
     };
 

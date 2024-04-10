@@ -23,6 +23,7 @@ public:
 	void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) override;
 
     void OnHiddenImage(const wchar_t* imageName, uint64_t imageBase) override;
+    void OnDoppelgangingFound(uint64_t imageBase) override;
 
 	void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) override;
     void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool externalOperation, 

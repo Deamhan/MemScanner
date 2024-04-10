@@ -272,9 +272,15 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
             }
             else
             {
-                auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, group.first);
+                SystemDefinitions::NT_STATUS status;
+                auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, group.first, &status);
                 if (imagePath.empty())
+                {
+                    if (status == SystemDefinitions::NT_STATUS::StatusFileDeleted)
+                        tlsCallbacks->OnDoppelgangingFound(group.first);
+
                     continue;
+                }
 
                 for (const auto& region : group.second)
                 {

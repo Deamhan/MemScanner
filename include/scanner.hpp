@@ -49,6 +49,7 @@ public:
 		virtual void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) = 0;
 
 		virtual void OnHiddenImage(const wchar_t* imageName, uint64_t imageBase) = 0;
+		virtual void OnDoppelgangingFound(uint64_t imageBase) = 0;
 
 		virtual void OnHooksFound(const std::vector<HookDescription>& hooks, const wchar_t* imageName) = 0;
 		virtual void OnYaraScan(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool externalOperation, 

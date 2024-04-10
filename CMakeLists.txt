@@ -134,6 +134,10 @@ set(IMAGE_MODIFICATION_SRC tests/image_modification_test.cpp
                            ${COMMON_SRC}
 )
 
+set(DOPPELGANGING_SRC tests/doppelganging_test.cpp
+                      ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -208,6 +212,7 @@ add_executable(scanner_opened_process_test ${SCANNER_OPENED_PROCESS_SRC})
 add_executable(multiple_alloc_test ${MULTIPLE_ALLOC_SRC})
 add_executable(peb_ldr_validation_test ${PEB_LDR_SRC})
 add_executable(image_modification_test ${IMAGE_MODIFICATION_SRC})
+add_executable(doppelganging_test ${DOPPELGANGING_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -239,6 +244,7 @@ set (EXECUTABLES memscan
                  multiple_alloc_test
                  peb_ldr_validation_test
                  image_modification_test
+                 doppelganging_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -290,3 +296,4 @@ add_test(NAME scanner_preopen_process_test COMMAND scanner_opened_process_test)
 add_test(NAME multiple_allocations_test COMMAND multiple_alloc_test)
 add_test(NAME peb_ldr_img_validation_test COMMAND peb_ldr_validation_test)
 add_test(NAME img_modification_test COMMAND image_modification_test)
+add_test(NAME doppelganging_detection_test COMMAND doppelganging_test)
