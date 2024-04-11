@@ -568,7 +568,7 @@ void MemoryScanner::ScanMemoryImpl(uint32_t workersCount, MemoryScanner::ICallba
                 }
                 catch (const std::exception& e)
                 {
-                    GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"Unhandled exception: %S\n", e.what());
+                    GetDefaultLoggerForThread()->Log(LoggerBase::Error, L"Unhandled exception: %S" LOG_ENDLINE_STR, e.what());
                 }
             }
         };
