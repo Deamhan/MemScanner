@@ -291,20 +291,34 @@ bool PE<isMapped, arch>::IsExecutableRange(uint32_t rva, uint32_t size) const
 }
 
 template <bool isMapped, CPUArchitecture arch>
-void PE<isMapped, arch>::CheckExportForHooks(DataSource& oppositeDs, std::vector<HookDescription>& result)
+void PE<isMapped, arch>::CheckForImageModification(DataSource& oppositeDs, ImageModificationResult& modificationCheckResult)
 {
     const auto& exportMap = GetExportMap();
     try
     {
-        result.clear();
+        modificationCheckResult.hooksFound.clear();
+        modificationCheckResult.headersModified = false;
+        modificationCheckResult.entryPointModified = false;
+
+        if (IsClrAssembly())
+            return;
 
         for (const auto& exportedFunc : exportMap)
         {
             uint8_t oppositeDsData = 0;
-            oppositeDs.Read(RvaToOffset(exportedFunc.first, isMapped), oppositeDsData); // is this is mapped PE so oppositeDs point to file/fragment and translation is required and vice versa
+            oppositeDs.Read(RvaToOffset(exportedFunc.first, isMapped), oppositeDsData); // if this is mapped PE so oppositeDs point to file/fragment and translation is required and vice versa
             if (oppositeDsData != exportedFunc.second->firstByte)
-                result.push_back(exportedFunc.second);  
+                modificationCheckResult.hooksFound.push_back(exportedFunc.second);
         }
+
+        ImageNtHeadersT ntHeaders = {};
+        oppositeDs.Read(mDosHeader.e_lfanew, ntHeaders);  
+
+        modificationCheckResult.entryPointModified = 
+            mOptionalHeader.AddressOfEntryPoint != ntHeaders.OptionalHeader.AddressOfEntryPoint;
+
+        modificationCheckResult.headersModified = modificationCheckResult.entryPointModified 
+            || (mOptionalHeader.SizeOfImage != ntHeaders.OptionalHeader.SizeOfImage);
     }
     catch (const DataSourceException&)
     {

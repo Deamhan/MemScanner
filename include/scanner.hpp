@@ -46,7 +46,8 @@ public:
 			const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) = 0;
 
 		virtual void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) = 0;
-		virtual void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) = 0;
+		virtual void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase) = 0;
+		virtual void OnEntryPointModification(const wchar_t* imageName, uint64_t imageBase) = 0;
 
 		virtual void OnHiddenImage(const wchar_t* imageName, uint64_t imageBase) = 0;
 		virtual void OnDoppelgangingFound(uint64_t imageBase) = 0;
@@ -101,6 +102,9 @@ public:
 
 	static void ResetYaraScannerForThread() noexcept { tlsYaraScanner.reset(); }
 
+	void ScanImageForModifications(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName,
+		uint64_t imageBase, ImageModificationResult& result);
+
 private:
 	std::pair<std::map<std::wstring, PE<false, CPUArchitecture::X86>>, std::mutex> mCached32;
 	std::pair<std::map<std::wstring, PE<false, CPUArchitecture::X64>>, std::mutex> mCached64;
@@ -118,9 +122,6 @@ private:
 
 	template <CPUArchitecture arch>
 	void ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWORD>& threads, const Wow64Helper<arch>& api);
-
-	void ScanImageForHooks(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName,
-		std::vector<HookDescription>& hooksFound);
 
 	bool CheckForPrivateCodeModification(CPUArchitecture arch, const std::wstring& imagePath, uint64_t moduleAddress, 
 		uint64_t address, uint64_t size);

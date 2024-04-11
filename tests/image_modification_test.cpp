@@ -24,7 +24,7 @@ public:
 		mPrivateCodeModification = true;
 	}
 
-	void OnImageHeadersModification(const wchar_t* /*imageName*/, uint64_t /*imageBase*/, uint32_t /*rva*/, uint32_t /*size*/) override
+	void OnImageHeadersModification(const wchar_t* /*imageName*/, uint64_t /*imageBase*/) override
 	{
 		mImageHeadersModification = true;
 	}

@@ -61,10 +61,16 @@ void DefaultCallbacks::OnPrivateCodeModification(const wchar_t* imageName, uint6
         imageName, (unsigned)rva);
 }
 
-void DefaultCallbacks::OnImageHeadersModification(const wchar_t* imageName, uint64_t /*imageBase*/, uint32_t rva, uint32_t /*size*/)
+void DefaultCallbacks::OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase)
 {
-    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tImage headers modification: %s+0x%08x" LOG_ENDLINE_STR,
-        imageName, (unsigned)rva);
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tImage headers modification: %s, 0x%llx" LOG_ENDLINE_STR,
+        imageName, (unsigned long long)imageBase);
+}
+
+void DefaultCallbacks::OnEntryPointModification(const wchar_t* imageName, uint64_t imageBase)
+{
+    GetDefaultLoggerForThread()->Log(LoggerBase::Info, L"\tEntry point modification: %s, 0x%llx" LOG_ENDLINE_STR,
+        imageName, (unsigned long long)imageBase);
 }
 
 void DefaultCallbacks::OnHiddenImage(const wchar_t* imageName, uint64_t imageBase)

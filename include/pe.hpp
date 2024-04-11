@@ -42,6 +42,18 @@ struct HookDescription
 	HookDescription(std::shared_ptr<ExportedFunctionDescription> funcDesc) : functionDescription(std::move(funcDesc)) {}
 };
 
+struct ImageModificationResult
+{
+	std::vector<HookDescription> hooksFound;
+	bool headersModified;
+	bool entryPointModified;
+
+	bool IsModificationsFound() const noexcept
+	{
+		return !hooksFound.empty() || headersModified || entryPointModified;
+	}
+};
+
 enum class PeError
 {
 	InvalidFormat,
@@ -87,6 +99,9 @@ public:
 	uint32_t GetImageSize() const noexcept { return mOptionalHeader.SizeOfImage; }
 	uint64_t GetOriginalImageBase() const noexcept { return mOptionalHeader.ImageBase; }
 	uint64_t GetLoadedImageBase() const noexcept { return mImageBase; }
+	uint64_t GetExpectedImageBase() const noexcept { return isMapped ? GetLoadedImageBase() : GetOriginalImageBase(); }
+	bool IsClrAssembly() const noexcept { return mOptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR].Size != 0; }
+
 	uint32_t GetEntryPointRVA() const noexcept { return mOptionalHeader.AddressOfEntryPoint; }
 
 	PE(const PE&) = delete;
@@ -103,7 +118,7 @@ public:
 	const std::map<uint32_t, std::shared_ptr<ExportedFunctionDescription>>& GetExportMap();
 	std::shared_ptr<ExportedFunctionDescription> GetExportedFunction(uint32_t rva);
 
-	void CheckExportForHooks(DataSource& oppositeDs, std::vector<HookDescription>& result);
+	void CheckForImageModification(DataSource& oppositeDs, ImageModificationResult& modificationCheckResult);
 
 	void Dump(const wchar_t* path);
 

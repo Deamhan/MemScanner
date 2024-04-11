@@ -62,13 +62,13 @@ static PE<false, arch>* GetOrAddImageToCache(std::pair<std::map<std::wstring, PE
 }
 
 template <CPUArchitecture arch>
-static void CheckForHooks(DataSource& mapped, std::pair<std::map<std::wstring, PE<false, arch>>,std::mutex>& cache,
-    const std::wstring& path, std::vector<HookDescription>& result)
+static void ScanImageForModifications(DataSource& mapped, std::pair<std::map<std::wstring, PE<false, arch>>,std::mutex>& cache,
+    const std::wstring& path, ImageModificationResult& result)
 {
     try
     {
         auto pe = GetOrAddImageToCache(cache, path);
-        pe->CheckExportForHooks(mapped, result);
+        pe->CheckForImageModification(mapped, result);
     }
     catch (const DataSourceException&)
     {}
@@ -169,9 +169,7 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
         QueryThreadEntryPoints<arch>(threads, codeEntryPoints, api);
     }
     
-    std::vector<HookDescription> hooksFound;
-    hooksFound.reserve(30); // should be enough
-
+    ImageModificationResult imageModificationResult;
     std::multimap<uint64_t, ICallbacks::AddressInfo> requestedImageAddressToAllocBase;
 
     bool hookAnalysisEnabled = tlsCallbacks->GetHookAnalysisSettings() != Sensitivity::Off;
@@ -305,8 +303,8 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                     ReadOnlyMemoryDataSource memDs(hProcess, group.first, groupTopBorder - group.first, PAGE_SIZE);
 
                     auto moduleArch = PE<>::GetPeArch(memDs);
-                    ScanImageForHooks(moduleArch, memDs, imagePath, hooksFound);
-                    if (!hooksFound.empty())
+                    ScanImageForModifications(moduleArch, memDs, imagePath, group.first, imageModificationResult);
+                    if (imageModificationResult.IsModificationsFound())
                     {
                         bool isKnown = false;
                         if (GetMemoryHelper().IsModuleKnownByPeb(hProcess, group.first, isKnown) && !isKnown)
@@ -325,7 +323,7 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
 
                         bool imageHeadersModification = it->second.address < group.first + PAGE_SIZE;
                         if (imageHeadersModification)
-                            tlsCallbacks->OnImageHeadersModification(imagePath.c_str(), group.first, rva, (uint32_t)it->second.size);
+                            tlsCallbacks->OnImageHeadersModification(imagePath.c_str(), group.first);
                     }
                 }
             }
@@ -338,7 +336,7 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
         for (const auto& image : loadedImages)
         {
             ReadOnlyMemoryDataSource memDs(hProcess, image.BaseAddress, image.ImageSize, PAGE_SIZE);
-            ScanImageForHooks(image.Architecture, memDs, image.ImagePath, hooksFound);
+            ScanImageForModifications(image.Architecture, memDs, image.ImagePath, image.BaseAddress, imageModificationResult);
         }
     }
 }
@@ -440,21 +438,27 @@ void MemoryScanner::ScanProcessMemoryImpl(SPI* procInfo, const Wow64Helper<arch>
     ScanProcessMemoryImpl(hProcess, threads, api);
 }
 
-void MemoryScanner::ScanImageForHooks(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName, 
-    std::vector<HookDescription>& hooksFound)
+void MemoryScanner::ScanImageForModifications(CPUArchitecture arch, DataSource& ds, const std::wstring& imageName, 
+    uint64_t imageBase, ImageModificationResult& result)
 {
     switch (arch)
     {
     case CPUArchitecture::X86:
-        CheckForHooks<CPUArchitecture::X86>(ds, mCached32, imageName, hooksFound);
+        ::ScanImageForModifications<CPUArchitecture::X86>(ds, mCached32, imageName, result);
         break;
     case CPUArchitecture::X64:
-        CheckForHooks<CPUArchitecture::X64>(ds, mCached64, imageName, hooksFound);
+        ::ScanImageForModifications<CPUArchitecture::X64>(ds, mCached64, imageName, result);
         break;
     }
 
-    if (!hooksFound.empty())
-        tlsCallbacks->OnHooksFound(hooksFound, imageName.c_str());
+    if (!result.hooksFound.empty())
+        tlsCallbacks->OnHooksFound(result.hooksFound, imageName.c_str());
+
+    if (result.headersModified)
+        tlsCallbacks->OnImageHeadersModification(imageName.c_str(), imageBase);
+
+    if (result.entryPointModified)
+        tlsCallbacks->OnEntryPointModification(imageName.c_str(), imageBase);
 }
 
 bool MemoryScanner::CheckForPrivateCodeModification(CPUArchitecture arch, const std::wstring& imagePath, uint64_t moduleAddress,
