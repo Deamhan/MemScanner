@@ -138,6 +138,10 @@ set(DOPPELGANGING_SRC tests/doppelganging_test.cpp
                       ${COMMON_SRC}
 )
 
+set(YARA_RANGE_SRC tests/yara_range_test.cpp
+                   ${COMMON_SRC}
+)
+
 if (MSVC)  
     add_compile_options(/Zi   # pdb
                         /W4   # warning level 4
@@ -213,6 +217,7 @@ add_executable(multiple_alloc_test ${MULTIPLE_ALLOC_SRC})
 add_executable(peb_ldr_validation_test ${PEB_LDR_SRC})
 add_executable(image_modification_test ${IMAGE_MODIFICATION_SRC})
 add_executable(doppelganging_test ${DOPPELGANGING_SRC})
+add_executable(yara_range_test ${YARA_RANGE_SRC})
 
 set(NTDLL64LL ${PROJECT_SOURCE_DIR}/lib/ntdll64ll.obj)
 
@@ -245,6 +250,7 @@ set (EXECUTABLES memscan
                  peb_ldr_validation_test
                  image_modification_test
                  doppelganging_test
+                 yara_range_test
 )
 
 foreach (exec ${EXECUTABLES})
@@ -297,3 +303,4 @@ add_test(NAME multiple_allocations_test COMMAND multiple_alloc_test)
 add_test(NAME peb_ldr_img_validation_test COMMAND peb_ldr_validation_test)
 add_test(NAME img_modification_test COMMAND image_modification_test)
 add_test(NAME doppelganging_detection_test COMMAND doppelganging_test)
+add_test(NAME yara_range_detection_test COMMAND yara_range_test)

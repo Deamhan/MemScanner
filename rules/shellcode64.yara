@@ -7,6 +7,6 @@ rule GenericShellcode64 {
     $ModuleMemOrderList = { 48 8b ?? 20 }
     $ModuleInitOrderList = { 48 8b ?? 30 }
   condition:
-    (filesize <= 4096) and ((MemoryAttributes & XFlag) != 0) and (MemoryType == PrivateType) and $SelfPos and $GsRead and $ReadLdr and ($ModuleLoadOrderList or $ModuleMemOrderList or $ModuleInitOrderList)
+    (OperationRangeEnd - OperationRangeStart <= 4096) and ((MemoryAttributes & XFlag) != 0) and (MemoryType == PrivateType) and $SelfPos and $GsRead and $ReadLdr and ($ModuleLoadOrderList or $ModuleMemOrderList or $ModuleInitOrderList)
  }
  

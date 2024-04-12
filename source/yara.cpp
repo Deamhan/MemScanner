@@ -213,6 +213,9 @@ void YaraScanner::YaraRules::SetRules(const std::list<std::string>& rules)
     SetIntVariable(compiler, "OperationType", (int)OperationType::Unknown);
     SetIntVariable(compiler, "ExternalOperation", 0);
     SetIntVariable(compiler, "AlignedAllocation", 0);
+    SetIntVariable(compiler, "OperationRangeStart", 0);
+    SetIntVariable(compiler, "OperationRangeEnd", 0);
+
 
     for (const auto& rule : rules)
     {
@@ -361,14 +364,18 @@ void ScanUsingYara(YaraScanner& scanner, HANDLE hProcess, const MemoryHelperBase
         if (size == 0)
             size = (region.BaseAddress + region.RegionSize) - startAddress;
 
-        ReadOnlyMemoryDataSource dsForYara(hProcess, startAddress, size, 0);
+        ReadOnlyMemoryDataSource dsForYara(hProcess, region.BaseAddress, region.RegionSize, 0);
+
+        auto startRangeRva = startAddress - region.BaseAddress;
+        scanner.SetIntVariable("OperationRangeStart", (int)startRangeRva);
+        scanner.SetIntVariable("OperationRangeEnd", (int)(startRangeRva + size));
+
         scanner.SetIntVariable("MemoryAttributes", MemoryHelperBase::protToFlags(region.Protect));
         scanner.SetIntVariable("MemoryType", (int)region.Type);
-        scanner.SetIntVariable("OperationType", (int)operation);
 
+        scanner.SetIntVariable("OperationType", (int)operation);
         if (externalOperation)
             scanner.SetIntVariable("ExternalOperation", 1);
-
         if (isAlignedAllocation)
             scanner.SetIntVariable("AlignedAllocation", 1);
 

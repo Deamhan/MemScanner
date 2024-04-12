@@ -8,6 +8,6 @@ rule GenericShellcode32 {
     $ModuleMemOrderList = { 8b ?? 14 }
     $ModuleInitOrderList = { 8b ?? 1c }
   condition:
-    (filesize <= 4096) and ((MemoryAttributes & XFlag) != 0) and $SelfPos and ($FsReadTeb or $FsReadPeb) and $ReadLdr and ($ModuleLoadOrderList or $ModuleMemOrderList or $ModuleInitOrderList)
+    (OperationRangeEnd - OperationRangeStart <= 4096) and ((MemoryAttributes & XFlag) != 0) and $SelfPos and ($FsReadTeb or $FsReadPeb) and $ReadLdr and ($ModuleLoadOrderList or $ModuleMemOrderList or $ModuleInitOrderList)
  }
  
