@@ -203,8 +203,8 @@ void DefaultCallbacks::OnSuspiciousMemoryRegionFound(const MemoryHelperBase::Fla
     if (!codeEntryPoints.empty())
     {
         GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\t\tRelated threads:" LOG_ENDLINE_STR);
-        for (const auto threadEP : codeEntryPoints)
-            GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\t\t\t0x%llx" LOG_ENDLINE_STR, (unsigned long long)threadEP);
+        for (const auto codeEP : codeEntryPoints)
+            GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"\t\t\t0x%llx" LOG_ENDLINE_STR, (unsigned long long)codeEP);
 
         GetDefaultLoggerForThread()->Log(mDefaultLoggingLevel, L"" LOG_ENDLINE_STR);
         scanRangesWithYara = true;
@@ -251,7 +251,7 @@ void DefaultCallbacks::OnHooksFound(const std::vector<HookDescription>& hooks, c
     }
 }
 
-static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64_t startAddress, uint64_t size, bool externalOperation,
+static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, HANDLE hProcess, uint64_t startAddress, uint64_t size, bool externalOperation,
     OperationType operation, bool isAlignedAllocation, const std::set<std::string>* detections,
     const std::wstring& dumpPath)
 {
@@ -268,12 +268,20 @@ static void WriteDumpMetadata(const MemoryHelperBase::MemInfoT64& region, uint64
     std::wstringstream result;
     result << L"{\n    \"Info\":\n";
     storeMBI(region, result, L"    ");
-    result << L",\n" << std::boolalpha
-        << L"    \"Operation\" : " << OperationTypeToText(operation) << L",\n"
-        << L"    \"ExternalOperation\" : " << externalOperation << L",\n"
-        << L"    \"AlignedAllocation\" : " << isAlignedAllocation << L",\n\n"
-        << L"    \"StartAddress\" : \"" << startAddress << L"\",\n"
-        << L"    \"Size\" : \"" << size;
+    result << L",\n" << std::boolalpha;
+    
+    if (region.Type == SystemDefinitions::MemType::Image)
+    {
+        auto imagePath = GetMemoryHelper().GetImageNameByAddress(hProcess, region.AllocationBase, nullptr);
+        if (!imagePath.empty())
+            result << L"    \"ImagePath\" : \"" << imagePath << L"\",\n";
+    }
+        
+    result << L"    \"Operation\" : \"" << OperationTypeToText(operation) << L"\",\n"
+           << L"    \"ExternalOperation\" : " << externalOperation << L",\n"
+           << L"    \"AlignedAllocation\" : " << isAlignedAllocation << L",\n\n"
+           << L"    \"StartAddress\" : \"" << startAddress << L"\",\n"
+           << L"    \"Size\" : \"" << size;
     
     if (detections)
     {
@@ -312,7 +320,8 @@ void DefaultCallbacks::OnYaraScan(const MemoryHelperBase::MemInfoT64& region, ui
 
     auto dumpFilePath = WriteMemoryDump(region, processDumpDir);
     if (!dumpFilePath.empty())
-        WriteDumpMetadata(region, startAddress, size, externalOperation, operation, isAlignedAllocation, detections, dumpFilePath);
+        WriteDumpMetadata(region, currentScanData.process, startAddress, size, externalOperation, operation, isAlignedAllocation,
+            detections, dumpFilePath);
 }
 
 void DefaultCallbacks::OnProcessScanBegin(uint32_t processId, LARGE_INTEGER creationTime, HANDLE hProcess, const std::wstring& processName)
