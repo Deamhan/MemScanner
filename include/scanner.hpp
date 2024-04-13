@@ -45,9 +45,9 @@ public:
 		virtual void OnWritableExecImageFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions, const std::wstring& imagePath,
 			const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) = 0;
 
-		virtual void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) = 0;
-		virtual void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase) = 0;
-		virtual void OnEntryPointModification(const wchar_t* imageName, uint64_t imageBase) = 0;
+		virtual void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, const AddressInfo* addressInfo = nullptr) = 0;
+		virtual void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase, const AddressInfo* addressInfo = nullptr) = 0;
+		virtual void OnEntryPointModification(const wchar_t* imageName, uint64_t imageBase, const AddressInfo* addressInfo = nullptr) = 0;
 
 		virtual void OnHiddenImage(const wchar_t* imageName, uint64_t imageBase) = 0;
 		virtual void OnDoppelgangingFound(uint64_t imageBase) = 0;

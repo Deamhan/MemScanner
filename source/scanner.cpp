@@ -319,11 +319,11 @@ void MemoryScanner::ScanProcessMemoryImpl(HANDLE hProcess, const std::vector<DWO
                             it->second.address, it->second.size);
 
                         if (privateCodeModificationFound)
-                            tlsCallbacks->OnPrivateCodeModification(imagePath.c_str(), group.first, rva, (uint32_t)it->second.size);
+                            tlsCallbacks->OnPrivateCodeModification(imagePath.c_str(), group.first, rva, &it->second);
 
                         bool imageHeadersModification = it->second.address < group.first + PAGE_SIZE;
                         if (imageHeadersModification)
-                            tlsCallbacks->OnImageHeadersModification(imagePath.c_str(), group.first);
+                            tlsCallbacks->OnImageHeadersModification(imagePath.c_str(), group.first, &it->second);
                     }
                 }
             }

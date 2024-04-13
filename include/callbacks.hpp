@@ -19,9 +19,9 @@ public:
     void OnWritableExecImageFound(const MemoryHelperBase::FlatMemoryMapT& continiousRegions, const std::wstring& imagePath,
 		const MemoryHelperBase::MemInfoT64& wxRegion, bool& scanWithYara) override;
 
-    void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, uint32_t size) override;
-	void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase) override;
-    void OnEntryPointModification(const wchar_t* imageName, uint64_t imageBase) override;
+    void OnPrivateCodeModification(const wchar_t* imageName, uint64_t imageBase, uint32_t rva, const AddressInfo* addressInfo = nullptr) override;
+	void OnImageHeadersModification(const wchar_t* imageName, uint64_t imageBase, const AddressInfo* addressInfo = nullptr) override;
+    void OnEntryPointModification(const wchar_t* imageName, uint64_t imageBase, const AddressInfo* addressInfo = nullptr) override;
 
     void OnHiddenImage(const wchar_t* imageName, uint64_t imageBase) override;
     void OnDoppelgangingFound(uint64_t imageBase) override;

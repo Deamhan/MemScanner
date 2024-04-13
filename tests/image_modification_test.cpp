@@ -19,12 +19,14 @@ public:
 		mPrivateCodeModification(false), mImageHeadersModification(false)
 	{}
 
-	void OnPrivateCodeModification(const wchar_t* /*imageName*/, uint64_t /*imageBase*/ , uint32_t /*rva*/, uint32_t /*size*/) override
+	void OnPrivateCodeModification(const wchar_t* /*imageName*/, uint64_t /*imageBase*/ , uint32_t /*rva*/, 
+		const AddressInfo* addressInfo = nullptr) override
 	{
 		mPrivateCodeModification = true;
 	}
 
-	void OnImageHeadersModification(const wchar_t* /*imageName*/, uint64_t /*imageBase*/) override
+	void OnImageHeadersModification(const wchar_t* /*imageName*/, uint64_t /*imageBase*/,
+		const AddressInfo* addressInfo = nullptr) override
 	{
 		mImageHeadersModification = true;
 	}
